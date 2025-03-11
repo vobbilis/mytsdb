@@ -1,0 +1,51 @@
+name: Coverage
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake ninja-build lcov
+        sudo apt-get install -y libspdlog-dev googletest
+        sudo apt-get install -y gcc-11 g++-11
+
+    - name: Configure CMake
+      env:
+        CC: gcc-11
+        CXX: g++-11
+      run: |
+        cmake -B ${{github.workspace}}/build \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -DBUILD_TESTS=ON \
+              -DENABLE_COVERAGE=ON \
+              -G Ninja
+
+    - name: Build
+      run: cmake --build ${{github.workspace}}/build
+
+    - name: Test
+      working-directory: ${{github.workspace}}/build
+      run: ctest --output-on-failure
+
+    - name: Generate Coverage Report
+      run: |
+        lcov --directory ${{github.workspace}}/build --capture --output-file coverage.info
+        lcov --remove coverage.info '/usr/*' '*/test/*' --output-file coverage.info
+        lcov --list coverage.info
+
+    - name: Upload Coverage Report
+      uses: codecov/codecov-action@v3
+      with:
+        files: ./coverage.info
+        fail_ci_if_error: true 

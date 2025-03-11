@@ -1,0 +1,12 @@
+#pragma once
+
+#define TSDB_TEST_DATA_DIR "@TSDB_TEST_DATA_DIR@"
+
+// Test data paths
+#define TSDB_TEST_BLOCKS_DIR TSDB_TEST_DATA_DIR "/storage/blocks"
+#define TSDB_TEST_HISTOGRAMS_DIR TSDB_TEST_DATA_DIR "/storage/histograms"
+#define TSDB_TEST_COMPRESSION_DIR TSDB_TEST_DATA_DIR "/storage/compression"
+
+// Test configuration
+#cmakedefine ENABLE_SIMD
+#cmakedefine COMPILER_SUPPORTS_AVX512 

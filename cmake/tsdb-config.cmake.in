@@ -1,0 +1,34 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find dependencies
+find_dependency(Threads REQUIRED)
+find_dependency(spdlog 1.9.0 REQUIRED)
+
+# Optional dependencies
+if(@ENABLE_OTEL@)
+    # OpenTelemetry is included as a submodule, so we need to ensure it's available
+    if(NOT TARGET opentelemetry-cpp)
+        message(FATAL_ERROR "OpenTelemetry targets not found. Please ensure the submodule is initialized.")
+    endif()
+endif()
+
+# Include targets file
+include("${CMAKE_CURRENT_LIST_DIR}/tsdb-targets.cmake")
+
+# Component configuration
+set(TSDB_VERSION @PROJECT_VERSION@)
+set(TSDB_ENABLE_SIMD @ENABLE_SIMD@)
+set(TSDB_ENABLE_OTEL @ENABLE_OTEL@)
+
+# Compiler features
+set(TSDB_CXX_STANDARD @CMAKE_CXX_STANDARD@)
+set(TSDB_SUPPORTS_AVX512 @COMPILER_SUPPORTS_AVX512@)
+
+# Check if the implementation matches the client's requirements
+check_required_components(tsdb)
+
+# Convenience variables for include directories
+set_and_check(TSDB_INCLUDE_DIR "@PACKAGE_CMAKE_INSTALL_INCLUDEDIR@")
+set_and_check(TSDB_LIB_DIR "@PACKAGE_CMAKE_INSTALL_LIBDIR@") 

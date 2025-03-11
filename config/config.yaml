@@ -1,0 +1,63 @@
+storage:
+  # Storage engine configuration
+  data_dir: "data"
+  block_size: 67108864  # 64MB
+  max_block_age: 7200   # 2 hours
+  max_blocks_to_compact: 3
+  cache_size: 1073741824  # 1GB
+  enable_compression: true
+
+  # Retention configuration
+  retention:
+    high_frequency: 86400    # 1 day
+    normal: 604800          # 1 week
+    low_frequency: 31536000  # 1 year
+
+  # Granularity configuration
+  granularity:
+    high_frequency:
+      min_interval: "100us"
+      max_samples_per_block: 1000000
+    normal:
+      min_interval: "1s"
+      max_samples_per_block: 100000
+    low_frequency:
+      min_interval: "1m"
+      max_samples_per_block: 10000
+
+histogram:
+  # Histogram configuration
+  default_type: "exponential"
+  fixed_bucket:
+    default_boundaries: [0.1, 0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000]
+  exponential:
+    base: 2.0
+    scale: 2
+  ddsketch:
+    alpha: 0.01
+
+otel:
+  # OpenTelemetry configuration
+  server_address: "0.0.0.0:4317"
+  batch_size: 1000
+  batch_timeout: "1s"
+  max_queue_size: 10000
+  preserve_exemplars: true
+  preserve_resource_attributes: true
+  preserve_scope_attributes: true
+
+query:
+  # Query engine configuration
+  max_concurrent_queries: 32
+  query_timeout: "30s"
+  max_points_per_series: 1000000
+  cache_size: 1073741824  # 1GB
+
+logging:
+  # Logging configuration
+  level: "info"
+  format: "json"
+  file: "logs/tsdb.log"
+  max_size: 104857600  # 100MB
+  max_files: 10
+  compress: true 

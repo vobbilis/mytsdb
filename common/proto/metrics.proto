@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package tsdb.common;
+
+option go_package = "github.com/vobbilis/go-tsdb/internal/types";
+
+// Label represents a key-value pair
+message Label {
+    string name = 1;
+    string value = 2;
+}
+
+// Sample represents a single time series data point
+message Sample {
+    int64 timestamp = 1;
+    double value = 2;
+}
+
+// Series represents a time series with its labels and samples
+message Series {
+    repeated Label labels = 1;
+    repeated Sample samples = 2;
+}
