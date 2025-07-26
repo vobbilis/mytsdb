@@ -8,13 +8,18 @@
 #include "tsdb/storage/storage_impl.h"
 #include <csignal>
 #include <thread>
+#include <atomic>
 
 namespace {
-volatile std::sig_atomic_t g_running = 1;
+std::atomic<bool> g_running{true};
+tsdb::TSDBServer* g_server = nullptr;
 
 void SignalHandler(int signal) {
     spdlog::info("Received signal {}, shutting down...", signal);
-    g_running = 0;
+    g_running.store(false);
+    if (g_server) {
+        g_server->Stop();
+    }
 }
 }  // namespace
 
@@ -53,7 +58,7 @@ public:
     }
 
     void RunCompactionTask() {
-        while (!shutdown_) {
+        while (!shutdown_.load() && g_running.load()) {
             auto result = storage_->compact();
             if (!result.ok()) {
                 spdlog::error("Compaction failed: {}", result.error().what());
@@ -63,7 +68,7 @@ public:
     }
 
     void RunFlushTask() {
-        while (!shutdown_) {
+        while (!shutdown_.load() && g_running.load()) {
             auto result = storage_->flush();
             if (!result.ok()) {
                 spdlog::error("Flush failed: {}", result.error().what());
@@ -79,7 +84,7 @@ public:
 
     void Stop() {
         if (server_) {
-            shutdown_ = true;
+            shutdown_.store(true);
             server_->Shutdown();
             if (compaction_thread_.joinable()) {
                 compaction_thread_.join();
@@ -92,7 +97,11 @@ public:
 
     void Wait() {
         if (server_) {
-            server_->Wait();
+            // Wait for shutdown signal in a loop
+            while (g_running.load()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            }
+            Stop();
         }
     }
 
@@ -115,12 +124,14 @@ int main([[maybe_unused]] int argc, [[maybe_unused]] char* argv[]) {
     
     try {
         tsdb::TSDBServer server("0.0.0.0:50051");
+        g_server = &server;
         
         if (!server.Start()) {
             return 1;
         }
 
         server.Wait();
+        g_server = nullptr;
         return 0;
     } catch (const std::exception& e) {
         spdlog::error("Fatal error: {}", e.what());
