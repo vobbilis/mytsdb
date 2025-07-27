@@ -1,5 +1,9 @@
 #include "tsdb/otel/bridge_impl.h"
 #include <spdlog/spdlog.h>
+#include "opentelemetry/proto/metrics/v1/metrics.pb.h"
+#include "opentelemetry/proto/collector/metrics/v1/metrics_service.pb.h"
+#include "opentelemetry/proto/common/v1/common.pb.h"
+#include "opentelemetry/proto/resource/v1/resource.pb.h"
 
 namespace tsdb {
 namespace otel {

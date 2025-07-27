@@ -39,10 +39,44 @@ std::vector<uint8_t> SimpleTimestampCompressor::compress(const std::vector<int64
         return std::vector<uint8_t>();
     }
 
-    // For now, just store raw bytes
     std::vector<uint8_t> result;
-    result.resize(timestamps.size() * sizeof(int64_t));
-    std::memcpy(result.data(), timestamps.data(), result.size());
+    result.reserve(timestamps.size() * sizeof(int64_t) + sizeof(uint32_t));
+    
+    // Write header: number of timestamps
+    uint32_t count = static_cast<uint32_t>(timestamps.size());
+    result.insert(result.end(), 
+                 reinterpret_cast<uint8_t*>(&count),
+                 reinterpret_cast<uint8_t*>(&count) + sizeof(count));
+    
+    // Delta compression for timestamps
+    int64_t prev_timestamp = timestamps[0];
+    result.insert(result.end(), 
+                 reinterpret_cast<const uint8_t*>(&prev_timestamp),
+                 reinterpret_cast<const uint8_t*>(&prev_timestamp) + sizeof(prev_timestamp));
+    
+    for (size_t i = 1; i < timestamps.size(); i++) {
+        int64_t delta = timestamps[i] - prev_timestamp;
+        
+        // Variable-length encoding for deltas
+        if (delta == 0) {
+            result.push_back(0x00); // 1 byte for zero delta
+        } else if (delta >= -127 && delta <= 127) {
+            result.push_back(0x01); // 1 byte flag
+            result.push_back(static_cast<uint8_t>(delta));
+        } else if (delta >= -32767 && delta <= 32767) {
+            result.push_back(0x02); // 2 byte flag
+            result.push_back(static_cast<uint8_t>(delta & 0xFF));
+            result.push_back(static_cast<uint8_t>((delta >> 8) & 0xFF));
+        } else {
+            result.push_back(0x03); // 8 byte flag
+            result.insert(result.end(),
+                        reinterpret_cast<uint8_t*>(&delta),
+                        reinterpret_cast<uint8_t*>(&delta) + sizeof(delta));
+        }
+        
+        prev_timestamp = timestamps[i];
+    }
+    
     return result;
 }
 
@@ -51,16 +85,60 @@ std::vector<int64_t> SimpleTimestampCompressor::decompress(const std::vector<uin
         return std::vector<int64_t>();
     }
 
-    // Validate that data size is properly aligned
-    if (data.size() % sizeof(int64_t) != 0) {
-        // Return empty vector for invalid data instead of causing buffer overflow
+    if (data.size() < sizeof(uint32_t)) {
         return std::vector<int64_t>();
     }
 
     std::vector<int64_t> result;
-    size_t count = data.size() / sizeof(int64_t);
-    result.resize(count);
-    std::memcpy(result.data(), data.data(), data.size());
+    
+    // Read header: number of timestamps
+    uint32_t count = 0;
+    std::memcpy(&count, data.data(), sizeof(count));
+    result.reserve(count);
+    
+    size_t pos = sizeof(count);
+    
+    // Read first timestamp
+    if (pos + sizeof(int64_t) <= data.size()) {
+        int64_t timestamp = 0;
+        std::memcpy(&timestamp, &data[pos], sizeof(timestamp));
+        result.push_back(timestamp);
+        pos += sizeof(int64_t);
+        
+        // Decompress remaining timestamps
+        while (pos < data.size() && result.size() < count) {
+            if (pos >= data.size()) break;
+            
+            uint8_t flag = data[pos++];
+            
+            int64_t delta = 0;
+            switch (flag) {
+                case 0x00: // Zero delta
+                    delta = 0;
+                    break;
+                case 0x01: // 1 byte delta
+                    if (pos >= data.size()) break;
+                    delta = static_cast<int8_t>(data[pos++]);
+                    break;
+                case 0x02: // 2 byte delta
+                    if (pos + 1 >= data.size()) break;
+                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    pos += 2;
+                    break;
+                case 0x03: // 8 byte delta
+                    if (pos + sizeof(int64_t) > data.size()) break;
+                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    pos += sizeof(delta);
+                    break;
+                default:
+                    break;
+            }
+            
+            timestamp += delta;
+            result.push_back(timestamp);
+        }
+    }
+    
     return result;
 }
 
@@ -74,10 +152,62 @@ std::vector<uint8_t> SimpleValueCompressor::compress(const std::vector<double>& 
         return std::vector<uint8_t>();
     }
 
-    // For now, just store raw bytes
     std::vector<uint8_t> result;
-    result.resize(values.size() * sizeof(double));
-    std::memcpy(result.data(), values.data(), result.size());
+    result.reserve(values.size() * sizeof(double) + sizeof(uint32_t));
+    
+    // Write header: number of values
+    uint32_t count = static_cast<uint32_t>(values.size());
+    result.insert(result.end(), 
+                 reinterpret_cast<uint8_t*>(&count),
+                 reinterpret_cast<uint8_t*>(&count) + sizeof(count));
+    
+    // XOR compression for double values
+    uint64_t prev_value = 0;
+    std::memcpy(&prev_value, &values[0], sizeof(double));
+    result.insert(result.end(), 
+                 reinterpret_cast<const uint8_t*>(&values[0]),
+                 reinterpret_cast<const uint8_t*>(&values[0]) + sizeof(double));
+    
+    for (size_t i = 1; i < values.size(); i++) {
+        uint64_t current_value = 0;
+        std::memcpy(&current_value, &values[i], sizeof(double));
+        
+        uint64_t xor_value = current_value ^ prev_value;
+        
+        // Encode XOR value using variable-length encoding
+        if (xor_value == 0) {
+            result.push_back(0x00); // 1 byte for zero XOR
+        } else {
+            // Count leading zeros
+            int leading_zeros = count_leading_zeros(xor_value);
+            int trailing_zeros = count_trailing_zeros(xor_value);
+            int significant_bits = 64 - leading_zeros - trailing_zeros;
+            
+            if (significant_bits <= 8) {
+                result.push_back(0x01); // 1 byte flag
+                result.push_back(static_cast<uint8_t>(xor_value >> trailing_zeros));
+            } else if (significant_bits <= 16) {
+                result.push_back(0x02); // 2 byte flag
+                uint16_t encoded = static_cast<uint16_t>(xor_value >> trailing_zeros);
+                result.push_back(static_cast<uint8_t>(encoded & 0xFF));
+                result.push_back(static_cast<uint8_t>((encoded >> 8) & 0xFF));
+            } else if (significant_bits <= 32) {
+                result.push_back(0x03); // 4 byte flag
+                uint32_t encoded = static_cast<uint32_t>(xor_value >> trailing_zeros);
+                result.insert(result.end(),
+                            reinterpret_cast<uint8_t*>(&encoded),
+                            reinterpret_cast<uint8_t*>(&encoded) + sizeof(encoded));
+            } else {
+                result.push_back(0x04); // 8 byte flag
+                result.insert(result.end(),
+                            reinterpret_cast<uint8_t*>(&xor_value),
+                            reinterpret_cast<uint8_t*>(&xor_value) + sizeof(xor_value));
+            }
+        }
+        
+        prev_value = current_value;
+    }
+    
     return result;
 }
 
@@ -86,16 +216,71 @@ std::vector<double> SimpleValueCompressor::decompress(const std::vector<uint8_t>
         return std::vector<double>();
     }
 
-    // Validate that data size is properly aligned
-    if (data.size() % sizeof(double) != 0) {
-        // Return empty vector for invalid data instead of causing buffer overflow
+    if (data.size() < sizeof(uint32_t)) {
         return std::vector<double>();
     }
 
     std::vector<double> result;
-    size_t count = data.size() / sizeof(double);
-    result.resize(count);
-    std::memcpy(result.data(), data.data(), data.size());
+    
+    // Read header: number of values
+    uint32_t count = 0;
+    std::memcpy(&count, data.data(), sizeof(count));
+    result.reserve(count);
+    
+    size_t pos = sizeof(count);
+    
+    // Read first value
+    if (pos + sizeof(double) <= data.size()) {
+        double value = 0.0;
+        std::memcpy(&value, &data[pos], sizeof(double));
+        result.push_back(value);
+        pos += sizeof(double);
+        
+        uint64_t prev_value = 0;
+        std::memcpy(&prev_value, &value, sizeof(double));
+        
+        // Decompress remaining values
+        while (pos < data.size() && result.size() < count) {
+            if (pos >= data.size()) break;
+            
+            uint8_t flag = data[pos++];
+            
+            uint64_t xor_value = 0;
+            switch (flag) {
+                case 0x00: // Zero XOR
+                    xor_value = 0;
+                    break;
+                case 0x01: // 1 byte XOR
+                    if (pos >= data.size()) break;
+                    xor_value = static_cast<uint8_t>(data[pos++]);
+                    break;
+                case 0x02: // 2 byte XOR
+                    if (pos + 1 >= data.size()) break;
+                    xor_value = static_cast<uint16_t>(data[pos] | (data[pos + 1] << 8));
+                    pos += 2;
+                    break;
+                case 0x03: // 4 byte XOR
+                    if (pos + sizeof(uint32_t) > data.size()) break;
+                    std::memcpy(&xor_value, &data[pos], sizeof(uint32_t));
+                    pos += sizeof(uint32_t);
+                    break;
+                case 0x04: // 8 byte XOR
+                    if (pos + sizeof(uint64_t) > data.size()) break;
+                    std::memcpy(&xor_value, &data[pos], sizeof(uint64_t));
+                    pos += sizeof(uint64_t);
+                    break;
+                default:
+                    break;
+            }
+            
+            uint64_t current_value = prev_value ^ xor_value;
+            double current_double = 0.0;
+            std::memcpy(&current_double, &current_value, sizeof(double));
+            result.push_back(current_double);
+            prev_value = current_value;
+        }
+    }
+    
     return result;
 }
 
@@ -156,13 +341,137 @@ void SimpleLabelCompressor::clear() {
 
 // GorillaCompressor implementation
 core::Result<std::vector<uint8_t>> GorillaCompressor::compress(const std::vector<uint8_t>& data) {
-    // TODO: Implement Gorilla compression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+
+    // For Gorilla compression, we expect the data to be a sequence of timestamps and values
+    // We'll implement a simplified version that compresses timestamps using delta encoding
+    // and values using XOR compression
+    
+    std::vector<uint8_t> compressed;
+    compressed.reserve(data.size()); // Reserve space, will be smaller
+    
+    // Write header: original size
+    uint32_t original_size = static_cast<uint32_t>(data.size());
+    compressed.insert(compressed.end(), 
+                     reinterpret_cast<uint8_t*>(&original_size),
+                     reinterpret_cast<uint8_t*>(&original_size) + sizeof(original_size));
+    
+    // Simple delta compression for timestamps
+    // Assume data contains 64-bit timestamps
+    if (data.size() >= sizeof(int64_t)) {
+        int64_t prev_timestamp = 0;
+        std::memcpy(&prev_timestamp, data.data(), sizeof(int64_t));
+        
+        // Write first timestamp as-is
+        compressed.insert(compressed.end(), data.begin(), data.begin() + sizeof(int64_t));
+        
+        // Compress remaining timestamps using delta encoding
+        for (size_t i = sizeof(int64_t); i < data.size(); i += sizeof(int64_t)) {
+            if (i + sizeof(int64_t) <= data.size()) {
+                int64_t current_timestamp = 0;
+                std::memcpy(&current_timestamp, &data[i], sizeof(int64_t));
+                
+                int64_t delta = current_timestamp - prev_timestamp;
+                
+                // Encode delta using variable-length encoding
+                if (delta == 0) {
+                    compressed.push_back(0x00); // 1 byte for zero delta
+                } else if (delta >= -127 && delta <= 127) {
+                    compressed.push_back(0x01); // 1 byte flag
+                    compressed.push_back(static_cast<uint8_t>(delta));
+                } else if (delta >= -32767 && delta <= 32767) {
+                    compressed.push_back(0x02); // 2 byte flag
+                    compressed.push_back(static_cast<uint8_t>(delta & 0xFF));
+                    compressed.push_back(static_cast<uint8_t>((delta >> 8) & 0xFF));
+                } else {
+                    compressed.push_back(0x03); // 8 byte flag
+                    compressed.insert(compressed.end(),
+                                    reinterpret_cast<uint8_t*>(&delta),
+                                    reinterpret_cast<uint8_t*>(&delta) + sizeof(delta));
+                }
+                
+                prev_timestamp = current_timestamp;
+            }
+        }
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(compressed));
 }
 
 core::Result<std::vector<uint8_t>> GorillaCompressor::decompress(const std::vector<uint8_t>& data) {
-    // TODO: Implement Gorilla decompression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+    
+    if (data.size() < sizeof(uint32_t)) {
+        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: too small");
+    }
+    
+    std::vector<uint8_t> decompressed;
+    
+    // Read header: original size
+    uint32_t original_size = 0;
+    std::memcpy(&original_size, data.data(), sizeof(original_size));
+    decompressed.reserve(original_size);
+    
+    size_t pos = sizeof(original_size);
+    
+    // Read first timestamp
+    if (pos + sizeof(int64_t) <= data.size()) {
+        decompressed.insert(decompressed.end(), 
+                           data.begin() + pos, 
+                           data.begin() + pos + sizeof(int64_t));
+        pos += sizeof(int64_t);
+        
+        int64_t prev_timestamp = 0;
+        std::memcpy(&prev_timestamp, decompressed.data(), sizeof(int64_t));
+        
+        // Decompress remaining timestamps
+        while (pos < data.size() && decompressed.size() < original_size) {
+            if (pos >= data.size()) break;
+            
+            uint8_t flag = data[pos++];
+            
+            int64_t delta = 0;
+            switch (flag) {
+                case 0x00: // Zero delta
+                    delta = 0;
+                    break;
+                case 0x01: // 1 byte delta
+                    if (pos >= data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    delta = static_cast<int8_t>(data[pos++]);
+                    break;
+                case 0x02: // 2 byte delta
+                    if (pos + 1 >= data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    pos += 2;
+                    break;
+                case 0x03: // 8 byte delta
+                    if (pos + sizeof(int64_t) > data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    pos += sizeof(delta);
+                    break;
+                default:
+                    return core::Result<std::vector<uint8_t>>::error("Invalid compression flag");
+            }
+            
+            int64_t current_timestamp = prev_timestamp + delta;
+            decompressed.insert(decompressed.end(),
+                              reinterpret_cast<uint8_t*>(&current_timestamp),
+                              reinterpret_cast<uint8_t*>(&current_timestamp) + sizeof(current_timestamp));
+            prev_timestamp = current_timestamp;
+        }
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(decompressed));
 }
 
 core::Result<size_t> GorillaCompressor::compressChunk(
@@ -209,13 +518,81 @@ bool GorillaCompressor::is_compressed() const {
 
 // RLECompressor implementation
 core::Result<std::vector<uint8_t>> RLECompressor::compress(const std::vector<uint8_t>& data) {
-    // TODO: Implement RLE compression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+
+    std::vector<uint8_t> compressed;
+    compressed.reserve(data.size() + sizeof(uint32_t)); // Reserve space for header
+    
+    // Write header: original size
+    uint32_t original_size = static_cast<uint32_t>(data.size());
+    compressed.insert(compressed.end(), 
+                     reinterpret_cast<uint8_t*>(&original_size),
+                     reinterpret_cast<uint8_t*>(&original_size) + sizeof(original_size));
+    
+    // Run-Length Encoding
+    uint8_t current_byte = data[0];
+    uint32_t run_length = 1;
+    
+    for (size_t i = 1; i < data.size(); i++) {
+        if (data[i] == current_byte && run_length < 65535) {
+            run_length++;
+        } else {
+            // Write run - handle runs longer than 255
+            while (run_length > 0) {
+                uint16_t chunk_size = (run_length > 255) ? 255 : static_cast<uint16_t>(run_length);
+                compressed.push_back(current_byte);
+                compressed.push_back(static_cast<uint8_t>(chunk_size));
+                run_length -= chunk_size;
+            }
+            
+            // Start new run
+            current_byte = data[i];
+            run_length = 1;
+        }
+    }
+    
+    // Write final run
+    while (run_length > 0) {
+        uint16_t chunk_size = (run_length > 255) ? 255 : static_cast<uint16_t>(run_length);
+        compressed.push_back(current_byte);
+        compressed.push_back(static_cast<uint8_t>(chunk_size));
+        run_length -= chunk_size;
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(compressed));
 }
 
 core::Result<std::vector<uint8_t>> RLECompressor::decompress(const std::vector<uint8_t>& data) {
-    // TODO: Implement RLE decompression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+    
+    if (data.size() < sizeof(uint32_t)) {
+        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: too small");
+    }
+    
+    std::vector<uint8_t> decompressed;
+    
+    // Read header: original size
+    uint32_t original_size = 0;
+    std::memcpy(&original_size, data.data(), sizeof(original_size));
+    decompressed.reserve(original_size);
+    
+    size_t pos = sizeof(original_size);
+    
+    // Decompress RLE data
+    while (pos + 1 < data.size()) {
+        uint8_t value = data[pos++];
+        uint8_t count = data[pos++];
+        
+        for (uint8_t i = 0; i < count; i++) {
+            decompressed.push_back(value);
+        }
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(decompressed));
 }
 
 core::Result<size_t> RLECompressor::compressChunk(
@@ -262,13 +639,133 @@ bool RLECompressor::is_compressed() const {
 
 // XORCompressor implementation
 core::Result<std::vector<uint8_t>> XORCompressor::compress(const std::vector<uint8_t>& data) {
-    // TODO: Implement XOR compression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+
+    std::vector<uint8_t> compressed;
+    compressed.reserve(data.size() + sizeof(uint32_t)); // Reserve space for header
+    
+    // Write header: original size
+    uint32_t original_size = static_cast<uint32_t>(data.size());
+    compressed.insert(compressed.end(), 
+                     reinterpret_cast<uint8_t*>(&original_size),
+                     reinterpret_cast<uint8_t*>(&original_size) + sizeof(original_size));
+    
+    // For timestamp data, use delta encoding instead of XOR
+    // Assume data contains 64-bit timestamps
+    if (data.size() >= sizeof(int64_t)) {
+        int64_t prev_timestamp = 0;
+        std::memcpy(&prev_timestamp, data.data(), sizeof(int64_t));
+        
+        // Write first timestamp as-is
+        compressed.insert(compressed.end(), data.begin(), data.begin() + sizeof(int64_t));
+        
+        // Compress remaining timestamps using delta encoding
+        for (size_t i = sizeof(int64_t); i < data.size(); i += sizeof(int64_t)) {
+            if (i + sizeof(int64_t) <= data.size()) {
+                int64_t current_timestamp = 0;
+                std::memcpy(&current_timestamp, &data[i], sizeof(int64_t));
+                
+                int64_t delta = current_timestamp - prev_timestamp;
+                
+                // Encode delta using variable-length encoding
+                if (delta == 0) {
+                    compressed.push_back(0x00); // 1 byte for zero delta
+                } else if (delta >= -127 && delta <= 127) {
+                    compressed.push_back(0x01); // 1 byte flag
+                    compressed.push_back(static_cast<uint8_t>(delta));
+                } else if (delta >= -32767 && delta <= 32767) {
+                    compressed.push_back(0x02); // 2 byte flag
+                    compressed.push_back(static_cast<uint8_t>(delta & 0xFF));
+                    compressed.push_back(static_cast<uint8_t>((delta >> 8) & 0xFF));
+                } else {
+                    compressed.push_back(0x03); // 8 byte flag
+                    compressed.insert(compressed.end(),
+                                    reinterpret_cast<uint8_t*>(&delta),
+                                    reinterpret_cast<uint8_t*>(&delta) + sizeof(delta));
+                }
+                
+                prev_timestamp = current_timestamp;
+            }
+        }
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(compressed));
 }
 
 core::Result<std::vector<uint8_t>> XORCompressor::decompress(const std::vector<uint8_t>& data) {
-    // TODO: Implement XOR decompression
-    return core::Result<std::vector<uint8_t>>(data);
+    if (data.empty()) {
+        return core::Result<std::vector<uint8_t>>(std::vector<uint8_t>());
+    }
+    
+    if (data.size() < sizeof(uint32_t)) {
+        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: too small");
+    }
+    
+    std::vector<uint8_t> decompressed;
+    
+    // Read header: original size
+    uint32_t original_size = 0;
+    std::memcpy(&original_size, data.data(), sizeof(original_size));
+    decompressed.reserve(original_size);
+    
+    size_t pos = sizeof(original_size);
+    
+    // Read first timestamp
+    if (pos + sizeof(int64_t) <= data.size()) {
+        decompressed.insert(decompressed.end(), 
+                           data.begin() + pos, 
+                           data.begin() + pos + sizeof(int64_t));
+        pos += sizeof(int64_t);
+        
+        int64_t prev_timestamp = 0;
+        std::memcpy(&prev_timestamp, decompressed.data(), sizeof(int64_t));
+        
+        // Decompress remaining timestamps
+        while (pos < data.size() && decompressed.size() < original_size) {
+            if (pos >= data.size()) break;
+            
+            uint8_t flag = data[pos++];
+            
+            int64_t delta = 0;
+            switch (flag) {
+                case 0x00: // Zero delta
+                    delta = 0;
+                    break;
+                case 0x01: // 1 byte delta
+                    if (pos >= data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    delta = static_cast<int8_t>(data[pos++]);
+                    break;
+                case 0x02: // 2 byte delta
+                    if (pos + 1 >= data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    pos += 2;
+                    break;
+                case 0x03: // 8 byte delta
+                    if (pos + sizeof(int64_t) > data.size()) {
+                        return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
+                    }
+                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    pos += sizeof(delta);
+                    break;
+                default:
+                    return core::Result<std::vector<uint8_t>>::error("Invalid compression flag");
+            }
+            
+            int64_t current_timestamp = prev_timestamp + delta;
+            decompressed.insert(decompressed.end(),
+                              reinterpret_cast<uint8_t*>(&current_timestamp),
+                              reinterpret_cast<uint8_t*>(&current_timestamp) + sizeof(current_timestamp));
+            prev_timestamp = current_timestamp;
+        }
+    }
+    
+    return core::Result<std::vector<uint8_t>>(std::move(decompressed));
 }
 
 core::Result<size_t> XORCompressor::compressChunk(

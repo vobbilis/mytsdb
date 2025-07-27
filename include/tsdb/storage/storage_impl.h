@@ -12,7 +12,6 @@
 
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
-#include "tsdb/core/interfaces.h"
 #include "tsdb/storage/block_manager.h"
 #include "tsdb/storage/granularity.h"
 #include "tsdb/storage/storage.h"
@@ -24,15 +23,15 @@ namespace storage {
 
 // Forward declaration
 class Series;
-
-/**
+    
+    /**
  * @brief Implementation of the Storage interface
  */
 class StorageImpl : public Storage {
 public:
     StorageImpl();
     ~StorageImpl() override;
-
+    
     // Implement pure virtual methods from Storage interface
     core::Result<void> init(const core::StorageConfig& config) override;
     core::Result<void> write(const core::TimeSeries& series) override;
@@ -58,9 +57,10 @@ private:
     mutable std::shared_mutex mutex_;
     std::shared_ptr<BlockManager> block_manager_;
     bool initialized_;
+    std::vector<core::TimeSeries> stored_series_;  // In-memory storage for series
 };
 
 } // namespace storage
-} // namespace tsdb
+} // namespace tsdb 
 
 #endif  // TSDB_STORAGE_STORAGE_IMPL_H_ 

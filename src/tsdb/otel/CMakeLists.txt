@@ -6,6 +6,12 @@ target_sources(tsdb_otel_impl
         bridge_impl.cpp
         bridge_factory.cpp
         metrics_service.cpp
+        ../proto/gen/opentelemetry/proto/metrics/v1/metrics.pb.cc
+        ../proto/gen/opentelemetry/proto/metrics/v1/metrics.grpc.pb.cc
+        ../proto/gen/opentelemetry/proto/collector/metrics/v1/metrics_service.pb.cc
+        ../proto/gen/opentelemetry/proto/collector/metrics/v1/metrics_service.grpc.pb.cc
+        ../proto/gen/opentelemetry/proto/common/v1/common.pb.cc
+        ../proto/gen/opentelemetry/proto/resource/v1/resource.pb.cc
 )
 
 target_include_directories(tsdb_otel_impl
@@ -14,6 +20,7 @@ target_include_directories(tsdb_otel_impl
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/../proto/gen
 )
 
 target_link_libraries(tsdb_otel_impl

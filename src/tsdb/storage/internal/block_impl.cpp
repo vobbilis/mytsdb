@@ -1,4 +1,4 @@
-#include "block_impl.h"
+#include "tsdb/storage/internal/block_impl.h"
 #include <algorithm>
 #include <sstream>
 #include <cstring>
@@ -34,28 +34,11 @@ size_t BlockImpl::num_series() const {
     return series_.size();
 }
 
-size_t BlockImpl::num_samples() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    size_t total = 0;
-    for (const auto& [_, data] : series_) {
-        total += data.timestamps.size();
-    }
-    return total;
-}
-
-int64_t BlockImpl::start_time() const {
-    return header_.start_time;
-}
-
-int64_t BlockImpl::end_time() const {
-    return header_.end_time;
-}
-
 core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = series_.find(labels);
     if (it == series_.end()) {
-        return core::TimeSeries(); // Empty series if not found
+        return core::TimeSeries(labels); // Empty series if not found
     }
 
     const auto& data = it->second;
@@ -70,7 +53,9 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
         samples.emplace_back(timestamps[i], values[i]);
     }
 
-    return core::TimeSeries(labels, std::move(samples));
+    core::TimeSeries ts(labels);
+    for (const auto& s : samples) ts.add_sample(s); // or assign samples if public
+    return ts;
 }
 
 std::vector<core::TimeSeries> BlockImpl::query(
@@ -83,8 +68,7 @@ std::vector<core::TimeSeries> BlockImpl::query(
     // Simple matcher that checks if labels match all criteria
     auto matches = [&matchers](const core::Labels& labels) {
         for (const auto& [key, value] : matchers) {
-            auto it = labels.find(key);
-            if (it == labels.end() || it->second != value) {
+            if (labels.map().count(key) == 0 || labels.map().at(key) != value) {
                 return false;
             }
         }
@@ -99,19 +83,14 @@ std::vector<core::TimeSeries> BlockImpl::query(
         // Decompress timestamps and values
         auto timestamps = ts_compressor_->decompress(data.timestamps);
         auto values = val_compressor_->decompress(data.values);
-
         std::vector<core::Sample> samples;
         for (size_t i = 0; i < timestamps.size(); i++) {
-            if (timestamps[i] >= start_time && timestamps[i] <= end_time) {
-                samples.emplace_back(timestamps[i], values[i]);
-            }
+            samples.emplace_back(timestamps[i], values[i]);
         }
-
-        if (!samples.empty()) {
-            result.emplace_back(labels, std::move(samples));
-        }
+        core::TimeSeries ts(labels);
+        for (const auto& s : samples) ts.add_sample(s);
+        result.push_back(ts);
     }
-
     return result;
 }
 

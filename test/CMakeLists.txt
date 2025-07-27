@@ -22,8 +22,8 @@ configure_file(
     ${CMAKE_CURRENT_BINARY_DIR}/test_config.h
 )
 
-# Unit tests - temporarily disabled
-# add_subdirectory(unit)
+# Unit tests
+add_subdirectory(unit)
 
 # Integration tests - temporarily disabled
 # add_subdirectory(integration)

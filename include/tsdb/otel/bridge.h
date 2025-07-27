@@ -11,6 +11,11 @@
 #include "tsdb/core/metric.h"
 #include "tsdb/storage/storage.h"
 
+#include "opentelemetry/proto/metrics/v1/metrics.pb.h"
+#include "opentelemetry/proto/collector/metrics/v1/metrics_service.pb.h"
+#include "opentelemetry/proto/common/v1/common.pb.h"
+#include "opentelemetry/proto/resource/v1/resource.pb.h"
+
 // Conditional includes for gRPC
 // For now, we'll disable gRPC functionality if not available
 #ifdef HAVE_GRPC
@@ -223,6 +228,7 @@ public:
     virtual std::shared_ptr<Bridge> create(const OTELMetricsBridgeOptions& config) = 0;
 };
 
+#ifdef HAVE_GRPC
 /**
  * @brief OpenTelemetry metrics service implementation
  */
@@ -240,6 +246,7 @@ private:
     std::shared_ptr<storage::Storage> storage_;
     std::shared_ptr<Bridge> bridge_;
 };
+#endif
 
 /**
  * @brief Create a new OpenTelemetry metrics bridge

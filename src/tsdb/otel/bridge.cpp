@@ -297,6 +297,8 @@ std::shared_ptr<Bridge> CreateOTELMetricsBridge(
     return std::make_shared<OTELMetricsBridgeImpl>(std::move(storage), options);
 }
 
+#ifdef HAVE_GRPC
+
 MetricsService::MetricsService(std::shared_ptr<storage::Storage> storage)
     : Service()
     , storage_(std::move(storage))
@@ -311,24 +313,26 @@ grpc::Status MetricsService::Export(
     try {
         spdlog::debug("Received metrics export request");
         
-        for (const auto& resource_metrics : request->resource_metrics()) {
+    for (const auto& resource_metrics : request->resource_metrics()) {
             opentelemetry::proto::metrics::v1::MetricsData metrics_data;
             *metrics_data.add_resource_metrics() = resource_metrics;
             
             auto result = bridge_->ConvertMetrics(metrics_data);
-            if (!result.ok()) {
+        if (!result.ok()) {
                 spdlog::error("Failed to convert metrics: {}", result.error().what());
                 return grpc::Status(grpc::StatusCode::INTERNAL, result.error().what());
-            }
         }
-        
+    }
+    
         bridge_->flush();
-        return grpc::Status::OK;
+    return grpc::Status::OK;
     } catch (const std::exception& e) {
         spdlog::error("Error in Export: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
     }
 }
+
+#endif // HAVE_GRPC
 
 } // namespace otel
 } // namespace tsdb 

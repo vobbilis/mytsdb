@@ -31,6 +31,8 @@ public:
         }
         return total;
     }
+    int64_t start_time() const override { return header_.start_time; }
+    int64_t end_time() const override { return header_.end_time; }
     core::TimeSeries read(const core::Labels& labels) const override;
     std::vector<core::TimeSeries> query(
         const std::vector<std::pair<std::string, std::string>>& matchers,
