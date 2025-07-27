@@ -25,8 +25,20 @@ configure_file(
 # Unit tests
 add_subdirectory(unit)
 
-# Integration tests - temporarily disabled
-# add_subdirectory(integration)
+# Integration tests
+add_subdirectory(integration)
+
+# Performance benchmark tests
+add_subdirectory(benchmark)
+
+# Load testing
+add_subdirectory(load)
+
+# Stress testing
+add_subdirectory(stress)
+
+# Scalability testing
+add_subdirectory(scalability)
 
 # PromQL Parser Tests - Direct build without storage dependency
 add_executable(promql_parser_tests
