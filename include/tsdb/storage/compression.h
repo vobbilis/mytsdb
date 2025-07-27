@@ -169,6 +169,37 @@ public:
     virtual void clear() = 0;
 };
 
+/**
+ * @brief Factory for creating compressors
+ */
+class CompressorFactory {
+public:
+    virtual ~CompressorFactory() = default;
+    
+    /**
+     * @brief Create a timestamp compressor
+     */
+    virtual std::unique_ptr<TimestampCompressor> create_timestamp_compressor() = 0;
+    
+    /**
+     * @brief Create a value compressor
+     */
+    virtual std::unique_ptr<ValueCompressor> create_value_compressor() = 0;
+    
+    /**
+     * @brief Create a label compressor
+     */
+    virtual std::unique_ptr<LabelCompressor> create_label_compressor() = 0;
+};
+
+// Forward declarations
+class SimpleTimestampCompressor;
+class SimpleValueCompressor;
+class SimpleLabelCompressor;
+class GorillaCompressor;
+class RLECompressor;
+class XORCompressor;
+
 // Factory functions
 std::unique_ptr<TimestampCompressor> create_timestamp_compressor();
 std::unique_ptr<ValueCompressor> create_value_compressor();

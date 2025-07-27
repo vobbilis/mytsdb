@@ -66,9 +66,9 @@ core::Result<void> Series::Write(const std::vector<core::Sample>& samples) {
 
         current_block_ = std::make_shared<BlockImpl>(
             header,
-            std::make_unique<SimpleTimestampCompressor>(),
-            std::make_unique<SimpleValueCompressor>(),
-            std::make_unique<SimpleLabelCompressor>());
+            std::make_unique<SimpleTimestampCompressorImpl>(),
+            std::make_unique<SimpleValueCompressorImpl>(),
+            std::make_unique<SimpleLabelCompressorImpl>());
         blocks_.push_back(current_block_);
     }
     

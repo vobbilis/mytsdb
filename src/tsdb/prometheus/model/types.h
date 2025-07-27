@@ -152,5 +152,28 @@ public:
         : PrometheusError(message) {}
 };
 
+// Added for PromQL AST
+namespace model {
+enum class MatcherType {
+    EQUAL,
+    NOT_EQUAL,
+    REGEX_MATCH,
+    REGEX_NO_MATCH
+};
+
+struct LabelMatcher {
+    MatcherType type;
+    std::string name;
+    std::string value;
+
+    LabelMatcher(MatcherType t, std::string n, std::string v)
+        : type(t), name(std::move(n)), value(std::move(v)) {}
+
+    bool operator==(const LabelMatcher& other) const {
+        return type == other.type && name == other.name && value == other.value;
+    }
+};
+} // namespace model
+
 } // namespace prometheus
 } // namespace tsdb 

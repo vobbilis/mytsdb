@@ -11,6 +11,9 @@ target_sources(tsdb_storage_impl
         storage_impl.cpp
 )
 
+# Suppress -Wunused-function for compression.cpp due to persistent issues with tool edits
+set_source_files_properties(compression.cpp PROPERTIES COMPILE_FLAGS "-Wno-unused-function")
+
 # Set include directories
 target_include_directories(tsdb_storage_impl
     PUBLIC

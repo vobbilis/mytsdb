@@ -71,12 +71,12 @@ private:
  */
 class BlockReaderImpl : public BlockReader {
 public:
-    BlockReaderImpl(std::unique_ptr<CompressorFactory> compressor_factory);
+    BlockReaderImpl();
     
     std::unique_ptr<BlockInternal> read(const std::string& path) override;
     
 private:
-    std::unique_ptr<CompressorFactory> compressor_factory_;
+    // No CompressorFactory member needed, compressors will be created in read() using factory functions
 };
 
 /**
@@ -84,12 +84,12 @@ private:
  */
 class BlockWriterImpl : public BlockWriter {
 public:
-    BlockWriterImpl(std::unique_ptr<CompressorFactory> compressor_factory);
+    BlockWriterImpl();
     
     void write(const std::string& path, const BlockInternal& block) override;
     
 private:
-    std::unique_ptr<CompressorFactory> compressor_factory_;
+    // No CompressorFactory member needed, uses compressors from the provided block
 };
 
 } // namespace internal
