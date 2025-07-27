@@ -5,16 +5,28 @@
 #include <string>
 #include <vector>
 #include <chrono>
-#include <grpcpp/grpcpp.h>
-#include <grpcpp/server.h>
-#include <grpcpp/server_builder.h>
-#include <grpcpp/impl/codegen/service_type.h>
-#include "opentelemetry/proto/collector/metrics/v1/metrics_service.grpc.pb.h"
 
 #include "tsdb/core/types.h"
 #include "tsdb/core/config.h"
 #include "tsdb/core/metric.h"
 #include "tsdb/storage/storage.h"
+
+// Conditional includes for gRPC
+// For now, we'll disable gRPC functionality if not available
+#ifdef HAVE_GRPC
+#include <grpcpp/grpcpp.h>
+#include <grpcpp/server.h>
+#include <grpcpp/server_builder.h>
+#include <grpcpp/impl/codegen/service_type.h>
+#include "opentelemetry/proto/collector/metrics/v1/metrics_service.grpc.pb.h"
+#else
+// Provide minimal stubs when gRPC is not available
+namespace grpc {
+    class Status {};
+    class ServerContext {};
+    class Server {};
+}
+#endif
 
 namespace tsdb {
 namespace otel {

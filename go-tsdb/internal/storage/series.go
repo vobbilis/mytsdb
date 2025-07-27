@@ -70,11 +70,24 @@ func (s *Series) GetSamples(start, end int64) []Sample {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Binary search for start and end indices
-	startIdx := s.binarySearch(start)
-	endIdx := s.binarySearch(end)
+	if len(s.samples) == 0 {
+		return nil
+	}
 
-	if startIdx == -1 || endIdx == -1 {
+	// Binary search for start index - first sample with timestamp >= start
+	startIdx := s.binarySearch(start)
+	if startIdx == -1 {
+		return nil
+	}
+
+	// Binary search for end index - first sample with timestamp > end
+	// This creates a half-open interval [start, end]
+	endIdx := s.binarySearchUpper(end + 1)
+	if endIdx == -1 {
+		endIdx = len(s.samples)
+	}
+
+	if startIdx >= endIdx {
 		return nil
 	}
 
@@ -97,6 +110,21 @@ func (s *Series) binarySearch(t int64) int {
 	}
 	if left >= len(s.samples) {
 		return -1
+	}
+	return left
+}
+
+// binarySearchUpper finds the index of the first sample with timestamp >= t
+// Used for finding the upper bound in range queries
+func (s *Series) binarySearchUpper(t int64) int {
+	left, right := 0, len(s.samples)
+	for left < right {
+		mid := (left + right) / 2
+		if s.samples[mid].Timestamp < t {
+			left = mid + 1
+		} else {
+			right = mid
+		}
 	}
 	return left
 }

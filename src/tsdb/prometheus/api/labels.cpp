@@ -3,6 +3,7 @@
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
 #include <regex>
+#include <limits>
 
 namespace tsdb {
 namespace prometheus {
@@ -80,8 +81,11 @@ LabelQueryResult LabelsHandler::GetLabels(const LabelQueryParams& params) {
     }
     
     try {
-        auto labels = storage_->label_names();
-        return CreateSuccessResponse(std::move(labels));
+        auto result = storage_->label_names();
+        if (!result.ok()) {
+            return CreateErrorResponse("internal_error", result.error().what());
+        }
+        return CreateSuccessResponse(std::move(result.value()));
     } catch (const std::exception& e) {
         return CreateErrorResponse("internal_error", e.what());
     }
@@ -102,8 +106,11 @@ LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
     }
     
     try {
-        auto values = storage_->label_values(label_name);
-        return CreateSuccessResponse(std::move(values));
+        auto result = storage_->label_values(label_name);
+        if (!result.ok()) {
+            return CreateErrorResponse("internal_error", result.error().what());
+        }
+        return CreateSuccessResponse(std::move(result.value()));
     } catch (const std::exception& e) {
         return CreateErrorResponse("internal_error", e.what());
     }
@@ -124,10 +131,27 @@ LabelQueryResult LabelsHandler::GetSeries(const std::vector<std::string>& matche
     }
     
     try {
-        auto series = storage_->query(matchers, params.start_time, params.end_time);
+        // Convert matchers to the format expected by storage
+        std::vector<std::pair<std::string, std::string>> storage_matchers;
+        for (const auto& matcher : matchers) {
+            // Simple parser for {key="value"} format
+            std::regex matcher_regex(R"(\{([^=]+)="([^"]+)"\})");
+            std::smatch match;
+            if (std::regex_match(matcher, match, matcher_regex)) {
+                storage_matchers.emplace_back(match[1].str(), match[2].str());
+            }
+        }
+        
+        auto result = storage_->query(storage_matchers, 
+                                    params.start_time.value_or(0),
+                                    params.end_time.value_or(std::numeric_limits<int64_t>::max()));
+        if (!result.ok()) {
+            return CreateErrorResponse("internal_error", result.error().what());
+        }
+        
         std::vector<std::string> series_strings;
-        for (const auto& s : series) {
-            series_strings.push_back(s.ToString());
+        for (const auto& s : result.value()) {
+            series_strings.push_back(s.labels().to_string());
         }
         return CreateSuccessResponse(std::move(series_strings));
     } catch (const std::exception& e) {
