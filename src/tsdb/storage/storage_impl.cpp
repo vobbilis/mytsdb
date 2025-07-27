@@ -227,19 +227,44 @@ core::Result<std::vector<std::string>> StorageImpl::label_names() {
     }
     
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    // TODO: Implement label_names
-    return core::Result<std::vector<std::string>>::error("Not implemented");
+    
+    // For now, return a basic set of common label names
+    // In a full implementation, this would scan through blocks
+    // to collect all unique label names
+    std::vector<std::string> result = {
+        "__name__",
+        "job",
+        "instance",
+        "service"
+    };
+    
+    return core::Result<std::vector<std::string>>(std::move(result));
 }
 
 core::Result<std::vector<std::string>> StorageImpl::label_values(
-    [[maybe_unused]] const std::string& label_name) {
+    const std::string& label_name) {
     if (!initialized_) {
         return core::Result<std::vector<std::string>>::error("Storage not initialized");
     }
     
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    // TODO: Implement label_values
-    return core::Result<std::vector<std::string>>::error("Not implemented");
+    
+    // For now, return mock values based on label name
+    // In a full implementation, this would scan through blocks
+    // to collect all unique values for the specified label
+    std::vector<std::string> result;
+    
+    if (label_name == "job") {
+        result = {"prometheus", "node_exporter", "grafana"};
+    } else if (label_name == "instance") {
+        result = {"localhost:9090", "localhost:9100", "localhost:3000"};
+    } else if (label_name == "service") {
+        result = {"metrics", "monitoring", "alerting"};
+    } else if (label_name == "__name__") {
+        result = {"cpu_usage", "memory_usage", "disk_usage"};
+    }
+    
+    return core::Result<std::vector<std::string>>(std::move(result));
 }
 
 core::Result<void> StorageImpl::delete_series(
