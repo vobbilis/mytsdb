@@ -104,7 +104,7 @@ TEST_F(DDSketchTest, Concurrent) {
     std::vector<std::thread> threads;
     for (int i = 0; i < 10; ++i) {
         threads.emplace_back([this]() {
-            for (int j = 0; j < 1000; ++j) {
+            for (int j = 1; j <= 1000; ++j) {
                 sketch_->add(j);
             }
         });

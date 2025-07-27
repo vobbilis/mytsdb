@@ -1,6 +1,8 @@
 #include "tsdb/histogram/histogram.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
+#include "tsdb/core/error.h"
+#include <mutex>
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -44,10 +46,10 @@ public:
     void merge(const Bucket& other) override {
         const auto* bucket = dynamic_cast<const BucketImpl*>(&other);
         if (!bucket) {
-            throw std::invalid_argument("Can only merge with BucketImpl");
+            throw core::InvalidArgumentError("Can only merge with BucketImpl");
         }
         if (lower_ != bucket->lower_ || upper_ != bucket->upper_) {
-            throw std::invalid_argument("Cannot merge buckets with different boundaries");
+            throw core::InvalidArgumentError("Cannot merge buckets with different boundaries");
         }
         count_ += bucket->count_;
     }
@@ -76,11 +78,11 @@ public:
         , min_(std::nullopt)
         , max_(std::nullopt) {
         if (bounds.empty()) {
-            throw std::invalid_argument("Bounds cannot be empty");
+            throw core::InvalidArgumentError("Bounds cannot be empty");
         }
         // Verify bounds are sorted
         if (!std::is_sorted(bounds.begin(), bounds.end())) {
-            throw std::invalid_argument("Bounds must be sorted");
+            throw core::InvalidArgumentError("Bounds must be sorted");
         }
     }
     
@@ -89,8 +91,10 @@ public:
     }
 
     void add(core::Value value, uint64_t count) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (std::isnan(value)) {
-            throw std::invalid_argument("Cannot add NaN value");
+            throw core::InvalidArgumentError("Cannot add NaN value");
         }
         
         size_t bucket_idx = 0;
@@ -110,23 +114,25 @@ public:
         }
     }
     
-    void merge(const Histogram& other) override {
+        void merge(const Histogram& other) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         const auto* other_impl = dynamic_cast<const FixedBucketHistogramImpl*>(&other);
         if (!other_impl) {
-            throw std::invalid_argument("Can only merge with FixedBucketHistogramImpl");
+            throw core::InvalidArgumentError("Can only merge with FixedBucketHistogramImpl");
         }
-
+        
         if (bounds_ != other_impl->bounds_) {
-            throw std::invalid_argument("Incompatible bucket boundaries");
+            throw core::InvalidArgumentError("Incompatible bucket boundaries");
         }
-
+        
         for (size_t i = 0; i < buckets_.size(); ++i) {
             buckets_[i] += other_impl->buckets_[i];
         }
-
+        
         count_ += other_impl->count_;
         sum_ += other_impl->sum_;
-
+        
         if (!min_.has_value() || 
             (other_impl->min_.has_value() && other_impl->min_.value() < min_.value())) {
             min_ = other_impl->min_;
@@ -138,24 +144,30 @@ public:
     }
     
     uint64_t count() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return count_;
     }
     
     core::Value sum() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return sum_;
     }
     
     std::optional<core::Value> min() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return min_;
     }
     
     std::optional<core::Value> max() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return max_;
     }
     
     core::Value quantile(double q) const override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (q < 0 || q > 1) {
-            throw std::invalid_argument("Invalid quantile");
+            throw core::InvalidArgumentError("Invalid quantile");
         }
 
         if (count_ == 0) {
@@ -187,6 +199,7 @@ public:
     }
     
     std::vector<std::shared_ptr<Bucket>> buckets() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::vector<std::shared_ptr<Bucket>> result;
         result.reserve(buckets_.size());
 
@@ -201,6 +214,7 @@ public:
     }
     
     void clear() override {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::fill(buckets_.begin(), buckets_.end(), 0);
         count_ = 0;
         sum_ = 0;
@@ -232,6 +246,7 @@ private:
     double sum_;
     std::optional<core::Value> min_;
     std::optional<core::Value> max_;
+    mutable std::mutex mutex_;
 };
 
 class DDSketchImpl final : public DDSketch {
@@ -245,7 +260,7 @@ public:
         , min_(std::nullopt)
         , max_(std::nullopt) {
         if (alpha <= 0 || alpha >= 1) {
-            throw std::invalid_argument("Alpha must be between 0 and 1");
+            throw core::InvalidArgumentError("Alpha must be between 0 and 1");
         }
     }
     
@@ -254,11 +269,19 @@ public:
     }
 
     void add(core::Value value, uint64_t count) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (std::isnan(value)) {
-            throw std::invalid_argument("Cannot add NaN value");
+            throw core::InvalidArgumentError("Cannot add NaN value");
         }
         
-        int bucket_idx = ComputeExponentialBucket(value, 1.0 + alpha_, 1);
+        if (value <= 0) {
+            throw core::InvalidArgumentError("Cannot add non-positive value to DDSketch");
+        }
+        
+        // DDSketch uses log-based bucketing with relative error alpha
+        // Bucket index = floor(log(value) / log(1 + alpha))
+        int bucket_idx = static_cast<int>(std::floor(std::log(value) / std::log(1.0 + alpha_)));
         
         counts_[bucket_idx] += count;
         sums_[bucket_idx] += value * count;
@@ -274,13 +297,15 @@ public:
     }
     
     void merge(const Histogram& other) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         const auto* dd_hist = dynamic_cast<const DDSketchImpl*>(&other);
         if (!dd_hist) {
-            throw std::invalid_argument("Can only merge with DDSketchImpl");
+            throw core::InvalidArgumentError("Can only merge with DDSketchImpl");
         }
         
         if (alpha_ != dd_hist->alpha_) {
-            throw std::invalid_argument("Cannot merge sketches with different alpha values");
+            throw core::InvalidArgumentError("Cannot merge sketches with different alpha values");
         }
         
         for (const auto& [idx, count] : dd_hist->counts_) {
@@ -302,15 +327,22 @@ public:
     }
     
     core::Value quantile(double q) const override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        
         if (q < 0 || q > 1) {
-            throw std::invalid_argument("Invalid quantile");
+            throw core::InvalidArgumentError("Invalid quantile");
         }
 
         if (total_count_ == 0) {
             throw std::runtime_error("Empty histogram");
         }
         
-        uint64_t target = static_cast<uint64_t>(q * total_count_);
+        // Special case: single value
+        if (total_count_ == 1) {
+            return min_.value();
+        }
+        
+        uint64_t target = static_cast<uint64_t>(q * (total_count_ - 1));
         uint64_t cumulative = 0;
         
         // Find the bucket containing the quantile
@@ -333,22 +365,27 @@ public:
     }
     
     uint64_t count() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return total_count_;
     }
     
     core::Value sum() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return total_sum_;
     }
     
     std::optional<core::Value> min() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return min_;
     }
     
     std::optional<core::Value> max() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return max_;
     }
     
     std::vector<std::shared_ptr<Bucket>> buckets() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         std::vector<std::shared_ptr<Bucket>> result;
         result.reserve(counts_.size());
         
@@ -362,6 +399,7 @@ public:
     }
     
     void clear() override {
+        std::lock_guard<std::mutex> lock(mutex_);
         counts_.clear();
         sums_.clear();
         total_count_ = 0;
@@ -371,6 +409,7 @@ public:
     }
     
     size_t size_bytes() const override {
+        std::lock_guard<std::mutex> lock(mutex_);
         return sizeof(*this) + 
                counts_.size() * (sizeof(int) + sizeof(uint64_t)) +
                sums_.size() * (sizeof(int) + sizeof(double));
@@ -388,6 +427,7 @@ private:
     double total_sum_;
     std::optional<core::Value> min_;
     std::optional<core::Value> max_;
+    mutable std::mutex mutex_;
 };
 
 std::unique_ptr<FixedBucketHistogram> FixedBucketHistogram::create(
