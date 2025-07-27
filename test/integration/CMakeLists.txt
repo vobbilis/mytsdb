@@ -22,14 +22,14 @@ target_include_directories(tsdb_integration_test_suite
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_integration_test_suite
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+                target_link_libraries(tsdb_integration_test_suite
+                    PRIVATE
+                        tsdb_test_common
+                        tsdb_lib
+                        GTest::gtest
+                        GTest::gtest_main
+                        Threads::Threads
+                )
 
 # Individual integration test executables for specific testing
 add_executable(tsdb_core_storage_integration_test
@@ -43,14 +43,14 @@ target_include_directories(tsdb_core_storage_integration_test
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_core_storage_integration_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-        gtest
-        gtest_main
-)
+                target_link_libraries(tsdb_core_storage_integration_test
+                    PRIVATE
+                        tsdb_test_common
+                        tsdb_storage_impl
+                        tsdb_core_impl
+                        GTest::gtest
+                        GTest::gtest_main
+                )
 
 add_executable(tsdb_storage_histogram_integration_test
     storage_histogram_integration_test.cpp
@@ -69,8 +69,8 @@ target_link_libraries(tsdb_storage_histogram_integration_test
         tsdb_storage_impl
         tsdb_histogram_impl
         tsdb_core_impl
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
 )
 
 add_executable(tsdb_config_integration_test
@@ -88,8 +88,8 @@ target_link_libraries(tsdb_config_integration_test
     PRIVATE
         tsdb_test_common
         tsdb_core_impl
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
 )
 
 add_executable(tsdb_otel_integration_test
@@ -107,8 +107,8 @@ target_link_libraries(tsdb_otel_integration_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
 )
 
 add_executable(tsdb_grpc_integration_test
@@ -126,8 +126,8 @@ target_link_libraries(tsdb_grpc_integration_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
 )
 
 add_executable(tsdb_end_to_end_workflow_test
@@ -145,8 +145,8 @@ target_link_libraries(tsdb_end_to_end_workflow_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
         Threads::Threads
 )
 
@@ -165,8 +165,8 @@ target_link_libraries(tsdb_multi_component_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
         Threads::Threads
 )
 
@@ -185,8 +185,8 @@ target_link_libraries(tsdb_error_handling_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
 )
 
 add_executable(tsdb_recovery_test
@@ -204,8 +204,8 @@ target_link_libraries(tsdb_recovery_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
-        gtest
-        gtest_main
+        GTest::gtest
+        GTest::gtest_main
         Threads::Threads
 )
 

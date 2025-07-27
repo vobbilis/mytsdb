@@ -13,14 +13,14 @@ target_include_directories(tsdb_scalability_tests
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_scalability_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_scalability_tests
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 # Individual scalability test executables
 add_executable(tsdb_horizontal_scalability_test
@@ -34,14 +34,14 @@ target_include_directories(tsdb_horizontal_scalability_test
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_horizontal_scalability_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_horizontal_scalability_test
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 add_executable(tsdb_vertical_scalability_test
     vertical_scalability_test.cpp
@@ -54,14 +54,14 @@ target_include_directories(tsdb_vertical_scalability_test
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_vertical_scalability_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_vertical_scalability_test
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)

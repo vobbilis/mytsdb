@@ -28,8 +28,8 @@ if(benchmark_FOUND)
             tsdb_lib
             benchmark::benchmark
             benchmark::benchmark_main
-            gtest
-            gtest_main
+            GTest::gtest
+            GTest::gtest_main
     )
 
     # Individual benchmark executables for specific testing
