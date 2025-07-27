@@ -51,8 +51,15 @@ std::vector<int64_t> SimpleTimestampCompressor::decompress(const std::vector<uin
         return std::vector<int64_t>();
     }
 
+    // Validate that data size is properly aligned
+    if (data.size() % sizeof(int64_t) != 0) {
+        // Return empty vector for invalid data instead of causing buffer overflow
+        return std::vector<int64_t>();
+    }
+
     std::vector<int64_t> result;
-    result.resize(data.size() / sizeof(int64_t));
+    size_t count = data.size() / sizeof(int64_t);
+    result.resize(count);
     std::memcpy(result.data(), data.data(), data.size());
     return result;
 }
@@ -79,8 +86,15 @@ std::vector<double> SimpleValueCompressor::decompress(const std::vector<uint8_t>
         return std::vector<double>();
     }
 
+    // Validate that data size is properly aligned
+    if (data.size() % sizeof(double) != 0) {
+        // Return empty vector for invalid data instead of causing buffer overflow
+        return std::vector<double>();
+    }
+
     std::vector<double> result;
-    result.resize(data.size() / sizeof(double));
+    size_t count = data.size() / sizeof(double);
+    result.resize(count);
     std::memcpy(result.data(), data.data(), data.size());
     return result;
 }

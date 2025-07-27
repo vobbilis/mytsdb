@@ -31,8 +31,12 @@ target_compile_features(tsdb_core_impl
 target_link_libraries(tsdb_core_impl
     PUBLIC
         Threads::Threads
-        spdlog::spdlog
 )
+
+# Link optional dependencies
+if(HAVE_SPDLOG)
+    target_link_libraries(tsdb_core_impl PUBLIC spdlog::spdlog)
+endif()
 
 # Install headers
 install(FILES
