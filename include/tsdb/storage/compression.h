@@ -169,6 +169,19 @@ public:
     virtual void clear() = 0;
 };
 
+/**
+ * @brief Factory for creating compressors
+ */
+class CompressorFactory {
+public:
+    virtual ~CompressorFactory() = default;
+    
+    virtual std::unique_ptr<TimestampCompressor> create_timestamp_compressor() = 0;
+    virtual std::unique_ptr<ValueCompressor> create_value_compressor() = 0;
+    virtual std::unique_ptr<LabelCompressor> create_label_compressor() = 0;
+    virtual std::unique_ptr<Compressor> create_compressor(CompressionConfig::Algorithm algo) = 0;
+};
+
 // Factory functions
 std::unique_ptr<TimestampCompressor> create_timestamp_compressor();
 std::unique_ptr<ValueCompressor> create_value_compressor();
@@ -176,6 +189,7 @@ std::unique_ptr<LabelCompressor> create_label_compressor();
 std::unique_ptr<Compressor> create_gorilla_compressor();
 std::unique_ptr<Compressor> create_rle_compressor();
 std::unique_ptr<Compressor> create_xor_compressor();
+std::unique_ptr<CompressorFactory> create_compressor_factory();
 
 } // namespace internal
 } // namespace storage

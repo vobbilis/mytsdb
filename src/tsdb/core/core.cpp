@@ -20,12 +20,12 @@ public:
     Result<void> open() override {
         core::StorageConfig storage_config;
         storage_config.data_dir = config_.data_dir;
-        storage_config.max_block_size = config_.block_size;
-        storage_config.compression_enabled = config_.enable_compression;
+        storage_config.block_size = config_.block_size;
+        storage_config.enable_compression = config_.enable_compression;
         
         auto result = storage_->init(storage_config);
         if (!result.ok()) {
-            return Result<void>::error("Failed to initialize storage: " + result.error().what());
+            return Result<void>::error(std::string("Failed to initialize storage: ") + result.error().what());
         }
         return Result<void>();
     }
@@ -43,14 +43,14 @@ public:
     }
 
     Result<std::shared_ptr<MetricFamily>> create_metric_family(
-        const std::string& name,
-        const std::string& help,
-        MetricType type) override {
+        [[maybe_unused]] const std::string& name,
+        [[maybe_unused]] const std::string& help,
+        [[maybe_unused]] MetricType type) override {
         return Result<std::shared_ptr<MetricFamily>>::error("Not implemented");
     }
 
     Result<std::shared_ptr<MetricFamily>> get_metric_family(
-        const std::string& name) override {
+        [[maybe_unused]] const std::string& name) override {
         return Result<std::shared_ptr<MetricFamily>>::error("Not implemented");
     }
 
@@ -125,7 +125,7 @@ Result<std::unique_ptr<Database>> DatabaseFactory::create(const Config& config) 
     auto db = std::make_unique<DatabaseImpl>(config);
     auto result = db->open();
     if (!result.ok()) {
-        return Result<std::unique_ptr<Database>>::error("Failed to open database: " + result.error().what());
+        return Result<std::unique_ptr<Database>>::error(std::string("Failed to open database: ") + result.error().what());
     }
     
     return Result<std::unique_ptr<Database>>(std::move(db));

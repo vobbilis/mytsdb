@@ -20,15 +20,25 @@ target_link_libraries(tsdb_otel_impl
     PUBLIC
         tsdb_core_impl
         tsdb_storage_impl
-        gRPC::grpc++
-        protobuf::libprotobuf
-        spdlog::spdlog
-        fmt::fmt
-        ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_common.dylib
-        ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_trace.dylib
-        ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_metrics.dylib
-        ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_proto.dylib
 )
+
+# Link optional dependencies
+if(HAVE_GRPC)
+    target_link_libraries(tsdb_otel_impl PUBLIC gRPC::grpc++ protobuf::libprotobuf)
+endif()
+
+if(HAVE_SPDLOG)
+    target_link_libraries(tsdb_otel_impl PUBLIC spdlog::spdlog)
+endif()
+
+# Note: These hardcoded paths would need to be made optional too
+# target_link_libraries(tsdb_otel_impl PUBLIC
+#     fmt::fmt
+#     ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_common.dylib
+#     ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_trace.dylib
+#     ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_metrics.dylib
+#     ${CMAKE_INSTALL_PREFIX}/lib/libopentelemetry_proto.dylib
+# )
 
 set_target_properties(tsdb_otel_impl PROPERTIES
     CXX_STANDARD 17

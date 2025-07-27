@@ -3,8 +3,16 @@ add_subdirectory(core)
 add_subdirectory(storage)
 add_subdirectory(histogram)
 add_subdirectory(query)
-add_subdirectory(otel)
-add_subdirectory(prometheus)
+
+# Only add otel if we have gRPC
+if(HAVE_GRPC)
+    add_subdirectory(otel)
+endif()
+
+# Only add prometheus if we have RapidJSON
+if(HAVE_RAPIDJSON)
+    add_subdirectory(prometheus)
+endif()
 
 # Create main TSDB library
 add_library(tsdb_main)
@@ -22,10 +30,17 @@ target_link_libraries(tsdb_main PUBLIC
     tsdb::core_impl
     tsdb::storage_impl
     tsdb::histogram_impl
-    tsdb_otel_impl
-    gRPC::grpc++
-    protobuf::libprotobuf
 )
+
+# Only link otel if we have gRPC
+if(HAVE_GRPC)
+    target_link_libraries(tsdb_main PUBLIC tsdb_otel_impl)
+endif()
+
+# Link optional dependencies
+if(HAVE_GRPC)
+    target_link_libraries(tsdb_main PUBLIC gRPC::grpc++ protobuf::libprotobuf)
+endif()
 
 if(ENABLE_OTEL)
     target_link_libraries(tsdb_main PUBLIC
