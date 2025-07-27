@@ -13,14 +13,14 @@ target_include_directories(tsdb_stress_tests
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_stress_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_stress_tests
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 # Individual stress test executables
 add_executable(tsdb_resource_stress_test
@@ -34,14 +34,14 @@ target_include_directories(tsdb_resource_stress_test
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_resource_stress_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_resource_stress_test
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 add_executable(tsdb_data_volume_stress_test
     data_volume_stress_test.cpp
@@ -54,14 +54,14 @@ target_include_directories(tsdb_data_volume_stress_test
         ${CMAKE_SOURCE_DIR}/include
 )
 
-target_link_libraries(tsdb_data_volume_stress_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        gtest
-        gtest_main
-        Threads::Threads
-)
+    target_link_libraries(tsdb_data_volume_stress_test
+        PRIVATE
+            tsdb_test_common
+            tsdb_lib
+            GTest::gtest
+            GTest::gtest_main
+            Threads::Threads
+    )
 
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
