@@ -368,6 +368,12 @@ core::Result<void> BlockManager::compact() {
         if (tier == internal::BlockTier::Type::HOT) {
             internal::BlockHeader header;
             header.magic = magic;
+            header.version = internal::BlockHeader::VERSION;
+            header.flags = 0;
+            header.crc32 = 0;
+            header.start_time = 0;
+            header.end_time = 0;
+            header.reserved = 0;
             to_demote.push_back(header);
         }
     }
