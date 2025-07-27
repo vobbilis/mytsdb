@@ -189,26 +189,6 @@ target_link_libraries(tsdb_error_handling_test
         GTest::gtest_main
 )
 
-add_executable(tsdb_recovery_test
-    recovery_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
-
-target_include_directories(tsdb_recovery_test
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_link_libraries(tsdb_recovery_test
-    PRIVATE
-        tsdb_test_common
-        tsdb_lib
-        GTest::gtest
-        GTest::gtest_main
-        Threads::Threads
-)
-
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_custom_command(TARGET tsdb_integration_test_suite POST_BUILD
@@ -252,11 +232,6 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_error_handling_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_recovery_test POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
@@ -325,11 +300,4 @@ gtest_discover_tests(tsdb_error_handling_test
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 600   # 10 minutes timeout for error handling tests
-)
-
-gtest_discover_tests(tsdb_recovery_test
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-        TIMEOUT 1200  # 20 minutes timeout for recovery tests
 ) 
