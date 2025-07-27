@@ -2,46 +2,84 @@
 #include <memory>
 #include "../api/labels.h"
 #include <rapidjson/document.h>
+#include "tsdb/storage/storage.h"
+#include "tsdb/core/result.h"
+#include "tsdb/core/types.h"
 
 namespace tsdb {
 namespace prometheus {
 namespace {
 
-class MockStorage {
+class MockStorage : public storage::Storage {
 public:
-    std::vector<std::string> GetLabelNames(
-        std::optional<int64_t> start_time,
-        std::optional<int64_t> end_time,
-        const std::vector<std::string>& matchers) {
-        return {"job", "instance", "service", "env"};
+    // Required Storage interface methods
+    core::Result<void> init(const core::StorageConfig& config) override {
+        return core::Result<void>();
     }
     
-    std::vector<std::string> GetLabelValues(
-        const std::string& label_name,
-        std::optional<int64_t> start_time,
-        std::optional<int64_t> end_time,
-        const std::vector<std::string>& matchers) {
+    core::Result<void> write(const core::TimeSeries& series) override {
+        return core::Result<void>();
+    }
+    
+    core::Result<core::TimeSeries> read(
+        const core::Labels& labels,
+        int64_t start_time,
+        int64_t end_time) override {
+        return core::Result<core::TimeSeries>::error("Not implemented");
+    }
+    
+    core::Result<std::vector<core::TimeSeries>> query(
+        const std::vector<std::pair<std::string, std::string>>& matchers,
+        int64_t start_time,
+        int64_t end_time) override {
+        std::vector<core::TimeSeries> result;
+        
+        // Create a mock time series
+        core::Labels::Map label_map = {{"job", "prometheus"}, {"instance", "localhost:9090"}};
+        core::Labels labels(label_map);
+        core::TimeSeries ts(labels);
+        ts.add_sample(core::Sample(1234567890000, 42.0));
+        result.push_back(std::move(ts));
+        
+        return core::Result<std::vector<core::TimeSeries>>(std::move(result));
+    }
+    
+    core::Result<std::vector<std::string>> label_names() override {
+        std::vector<std::string> labels = {"job", "instance", "service", "env"};
+        return core::Result<std::vector<std::string>>(std::move(labels));
+    }
+    
+    core::Result<std::vector<std::string>> label_values(const std::string& label_name) override {
         if (label_name == "job") {
-            return {"prometheus", "node_exporter", "mysql"};
+            std::vector<std::string> values = {"prometheus", "node_exporter", "mysql"};
+            return core::Result<std::vector<std::string>>(std::move(values));
         }
         if (label_name == "instance") {
-            return {"localhost:9090", "localhost:9100"};
+            std::vector<std::string> values = {"localhost:9090", "localhost:9100"};
+            return core::Result<std::vector<std::string>>(std::move(values));
         }
-        return {};
+        return core::Result<std::vector<std::string>>(std::vector<std::string>{});
     }
     
-    std::vector<TimeSeries> GetSeries(
-        const std::vector<std::string>& matchers,
-        std::optional<int64_t> start_time,
-        std::optional<int64_t> end_time) {
-        LabelSet labels;
-        labels.AddLabel("job", "prometheus");
-        labels.AddLabel("instance", "localhost:9090");
-        
-        TimeSeries ts(labels);
-        ts.AddSample(1234567890000, 42.0);
-        
-        return {ts};
+    core::Result<void> delete_series(
+        const std::vector<std::pair<std::string, std::string>>& matchers) override {
+        return core::Result<void>();
+    }
+    
+    core::Result<void> compact() override {
+        return core::Result<void>();
+    }
+    
+    core::Result<void> flush() override {
+        return core::Result<void>();
+    }
+    
+    core::Result<void> close() override {
+        return core::Result<void>();
+    }
+    
+    std::string stats() const override {
+        return "Mock storage stats";
     }
 };
 
