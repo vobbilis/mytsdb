@@ -9,8 +9,8 @@ namespace storage {
  * @brief Block granularity for time series data
  */
 struct Granularity {
-    core::Duration interval;    // Sample interval
-    core::Duration retention;   // Data retention period
+    int64_t interval;    // Sample interval in milliseconds
+    int64_t retention;   // Data retention period in milliseconds
 };
 
 } // namespace storage

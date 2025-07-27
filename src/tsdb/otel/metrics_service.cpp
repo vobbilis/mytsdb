@@ -1,5 +1,11 @@
 #include "tsdb/otel/bridge.h"
 #include <spdlog/spdlog.h>
+#include "opentelemetry/proto/metrics/v1/metrics.pb.h"
+#include "opentelemetry/proto/collector/metrics/v1/metrics_service.pb.h"
+#include "opentelemetry/proto/common/v1/common.pb.h"
+#include "opentelemetry/proto/resource/v1/resource.pb.h"
+
+#ifdef HAVE_GRPC
 
 namespace tsdb {
 namespace otel {
@@ -24,7 +30,7 @@ grpc::Status MetricsService::Export(
         // For now, we'll just return an empty response indicating success
         response->Clear();
         
-        return grpc::Status::OK;
+        return grpc::Status();
     } catch (const std::exception& e) {
         spdlog::error("Error processing metrics export request: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
@@ -32,4 +38,6 @@ grpc::Status MetricsService::Export(
 }
 
 }  // namespace otel
-}  // namespace tsdb 
+}  // namespace tsdb
+
+#endif // HAVE_GRPC 

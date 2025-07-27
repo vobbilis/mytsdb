@@ -198,12 +198,59 @@ public:
 };
 
 // Forward declarations
-class SimpleTimestampCompressor;
-class SimpleValueCompressor;
-class SimpleLabelCompressor;
-class GorillaCompressor;
-class RLECompressor;
-class XORCompressor;
+class SimpleTimestampCompressor : public TimestampCompressor {
+public:
+    std::vector<uint8_t> compress(const std::vector<int64_t>& timestamps) override;
+    std::vector<int64_t> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override;
+};
+
+class SimpleValueCompressor : public ValueCompressor {
+public:
+    std::vector<uint8_t> compress(const std::vector<double>& values) override;
+    std::vector<double> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override;
+};
+
+class SimpleLabelCompressor : public LabelCompressor {
+public:
+    uint32_t add_label(const std::string& label) override;
+    std::string get_label(uint32_t id) const override;
+    std::vector<uint8_t> compress(const core::Labels& labels) override;
+    core::Labels decompress(const std::vector<uint8_t>& data) override;
+    size_t dictionary_size() const override;
+    void clear() override;
+private:
+    std::unordered_map<std::string, uint32_t> label_to_id_;
+    std::vector<std::string> id_to_label_;
+};
+
+class GorillaCompressor : public Compressor {
+public:
+    core::Result<std::vector<uint8_t>> compress(const std::vector<uint8_t>& data) override;
+    core::Result<std::vector<uint8_t>> decompress(const std::vector<uint8_t>& data) override;
+    core::Result<size_t> compressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    core::Result<size_t> decompressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    bool is_compressed() const override;
+};
+
+class RLECompressor : public Compressor {
+public:
+    core::Result<std::vector<uint8_t>> compress(const std::vector<uint8_t>& data) override;
+    core::Result<std::vector<uint8_t>> decompress(const std::vector<uint8_t>& data) override;
+    core::Result<size_t> compressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    core::Result<size_t> decompressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    bool is_compressed() const override;
+};
+
+class XORCompressor : public Compressor {
+public:
+    core::Result<std::vector<uint8_t>> compress(const std::vector<uint8_t>& data) override;
+    core::Result<std::vector<uint8_t>> decompress(const std::vector<uint8_t>& data) override;
+    core::Result<size_t> compressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    core::Result<size_t> decompressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
+    bool is_compressed() const override;
+};
 // Factory functions
 std::unique_ptr<TimestampCompressor> create_timestamp_compressor();
 std::unique_ptr<ValueCompressor> create_value_compressor();

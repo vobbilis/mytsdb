@@ -9,6 +9,8 @@ target_sources(tsdb_storage_impl
         compression.cpp
         histogram_ops.cpp
         storage_impl.cpp
+        storage_factory.cpp
+        internal/block_impl.cpp
 )
 
 # Suppress -Wunused-function for compression.cpp due to persistent issues with tool edits

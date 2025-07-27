@@ -4,22 +4,10 @@
 #include <string>
 #include <variant>
 #include <type_traits>
+#include "tsdb/core/error.h"
 
 namespace tsdb {
 namespace core {
-
-/**
- * @brief Error type for Result
- */
-class Error {
-public:
-    explicit Error(std::string message) : message_(std::move(message)) {}
-    
-    const std::string& message() const { return message_; }
-    
-private:
-    std::string message_;
-};
 
 /**
  * @brief Result type for operations that can fail
@@ -81,7 +69,7 @@ public:
         if (!has_error()) {
             throw std::runtime_error("Attempting to access error of ok result");
         }
-        return std::get<Error>(data_).message();
+        return std::get<Error>(data_).what();
     }
     
 private:
@@ -109,7 +97,7 @@ public:
         if (!has_error()) {
             throw std::runtime_error("Attempting to access error of ok result");
         }
-        return error_->message();
+        return error_->what();
     }
     
 private:
