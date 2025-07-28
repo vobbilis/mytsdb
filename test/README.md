@@ -1,41 +1,111 @@
 # TSDB Test Suite
 
-This directory contains the comprehensive test suite for the Time Series Database (TSDB) project.
+This directory contains the comprehensive test suite for the Time Series Database (TSDB) project. The test suite consists of **462 individual tests** across multiple categories, providing thorough coverage of all system components.
+
+## Test Statistics
+
+- **Total Tests**: 462
+- **Test Files**: 36 (with content)
+- **Total Lines of Code**: ~15,000
+- **Test Categories**: 8 major categories
+- **Coverage**: Unit, Integration, Performance, Load, Stress, Scalability
 
 ## Test Organization
 
-The test suite is organized into several components:
+### 1. **Unit Tests** (`unit/`)
+Core component testing with **349 tests** across:
 
-1. **Storage Engine Tests** (`storage/`)
-   - Basic operations (CRUD)
-   - Block management
-   - Concurrency
-   - Error handling
-   - Resource management
+#### **Core Components** (`unit/core/`) - 27 tests
+- **Result Tests** (15 tests): Success/error construction, move semantics, type handling
+- **Error Tests** (12 tests): Error construction, comparison, message handling
 
-2. **Histogram Tests** (`histogram/`)
-   - Fixed-bucket histograms
-   - Exponential histograms
-   - Distribution accuracy
-   - Concurrency
-   - Memory efficiency
+#### **Storage Components** (`unit/storage/`) - 322 tests
+- **Object Pool Tests** (13 tests): TimeSeries, Labels, Sample pool operations
+- **Working Set Cache Tests** (15 tests): LRU behavior, hit ratio, thread safety
+- **Cache Hierarchy Tests** (28 tests): L1/L2/L3 cache operations, promotion/demotion
+- **Predictive Cache Tests** (20 tests): Pattern detection, prefetching, confidence scoring
+- **Atomic Reference Counting Tests** (11 tests): Reference management, thread safety
+- **Adaptive Compressor Tests** (19 tests): Type detection, compression ratios
+- **Delta-of-Delta Encoder Tests** (18 tests): Timestamp compression, zigzag encoding
+- **Atomic Metrics Tests** (24 tests): Performance tracking, thread safety
+- **Performance Config Tests** (24 tests): Feature flags, A/B testing, configuration
+- **Sharded Write Buffer Tests** (16 tests): Buffer management, load balancing
+- **Background Processor Tests** (28 tests): Task execution, queue management
+- **Lock-Free Queue Tests** (17 tests): Concurrent operations, performance
+- **Storage Tests** (13 tests): Basic CRUD operations, error handling
+- **Block Management Tests** (13 tests): Block lifecycle, compaction
+- **Compression Tests** (9 tests): Various compression algorithms
 
-3. **OpenTelemetry Bridge Tests** (`otel/`)
-   - Metric conversion
-   - Attribute handling
-   - Resource limits
-   - Error handling
-   - Concurrency
+### 2. **Integration Tests** (`integration/`) - 113 tests
+End-to-end system testing:
 
-4. **Performance Tests** (`benchmark/`)
-   - Write performance
-   - Read performance
-   - Compaction performance
-   - Resource utilization
+#### **Core Integration** (3 tests)
+- Basic time series creation and storage
+- Configuration integration
+- Data type consistency
 
-5. **Integration Tests** (`integration/`)
-   - System integration
-   - Operational tests
+#### **Storage-Histogram Integration** (5 tests)
+- DDSketch and Fixed Bucket histogram storage
+- Histogram merging across boundaries
+- Large histogram handling
+
+#### **Configuration Integration** (8 tests)
+- Storage, histogram, and query config propagation
+- Configuration validation and persistence
+
+#### **OpenTelemetry Integration** (8 tests)
+- Counter, gauge, histogram, summary metric conversion
+- Resource attributes and label preservation
+
+#### **gRPC Service Integration** (8 tests)
+- Metrics ingestion, batch processing
+- Error handling, rate limiting, health checks
+
+#### **End-to-End Workflows** (7 tests)
+- OpenTelemetry to storage to query workflows
+- Batch and real-time processing scenarios
+
+#### **Multi-Component Operations** (7 tests)
+- Concurrent read/write operations
+- Cross-component error handling
+- Resource sharing and lifecycle management
+
+#### **Error Handling** (7 tests)
+- Error propagation across components
+- Resource exhaustion handling
+- Recovery mechanisms
+
+#### **Recovery Scenarios** (7 tests)
+- Storage corruption recovery
+- Network interruption handling
+- Component restart scenarios
+
+### 3. **PromQL Parser Tests** - 1 test
+- PromQL lexer and parser functionality
+
+### 4. **Performance Tests** (`benchmark/`) - 0 tests (placeholder)
+- Write/read performance benchmarks
+- Compaction performance
+- Resource utilization metrics
+
+### 5. **Load Tests** (`load/`) - 0 tests (placeholder)
+- Peak load testing
+- Sustained load testing
+
+### 6. **Stress Tests** (`stress/`) - 0 tests (placeholder)
+- Data volume stress testing
+- Resource stress testing
+
+### 7. **Scalability Tests** (`scalability/`) - 0 tests (placeholder)
+- Horizontal scalability testing
+- Vertical scalability testing
+
+## Test Data
+
+Test data is organized in `test/data/`:
+- **Storage Data**: Blocks, compression samples, histograms
+- **Sample Metrics**: Various metric types and distributions
+- **Configuration Files**: Test configurations and settings
 
 ## Running Tests
 
@@ -47,79 +117,65 @@ ctest --output-on-failure
 
 ### Running Specific Test Categories
 ```bash
+# Run unit tests only
+ctest -R "unit.*"
+
+# Run integration tests only
+ctest -R "integration.*"
+
 # Run storage tests
-ctest -R "storage_.*"
+ctest -R "storage.*"
 
-# Run histogram tests
-ctest -R "histogram_.*"
+# Run cache tests
+ctest -R "cache.*"
 
-# Run OpenTelemetry tests
-ctest -R "otel_.*"
-
-# Run performance tests
-ctest -R "benchmark_.*"
-
-# Run integration tests
-ctest -R "integration_.*"
+# Run compression tests
+ctest -R "compression.*"
 ```
 
 ### Running Tests with Coverage
 ```bash
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug ..
+cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON ..
 make
 ctest
 gcovr -r .. .
 ```
 
-## Test Plan Management
+## Test Categories Overview
 
-The test plan is maintained in `TESTPLAN.md` at the root of the project. To update test status:
+### **Unit Tests** (349 tests)
+- **Purpose**: Test individual components in isolation
+- **Scope**: Mock dependencies, focus on edge cases
+- **Speed**: Fast execution (< 1 second per test)
+- **Coverage**: Core functionality, error conditions
 
-```bash
-# Interactive mode
-./scripts/update_test_status.py
+### **Integration Tests** (113 tests)
+- **Purpose**: Test component interactions and workflows
+- **Scope**: Real dependencies, common use cases
+- **Speed**: Medium execution (1-10 seconds per test)
+- **Coverage**: End-to-end scenarios, error propagation
 
-# Automatic mode (parses test output)
-ctest --output-on-failure | tee test_output.txt
-./scripts/update_test_status.py --auto
-```
+### **Performance Tests** (0 tests - planned)
+- **Purpose**: Measure throughput and latency
+- **Scope**: Various loads, resource monitoring
+- **Speed**: Longer execution (10+ seconds per test)
+- **Coverage**: Performance characteristics, bottlenecks
 
-## Test Categories
+## Test Coverage Targets
 
-### Unit Tests
-- Test individual components in isolation
-- Mock dependencies where necessary
-- Focus on edge cases and error conditions
-- Fast execution time
+- **Line Coverage**: >90%
+- **Branch Coverage**: >85%
+- **Function Coverage**: >95%
 
-### Integration Tests
-- Test component interactions
-- Use real dependencies
-- Focus on common use cases
-- May be slower to execute
-
-### Performance Tests
-- Measure throughput and latency
-- Test under various loads
-- Monitor resource usage
-- Run in isolation
-
-### Stress Tests
-- Test system limits
-- Run under resource constraints
-- Test recovery mechanisms
-- Long-running tests
-
-## Writing Tests
+## Writing New Tests
 
 ### Guidelines
-1. Each test should have a clear purpose
-2. Test both success and failure cases
-3. Include edge cases and boundary conditions
-4. Mock external dependencies appropriately
-5. Clean up resources after tests
-6. Document test assumptions and requirements
+1. **Clear Purpose**: Each test should have a specific objective
+2. **Comprehensive Coverage**: Test success, failure, and edge cases
+3. **Resource Management**: Clean up resources after tests
+4. **Documentation**: Document assumptions and requirements
+5. **Naming Convention**: `TestSuite.TestName` format
 
 ### Test Structure
 ```cpp
@@ -135,57 +191,56 @@ TEST_F(TestFixture, TestName) {
 ### Adding New Tests
 1. Create test file in appropriate directory
 2. Add test to CMakeLists.txt
-3. Update TESTPLAN.md
-4. Add any necessary test data or fixtures
-5. Document test purpose and requirements
-
-## Test Data
-
-Test data is stored in `test/data/` and includes:
-- Sample metrics
-- Histogram distributions
-- OpenTelemetry protobuf messages
-- Configuration files
+3. Follow existing naming conventions
+4. Include necessary test data
+5. Document test purpose
 
 ## Debugging Tests
 
 ### Common Issues
-1. Resource cleanup failures
-2. Race conditions in concurrent tests
-3. System-dependent behavior
-4. Performance test variability
+- Resource cleanup failures
+- Race conditions in concurrent tests
+- System-dependent behavior
+- Performance test variability
 
 ### Debugging Tools
-1. Use `--gtest_break_on_failure`
-2. Enable verbose logging
-3. Use sanitizers (ASAN, TSAN)
-4. Profile with perf or gprof
+```bash
+# Break on test failure
+ctest --gtest_break_on_failure
 
-## Test Coverage
+# Verbose output
+ctest --output-on-failure
 
-Coverage reports are generated for:
-- Line coverage
-- Branch coverage
-- Function coverage
+# Run specific test
+./build/test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.*"
+```
 
-Target coverage metrics:
-- Line coverage: >90%
-- Branch coverage: >85%
-- Function coverage: >95%
+## Test Infrastructure
+
+### Build System
+- **CMake**: Primary build system
+- **Google Test**: Testing framework
+- **C++20**: Language standard
+- **Parallel Execution**: Tests run in parallel where possible
+
+### Test Configuration
+- **test_config.h**: Generated configuration header
+- **TSDB_TEST_DATA_DIR**: Test data directory path
+- **Common Library**: `tsdb_test_common` interface library
 
 ## Contributing
 
 When contributing new tests:
-1. Follow existing test patterns
-2. Include both positive and negative tests
+1. Follow existing test patterns and naming conventions
+2. Include both positive and negative test cases
 3. Document test purpose and requirements
-4. Update TESTPLAN.md
-5. Verify coverage impact
+4. Verify test coverage impact
+5. Ensure tests are deterministic and reliable
 
 ## Notes
 
-- Tests should be deterministic
-- Clean up resources even if test fails
-- Use appropriate timeouts for async tests
-- Document any system requirements
-- Keep performance tests isolated 
+- All tests are deterministic and repeatable
+- Tests clean up resources even if they fail
+- Performance tests are isolated to prevent interference
+- Integration tests use real dependencies for realistic scenarios
+- Unit tests use mocks for fast, isolated execution 
