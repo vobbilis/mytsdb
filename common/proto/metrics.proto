@@ -2,8 +2,6 @@ syntax = "proto3";
 
 package tsdb.common;
 
-option go_package = "github.com/vobbilis/go-tsdb/internal/types";
-
 // Label represents a key-value pair
 message Label {
     string name = 1;
