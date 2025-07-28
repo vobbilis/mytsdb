@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  cpp-tsdb:
+  tsdb:
     build:
       context: .
       dockerfile: deployment/docker/cpp/Dockerfile
@@ -9,7 +9,7 @@ services:
       - "9092:9090"  # Prometheus API
       - "9093:9091"  # Remote write API
     volumes:
-      - ./data/cpp:/data
+      - ./data:/data
     environment:
       - TSDB_STORAGE_PATH=/data
 
@@ -30,5 +30,5 @@ services:
     volumes:
       - ./deployment/grafana:/etc/grafana/provisioning
     depends_on:
-      - cpp-tsdb
+      - tsdb
       - prometheus 
