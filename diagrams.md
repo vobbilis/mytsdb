@@ -549,15 +549,15 @@ graph TB
     end
     
     subgraph TestResults
-        Phase1 --> TestResults[Test Results]
-        Phase2 --> TestResults
-        Phase3 --> TestResults
-        Phase4 --> TestResults
-        Phase5 --> TestResults
-        Phase6 --> TestResults
+        Phase1 --> ResultsCollection[Test Results]
+        Phase2 --> ResultsCollection
+        Phase3 --> ResultsCollection
+        Phase4 --> ResultsCollection
+        Phase5 --> ResultsCollection
+        Phase6 --> ResultsCollection
         
-        TestResults --> PerformanceBenchmarks[Performance Benchmarks]
-        TestResults --> QualityMetrics[Quality Metrics]
-        TestResults --> SuccessCriteria[Success Criteria]
+        ResultsCollection --> PerformanceBenchmarks[Performance Benchmarks]
+        ResultsCollection --> QualityMetrics[Quality Metrics]
+        ResultsCollection --> SuccessCriteria[Success Criteria]
     end
 ``` 
