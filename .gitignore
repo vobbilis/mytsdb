@@ -47,4 +47,7 @@ install_manifest.txt
 # macOS specific
 .DS_Store
 .AppleDouble
-.LSOverride 
+.LSOverride
+
+# IDE and Editor files
+.cursor/ 
