@@ -10,14 +10,14 @@ graph TB
     OTEL[OpenTelemetry] --> GRPC
     Prometheus[Prometheus] --> GRPC
     
-    subgraph Ingestion Layer
+    subgraph IngestionLayer
         GRPC --> Parser[Protocol Parser]
         Parser --> Validator[Validation Layer]
         Validator --> Router[Metric Router]
         Router --> StorageImpl[StorageImpl Interface]
     end
     
-    subgraph Advanced Storage Engine
+    subgraph AdvancedStorageEngine
         StorageImpl --> ObjectPools[Object Pools]
         StorageImpl --> CacheHierarchy[Cache Hierarchy]
         StorageImpl --> Compression[Compression Engine]
@@ -26,7 +26,7 @@ graph TB
         StorageImpl --> PredictiveCache[Predictive Cache]
     end
     
-    subgraph Multi-Tier Storage
+    subgraph MultiTierStorage
         BlockManager --> HotStorage[Hot Storage]
         BlockManager --> WarmStorage[Warm Storage]
         BlockManager --> ColdStorage[Cold Storage]
@@ -38,7 +38,7 @@ graph TB
         end
     end
     
-    subgraph Query Engine
+    subgraph QueryEngine
         Query[Query Processor] --> PromQL[PromQL Engine]
         PromQL --> Planner[Query Planner]
         Planner --> Executor[Query Executor]
@@ -46,7 +46,7 @@ graph TB
         Executor --> BlockManager
     end
     
-    subgraph Monitoring & Metrics
+    subgraph MonitoringMetrics
         AtomicMetrics[Atomic Metrics] --> StorageImpl
         PerformanceConfig[Performance Config] --> StorageImpl
         BackgroundProc --> MetricsCollection[Metrics Collection]
@@ -56,19 +56,19 @@ graph TB
 ## StorageImpl Integration Architecture
 ```mermaid
 graph TB
-    subgraph StorageImpl Interface
+    subgraph StorageImplInterface
         WriteOp[Write Operations] --> ObjectPoolIntegration[Object Pool Integration]
         ReadOp[Read Operations] --> CacheIntegration[Cache Integration]
         QueryOp[Query Operations] --> CompressionIntegration[Compression Integration]
     end
     
-    subgraph Object Pool Layer
+    subgraph ObjectPoolLayer
         ObjectPoolIntegration --> TimeSeriesPool[TimeSeries Pool]
         ObjectPoolIntegration --> LabelsPool[Labels Pool]
         ObjectPoolIntegration --> SamplePool[Sample Pool]
     end
     
-    subgraph Cache Hierarchy Layer
+    subgraph CacheHierarchyLayer
         CacheIntegration --> L1Cache[L1 Cache<br/>WorkingSetCache]
         CacheIntegration --> L2Cache[L2 Cache<br/>MemoryMappedCache]
         CacheIntegration --> L3Cache[L3 Cache<br/>Disk Storage]
@@ -76,20 +76,20 @@ graph TB
         L2Cache --> L3Cache
     end
     
-    subgraph Compression Layer
+    subgraph CompressionLayer
         CompressionIntegration --> TimestampComp[Timestamp Compression<br/>Delta-of-Delta]
         CompressionIntegration --> ValueComp[Value Compression<br/>XOR/RLE]
         CompressionIntegration --> LabelComp[Label Compression<br/>RLE]
     end
     
-    subgraph Block Management Layer
+    subgraph BlockManagementLayer
         BlockManager --> BlockCreation[Block Creation]
         BlockManager --> BlockRotation[Block Rotation]
         BlockManager --> BlockCompaction[Block Compaction]
         BlockManager --> BlockIndexing[Block Indexing]
     end
     
-    subgraph Background Processing
+    subgraph BackgroundProcessing
         BackgroundProc --> CacheMaintenance[Cache Maintenance]
         BackgroundProc --> BlockMaintenance[Block Maintenance]
         BackgroundProc --> MetricsCollection[Metrics Collection]
@@ -100,7 +100,7 @@ graph TB
 ## Advanced Features Architecture
 ```mermaid
 graph TB
-    subgraph AdvPerf Features
+    subgraph AdvPerfFeatures
         ObjectPooling[Object Pooling<br/>Memory Efficiency]
         MultiLevelCache[Multi-Level Cache<br/>Performance Optimization]
         PredictiveCaching[Predictive Caching<br/>Access Pattern Analysis]
@@ -109,7 +109,7 @@ graph TB
         AtomicReferenceCounting[Atomic Reference Counting<br/>Memory Management]
     end
     
-    subgraph Performance Optimization
+    subgraph PerformanceOptimization
         ObjectPooling --> MemoryEfficiency[Memory Efficiency]
         MultiLevelCache --> AccessSpeed[Access Speed]
         PredictiveCaching --> Prefetching[Intelligent Prefetching]
@@ -118,7 +118,7 @@ graph TB
         AtomicReferenceCounting --> SafeMemory[Safe Memory Management]
     end
     
-    subgraph Integration Points
+    subgraph IntegrationPoints
         MemoryEfficiency --> StorageImpl
         AccessSpeed --> StorageImpl
         Prefetching --> StorageImpl
@@ -208,27 +208,27 @@ classDiagram
 ## Multi-Tier Storage Architecture
 ```mermaid
 graph TB
-    subgraph Storage Tiers
-        subgraph Hot Tier
+    subgraph StorageTiers
+        subgraph HotTier
             HotMemory[In-Memory Storage]
             HotCache[L1 Cache<br/>WorkingSetCache]
             HotBlocks[Hot Blocks<br/>Recent Data]
         end
         
-        subgraph Warm Tier
+        subgraph WarmTier
             WarmMemory[Memory-Mapped Storage]
             WarmCache[L2 Cache<br/>MemoryMappedCache]
             WarmBlocks[Warm Blocks<br/>Compressed Data]
         end
         
-        subgraph Cold Tier
+        subgraph ColdTier
             ColdDisk[Disk Storage]
             ColdCache[L3 Cache<br/>Persistent Storage]
             ColdBlocks[Cold Blocks<br/>Archived Data]
         end
     end
     
-    subgraph Data Flow
+    subgraph DataFlow
         Write[Write Operations] --> HotMemory
         HotMemory --> HotCache
         HotCache --> HotBlocks
@@ -242,7 +242,7 @@ graph TB
         ColdCache --> ColdBlocks
     end
     
-    subgraph Background Operations
+    subgraph BackgroundOperations
         BackgroundProc --> TierPromotion[Promotion<br/>Cold → Warm → Hot]
         BackgroundProc --> TierDemotion[Demotion<br/>Hot → Warm → Cold]
         BackgroundProc --> Compaction[Block Compaction]
@@ -253,26 +253,26 @@ graph TB
 ## Compression Architecture
 ```mermaid
 graph TB
-    subgraph Compression Algorithms
-        subgraph Timestamp Compression
+    subgraph CompressionAlgorithms
+        subgraph TimestampCompression
             DeltaOfDelta[Delta-of-Delta<br/>High Compression]
             SimpleDelta[Simple Delta<br/>Fast Processing]
             XOR[XOR Compression<br/>Efficient for Timestamps]
         end
         
-        subgraph Value Compression
+        subgraph ValueCompression
             XORValue[XOR Compression<br/>Floating Point]
             RLEValue[RLE Compression<br/>Repeated Values]
             AdaptiveValue[Adaptive Compression<br/>Auto Selection]
         end
         
-        subgraph Label Compression
+        subgraph LabelCompression
             RLELabel[RLE Compression<br/>String Labels]
             DictionaryLabel[Dictionary Compression<br/>Label Sets]
         end
     end
     
-    subgraph Compression Pipeline
+    subgraph CompressionPipeline
         InputData[Input Data] --> AlgorithmSelector[Algorithm Selector]
         AlgorithmSelector --> TimestampComp[Timestamp Compression]
         AlgorithmSelector --> ValueComp[Value Compression]
@@ -285,7 +285,7 @@ graph TB
         CompressedData --> BlockStorage[Block Storage]
     end
     
-    subgraph Performance Monitoring
+    subgraph PerformanceMonitoring
         CompressionRatio[Compression Ratio] --> AlgorithmSelector
         CompressionSpeed[Compression Speed] --> AlgorithmSelector
         DecompressionSpeed[Decompression Speed] --> AlgorithmSelector
@@ -295,27 +295,27 @@ graph TB
 ## Cache Hierarchy Architecture
 ```mermaid
 graph TB
-    subgraph Cache Levels
-        subgraph L1 Cache (Fastest)
+    subgraph CacheLevels
+        subgraph L1Cache
             L1WorkingSet[Working Set Cache<br/>LRU Eviction]
             L1Memory[In-Memory Storage<br/>~10-100ns Access]
             L1Size[Small Size<br/>~1K Entries]
         end
         
-        subgraph L2 Cache (Medium)
+        subgraph L2Cache
             L2MemoryMapped[Memory-Mapped Cache<br/>File-Based]
             L2Medium[Medium Speed<br/>~1-10μs Access]
             L2Size[Medium Size<br/>~10K Entries]
         end
         
-        subgraph L3 Cache (Slowest)
+        subgraph L3Cache
             L3Disk[Disk Storage<br/>Persistent]
             L3Slow[Slow Speed<br/>~1-10ms Access]
             L3Size[Large Size<br/>Unlimited]
         end
     end
     
-    subgraph Cache Operations
+    subgraph CacheOperations
         ReadRequest[Read Request] --> L1WorkingSet
         L1WorkingSet --> L1Hit{L1 Hit?}
         L1Hit -->|Yes| ReturnData[Return Data]
@@ -328,7 +328,7 @@ graph TB
         PromoteToL1 --> ReturnData
     end
     
-    subgraph Background Maintenance
+    subgraph BackgroundMaintenance
         BackgroundProc --> CacheOptimization[Cache Optimization]
         CacheOptimization --> EvictionPolicy[LRU Eviction]
         CacheOptimization --> PromotionPolicy[Access-Based Promotion]
@@ -339,7 +339,7 @@ graph TB
 ## Block Management Architecture
 ```mermaid
 graph TB
-    subgraph Block Lifecycle
+    subgraph BlockLifecycle
         BlockCreation[Block Creation] --> BlockWriting[Block Writing]
         BlockWriting --> BlockCompression[Block Compression]
         BlockCompression --> BlockStorage[Block Storage]
@@ -348,24 +348,24 @@ graph TB
         BlockCompaction --> BlockArchival[Block Archival]
     end
     
-    subgraph Block Types
-        subgraph Hot Blocks
+    subgraph BlockTypes
+        subgraph HotBlocks
             HotActive[Active Blocks<br/>Current Writing]
             HotRecent[Recent Blocks<br/>Frequently Accessed]
         end
         
-        subgraph Warm Blocks
+        subgraph WarmBlocks
             WarmCompressed[Compressed Blocks<br/>Medium Access]
             WarmIndexed[Indexed Blocks<br/>Query Optimization]
         end
         
-        subgraph Cold Blocks
+        subgraph ColdBlocks
             ColdArchived[Archived Blocks<br/>Rare Access]
             ColdCompacted[Compacted Blocks<br/>Space Optimized]
         end
     end
     
-    subgraph Block Operations
+    subgraph BlockOperations
         WriteData[Write Data] --> BlockManager
         BlockManager --> BlockCreation
         BlockManager --> BlockRotation
@@ -380,33 +380,33 @@ graph TB
 ## Background Processing Architecture
 ```mermaid
 graph TB
-    subgraph Background Tasks
-        subgraph Cache Maintenance
+    subgraph BackgroundTasks
+        subgraph CacheMaintenance
             CacheOptimization[Cache Optimization]
             EvictionManagement[Eviction Management]
             PromotionManagement[Promotion Management]
         end
         
-        subgraph Block Maintenance
+        subgraph BlockMaintenance
             BlockCompaction[Block Compaction]
             BlockRotation[Block Rotation]
             BlockCleanup[Block Cleanup]
         end
         
-        subgraph Metrics Collection
+        subgraph MetricsCollection
             PerformanceMetrics[Performance Metrics]
             ResourceMetrics[Resource Metrics]
             SystemMetrics[System Metrics]
         end
         
-        subgraph Predictive Analysis
+        subgraph PredictiveAnalysis
             PatternAnalysis[Pattern Analysis]
             Prefetching[Intelligent Prefetching]
             ConfidenceScoring[Confidence Scoring]
         end
     end
     
-    subgraph Task Scheduling
+    subgraph TaskScheduling
         BackgroundProcessor --> TaskScheduler[Task Scheduler]
         TaskScheduler --> PeriodicTasks[Periodic Tasks]
         TaskScheduler --> EventDrivenTasks[Event-Driven Tasks]
@@ -431,7 +431,7 @@ graph TB
 ## Query Processing Architecture
 ```mermaid
 graph TB
-    subgraph Query Processing
+    subgraph QueryProcessing
         Query[Query Request] --> Parser[Query Parser]
         Parser --> Analyzer[Query Analyzer]
         Analyzer --> Planner[Query Planner]
@@ -439,7 +439,7 @@ graph TB
         Optimizer --> Executor[Query Executor]
     end
     
-    subgraph Storage Access
+    subgraph StorageAccess
         Executor --> CacheLookup[Cache Lookup]
         CacheLookup --> CacheHit{Cache Hit?}
         CacheHit -->|Yes| ReturnResult[Return Result]
@@ -462,34 +462,34 @@ graph TB
 ## Performance Monitoring Architecture
 ```mermaid
 graph TB
-    subgraph Metrics Collection
+    subgraph MetricsCollection
         AtomicMetrics --> PerformanceMetrics[Performance Metrics]
         AtomicMetrics --> ResourceMetrics[Resource Metrics]
         AtomicMetrics --> SystemMetrics[System Metrics]
     end
     
-    subgraph Performance Metrics
+    subgraph PerformanceMetrics
         PerformanceMetrics --> Throughput[Throughput<br/>Ops/Second]
         PerformanceMetrics --> Latency[Latency<br/>Response Time]
         PerformanceMetrics --> HitRate[Cache Hit Rate]
         PerformanceMetrics --> CompressionRatio[Compression Ratio]
     end
     
-    subgraph Resource Metrics
+    subgraph ResourceMetrics
         ResourceMetrics --> MemoryUsage[Memory Usage]
         ResourceMetrics --> DiskUsage[Disk Usage]
         ResourceMetrics --> CPUUsage[CPU Usage]
         ResourceMetrics --> NetworkUsage[Network Usage]
     end
     
-    subgraph System Metrics
+    subgraph SystemMetrics
         SystemMetrics --> ErrorRate[Error Rate]
         SystemMetrics --> Availability[Availability]
         SystemMetrics --> Scalability[Scalability]
         SystemMetrics --> Reliability[Reliability]
     end
     
-    subgraph Monitoring Integration
+    subgraph MonitoringIntegration
         PerformanceMetrics --> MonitoringSystem[Monitoring System]
         ResourceMetrics --> MonitoringSystem
         SystemMetrics --> MonitoringSystem
@@ -501,45 +501,45 @@ graph TB
 ## Integration Testing Architecture
 ```mermaid
 graph TB
-    subgraph Test Phases
-        subgraph Phase 1: Object Pool Integration
+    subgraph TestPhases
+        subgraph Phase1ObjectPoolIntegration
             ObjectPoolTests[Object Pool Tests]
             MemoryEfficiencyTests[Memory Efficiency Tests]
             PoolStatisticsTests[Pool Statistics Tests]
         end
         
-        subgraph Phase 2: Cache Hierarchy Integration
+        subgraph Phase2CacheHierarchyIntegration
             CacheHitMissTests[Cache Hit/Miss Tests]
             CacheEvictionTests[Cache Eviction Tests]
             CachePromotionTests[Cache Promotion Tests]
         end
         
-        subgraph Phase 3: Compression Integration
+        subgraph Phase3CompressionIntegration
             CompressionAccuracyTests[Compression Accuracy Tests]
             CompressionRatioTests[Compression Ratio Tests]
             AlgorithmSelectionTests[Algorithm Selection Tests]
         end
         
-        subgraph Phase 4: Block Management Integration
+        subgraph Phase4BlockManagementIntegration
             BlockCreationTests[Block Creation Tests]
             BlockRotationTests[Block Rotation Tests]
             BlockCompactionTests[Block Compaction Tests]
         end
         
-        subgraph Phase 5: Background Processing Integration
+        subgraph Phase5BackgroundProcessingIntegration
             BackgroundTaskTests[Background Task Tests]
             MaintenanceTests[Maintenance Tests]
             MetricsCollectionTests[Metrics Collection Tests]
         end
         
-        subgraph Phase 6: Comprehensive Integration
+        subgraph Phase6ComprehensiveIntegration
             EndToEndTests[End-to-End Tests]
             PerformanceTests[Performance Tests]
             StressTests[Stress Tests]
         end
     end
     
-    subgraph Test Execution
+    subgraph TestExecution
         TestRunner[Test Runner] --> Phase1[Phase 1 Tests]
         TestRunner --> Phase2[Phase 2 Tests]
         TestRunner --> Phase3[Phase 3 Tests]
@@ -548,7 +548,7 @@ graph TB
         TestRunner --> Phase6[Phase 6 Tests]
     end
     
-    subgraph Test Results
+    subgraph TestResults
         Phase1 --> TestResults[Test Results]
         Phase2 --> TestResults
         Phase3 --> TestResults
