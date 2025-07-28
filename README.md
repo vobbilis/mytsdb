@@ -38,6 +38,14 @@ A high-performance time series database with comprehensive storage, compression,
 - **[`docs/analysis/INTEGRATION_TESTING_EVIDENCE.md`](docs/analysis/INTEGRATION_TESTING_EVIDENCE.md)** - Detailed testing evidence
 - **[`docs/analysis/PROMETHEUS_INTEGRATION.md`](docs/analysis/PROMETHEUS_INTEGRATION.md)** - Prometheus compatibility plan
 
+### **🏗️ Architecture Documentation**
+- **[`docs/architecture/README.md`](docs/architecture/README.md)** - Architecture documentation guide
+- **[`docs/architecture/ARCHITECTURE_OVERVIEW.md`](docs/architecture/ARCHITECTURE_OVERVIEW.md)** - High-level system architecture
+- **[`docs/architecture/COMPONENT_DIAGRAM.md`](docs/architecture/COMPONENT_DIAGRAM.md)** - Detailed component architecture
+- **[`docs/architecture/DATA_FLOW_DIAGRAM.md`](docs/architecture/DATA_FLOW_DIAGRAM.md)** - Data flow analysis
+- **[`docs/architecture/STORAGE_ARCHITECTURE.md`](docs/architecture/STORAGE_ARCHITECTURE.md)** - Multi-tier storage system
+- **[`docs/architecture/PERFORMANCE_ARCHITECTURE.md`](docs/architecture/PERFORMANCE_ARCHITECTURE.md)** - Advanced performance optimization
+
 ### **Project Overview**
 - **[`FEATURES.md`](FEATURES.md)** - Complete feature documentation
 - **[`NEWRIGORCLIST.md`](NEWRIGORCLIST.md)** - Build readiness checklist
