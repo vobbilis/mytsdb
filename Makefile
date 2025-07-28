@@ -1,25 +1,33 @@
-.PHONY: all clean test bench proto docker-build
+.PHONY: all clean test bench proto docker-build cpp cpp-test cpp-bench
 
 # Default target
 all: cpp
 
 # Protocol buffer generation
 proto:
-	@echo "Generating protocol buffers..."
-	@cd tools/proto && ./generate.sh
+	@echo "Checking protocol buffers..."
+	@if [ ! -f "src/tsdb/proto/gen/tsdb.pb.h" ]; then \
+		echo "Warning: Protocol buffer files not found. Skipping generation for now."; \
+		echo "If you need to regenerate protobuf files, please run: protoc --cpp_out=src/tsdb/proto/gen common/proto/*.proto"; \
+	fi
 
 # C++ targets
 cpp: proto
 	@echo "Building C++ implementation..."
-	@cd cpp-tsdb && make build
+	@mkdir -p build
+	@cd build && cmake -DBUILD_TESTS=ON -DBUILD_EXAMPLES=OFF ..
+	@cd build && make -j$(nproc)
+
+# Test target (alias for cpp-test)
+test: cpp-test
 
 cpp-test:
 	@echo "Testing C++ implementation..."
-	@cd cpp-tsdb && make test
+	@cd build && make test
 
 cpp-bench:
 	@echo "Benchmarking C++ implementation..."
-	@cd cpp-tsdb && make bench
+	@cd build && make benchmark
 
 # Benchmarks
 bench: cpp-bench
@@ -33,5 +41,6 @@ docker-build:
 
 # Clean all builds
 clean:
-	@cd cpp-tsdb && make clean
-	@rm -rf build/ 
+	@echo "Cleaning build directory..."
+	@rm -rf build/
+	@echo "Build directory cleaned." 
