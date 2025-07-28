@@ -17,6 +17,8 @@
 #include "tsdb/storage/storage.h"
 #include "tsdb/core/config.h"
 #include "tsdb/core/error.h"
+#include "tsdb/storage/object_pool.h"
+#include "tsdb/storage/working_set_cache.h"
 
 namespace tsdb {
 namespace storage {
@@ -58,6 +60,14 @@ private:
     std::shared_ptr<BlockManager> block_manager_;
     bool initialized_;
     std::vector<core::TimeSeries> stored_series_;  // In-memory storage for series
+    
+    // Object pools for reducing memory allocations
+    std::unique_ptr<TimeSeriesPool> time_series_pool_;
+    std::unique_ptr<LabelsPool> labels_pool_;
+    std::unique_ptr<SamplePool> sample_pool_;
+    
+    // Working set cache for frequently accessed data
+    std::unique_ptr<WorkingSetCache> working_set_cache_;
 };
 
 } // namespace storage

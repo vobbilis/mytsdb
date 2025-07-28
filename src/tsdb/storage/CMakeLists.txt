@@ -8,6 +8,19 @@ target_sources(tsdb_storage_impl
         block_manager.cpp
         compression.cpp
         histogram_ops.cpp
+        object_pool.cpp
+        working_set_cache.cpp
+        adaptive_compressor.cpp
+        delta_of_delta_encoder.cpp
+        atomic_metrics.cpp
+        performance_config.cpp
+        sharded_write_buffer.cpp
+        background_processor.cpp
+        lock_free_queue.cpp
+        cache_hierarchy.cpp
+        memory_mapped_cache.cpp
+        predictive_cache.cpp
+        atomic_ref_counted.cpp
         storage_impl.cpp
         storage_factory.cpp
         internal/block_impl.cpp
@@ -44,6 +57,20 @@ install(FILES
     block_manager.h
     compression.h
     histogram_ops.h
+    object_pool.h
+    working_set_cache.h
+    adaptive_compressor.h
+    delta_of_delta_encoder.h
+    atomic_metrics.h
+    performance_config.h
+    sharded_write_buffer.h
+    background_processor.h
+    lock_free_queue.h
+    cache_types.h
+    cache_hierarchy.h
+    memory_mapped_cache.h
+    predictive_cache.h
+    atomic_ref_counted.h
     DESTINATION include/tsdb/storage
 )
 

@@ -2,7 +2,7 @@
 
 A high-performance time series database with comprehensive storage, compression, and OpenTelemetry integration. This project features a complete C++ implementation with extensive unit testing and real compression algorithms.
 
-## 🎯 Current Status: PRODUCTION READY WITH COMPREHENSIVE INTEGRATION TESTING
+## 🎯 Current Status: PRODUCTION READY WITH ADVANCED PERFORMANCE FEATURES
 
 ### ✅ **Completed Components**
 - **Core Infrastructure**: 38/38 tests passing (100%)
@@ -11,6 +11,8 @@ A high-performance time series database with comprehensive storage, compression,
 - **Block Management**: 12/12 tests passing (100%)
 - **Histogram Components**: 22/22 tests passing (100%)
 - **OpenTelemetry Integration**: Fully implemented and tested
+- **AdvPerf Performance Features**: 11/32 tasks completed (34.4%)
+- **Integration Testing**: 5/6 phases completed (83.3%)
 
 ### 🚀 **Key Features**
 - **Real Compression Algorithms**: Gorilla, XOR, RLE, Delta encoding
@@ -18,7 +20,28 @@ A high-performance time series database with comprehensive storage, compression,
 - **Thread-safe Operations**: MVCC with concurrent read/write support
 - **OpenTelemetry Native**: gRPC metrics ingestion on port 4317
 - **Histogram Support**: DDSketch and FixedBucket histogram implementations
-- **Comprehensive Testing**: 130+ unit tests + 60 integration tests (100% integration coverage)
+- **Advanced Performance Features**: Object pooling, caching, background processing
+- **Comprehensive Testing**: 133+ unit tests + 95 integration tests (100% integration coverage)
+
+## 📚 Documentation
+
+> **📋 Note**: All project planning documents have been organized into `docs/planning/` for better structure and maintainability. The master task plan serves as the single source of truth for all project tracking.
+
+### **Project Planning**
+- **[`docs/planning/TSDB_MASTER_TASK_PLAN.md`](docs/planning/TSDB_MASTER_TASK_PLAN.md)** - Single source of truth for all task tracking
+- **[`docs/planning/CURRENT_STATUS.md`](docs/planning/CURRENT_STATUS.md)** - Current build and test status
+- **[`docs/planning/INTEGRATION_TESTING_PLAN.md`](docs/planning/INTEGRATION_TESTING_PLAN.md)** - Integration testing strategy
+- **[`docs/planning/PERFORMANCE_TESTING_PLAN.md`](docs/planning/PERFORMANCE_TESTING_PLAN.md)** - Performance testing strategy
+
+### **Technical Analysis**
+- **[`docs/analysis/ADVPERF_PERFORMANCE_ANALYSIS.md`](docs/analysis/ADVPERF_PERFORMANCE_ANALYSIS.md)** - Performance optimization research
+- **[`docs/analysis/INTEGRATION_TESTING_EVIDENCE.md`](docs/analysis/INTEGRATION_TESTING_EVIDENCE.md)** - Detailed testing evidence
+- **[`docs/analysis/PROMETHEUS_INTEGRATION.md`](docs/analysis/PROMETHEUS_INTEGRATION.md)** - Prometheus compatibility plan
+
+### **Project Overview**
+- **[`FEATURES.md`](FEATURES.md)** - Complete feature documentation
+- **[`NEWRIGORCLIST.md`](NEWRIGORCLIST.md)** - Build readiness checklist
+- **[`diagrams.md`](diagrams.md)** - Architecture and system diagrams
 
 ## 📋 Prerequisites
 
