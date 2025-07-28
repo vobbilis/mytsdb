@@ -1,6 +1,6 @@
 # TSDB Project - Current Status Report
 
-**Generated:** December 2024  
+**Generated:** July 2025  
 **Build Environment:** macOS 13.3, AppleClang 14.0.3, CMake 3.x  
 **Project Root:** `/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb`
 
