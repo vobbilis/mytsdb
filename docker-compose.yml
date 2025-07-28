@@ -1,18 +1,6 @@
 version: '3.8'
 
 services:
-  go-tsdb:
-    build:
-      context: .
-      dockerfile: deployment/docker/go/Dockerfile
-    ports:
-      - "9090:9090"  # Prometheus API
-      - "9091:9091"  # Remote write API
-    volumes:
-      - ./data/go:/data
-    environment:
-      - TSDB_STORAGE_PATH=/data
-
   cpp-tsdb:
     build:
       context: .
@@ -42,6 +30,5 @@ services:
     volumes:
       - ./deployment/grafana:/etc/grafana/provisioning
     depends_on:
-      - go-tsdb
       - cpp-tsdb
       - prometheus 

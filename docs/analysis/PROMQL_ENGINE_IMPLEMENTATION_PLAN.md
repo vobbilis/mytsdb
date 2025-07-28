@@ -53,7 +53,7 @@ graph TD
 -   **Task 1.1: Define PromQL Grammar**
     -   Action: Document the PromQL grammar (e.g., using BNF or Antlr-like syntax) based on the official Prometheus documentation. **Reference the `promql/parser/lex.go` and `promql/parser/parse.go` in the Prometheus repository for token definitions and grammar rules.**
     -   Deliverable: Grammar definition file/document, list of all token types.
-    -   **Status: Completed.** Understanding of grammar and token types from Prometheus's Go implementation has been codified into the C++ lexer's token definitions and parser design.
+    -   **Status: Completed.** Understanding of grammar and token types from Prometheus's reference implementation has been codified into the C++ lexer's token definitions and parser design.
 
 -   **Task 1.2: Implement Lexer (Tokenizer)**
     -   Action: Create `src/tsdb/prometheus/promql/lexer.h` and `lexer.cpp`.
