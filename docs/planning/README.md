@@ -18,6 +18,14 @@ This directory contains all high-level project planning and task tracking docume
 - **Status**: Updated after each build/test cycle
 - **Use**: Quick reference for current project health
 
+### **Implementation Planning Documents**
+
+#### **`STORAGEIMPL_INTEGRATION_PLAN.md`** - **StorageImpl Integration Strategy**
+- **Purpose**: Comprehensive plan for integrating all advanced features into StorageImpl
+- **Content**: Object pool integration, cache hierarchy, compression, block management, background processing
+- **Status**: Planning phase - 6-week implementation timeline
+- **Use**: Reference for transforming StorageImpl into production-ready storage system
+
 ### **Testing Strategy Documents**
 
 #### **`INTEGRATION_TESTING_PLAN.md`** - **Integration Testing Strategy**
@@ -51,14 +59,16 @@ This directory contains all high-level project planning and task tracking docume
 ### **For Project Management:**
 1. **Start with**: `TSDB_MASTER_TASK_PLAN.md` for current task status
 2. **Check status**: `CURRENT_STATUS.md` for build/test health
-3. **Plan testing**: `INTEGRATION_TESTING_PLAN.md` for integration testing
-4. **Plan performance**: `PERFORMANCE_TESTING_PLAN.md` for benchmarking
+3. **Plan implementation**: `STORAGEIMPL_INTEGRATION_PLAN.md` for StorageImpl upgrades
+4. **Plan testing**: `INTEGRATION_TESTING_PLAN.md` for integration testing
+5. **Plan performance**: `PERFORMANCE_TESTING_PLAN.md` for benchmarking
 
 ### **For Development:**
 1. **Task selection**: Use master plan to identify next priorities
-2. **Testing guidance**: Reference testing plans for implementation
-3. **Status tracking**: Update master plan as tasks are completed
-4. **Progress monitoring**: Regular updates to current status
+2. **Implementation guidance**: Reference StorageImpl integration plan for feature integration
+3. **Testing guidance**: Reference testing plans for implementation
+4. **Status tracking**: Update master plan as tasks are completed
+5. **Progress monitoring**: Regular updates to current status
 
 ### **For Documentation:**
 1. **Historical reference**: Phase completion summaries
@@ -70,6 +80,7 @@ This directory contains all high-level project planning and task tracking docume
 ```
 TSDB_MASTER_TASK_PLAN.md (Primary Task Tracking)
 ├── CURRENT_STATUS.md (Current Health)
+├── STORAGEIMPL_INTEGRATION_PLAN.md (Implementation Strategy)
 ├── INTEGRATION_TESTING_PLAN.md (Testing Strategy)
 ├── PERFORMANCE_TESTING_PLAN.md (Performance Strategy)
 └── TESTPLAN.md (General Testing)
@@ -82,6 +93,7 @@ PHASE1_COMPLETION_SUMMARY.md (Historical Record)
 ### **Regular Updates:**
 - **Master Plan**: Update task status as work progresses
 - **Current Status**: Update after each build/test cycle
+- **StorageImpl Integration**: Update as integration phases are completed
 - **Testing Plans**: Update as testing strategies evolve
 
 ### **Version Control:**
