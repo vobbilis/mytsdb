@@ -14,6 +14,7 @@
 #include "tsdb/storage/internal/block_impl.h"
 #include "tsdb/storage/compression.h"
 #include "tsdb/storage/histogram_ops.h"
+#include "tsdb/storage/object_pool.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
 #include "tsdb/core/interfaces.h"
@@ -122,7 +123,11 @@ core::Timestamp Series::MaxTimestamp() const {
 }
 
 StorageImpl::StorageImpl()
-    : initialized_(false) {}
+    : initialized_(false)
+    , time_series_pool_(std::make_unique<TimeSeriesPool>(100, 10000))
+    , labels_pool_(std::make_unique<LabelsPool>(200, 20000))
+    , sample_pool_(std::make_unique<SamplePool>(1000, 100000))
+    , working_set_cache_(std::make_unique<WorkingSetCache>(500)) {}
 
 StorageImpl::~StorageImpl() {
     if (initialized_) {
@@ -158,8 +163,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
     try {
-        // Store the series in memory for now
-        // In a full implementation, this would create blocks and write to disk
+        // Store the series in memory (temporarily without object pool)
         stored_series_.push_back(series);
         
         return core::Result<void>();
@@ -183,7 +187,10 @@ core::Result<core::TimeSeries> StorageImpl::read(
     std::shared_lock<std::shared_mutex> lock(mutex_);
     
     try {
-        // Create result time series with the requested labels
+        // For now, skip cache integration to avoid potential issues
+        // TODO: Re-enable cache integration after fixing segmentation fault
+        
+        // Perform the actual read operation (temporarily without object pool)
         core::TimeSeries result(labels);
         
         // Search through stored series for matching labels
@@ -364,8 +371,8 @@ core::Result<void> StorageImpl::flush() {
 
 core::Result<void> StorageImpl::close() {
     if (!initialized_) {
-    return core::Result<void>();
-}
+        return core::Result<void>();
+    }
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
     // Just flush since BlockManager doesn't have close()
@@ -406,6 +413,14 @@ std::string StorageImpl::stats() const {
         if (min_time != std::numeric_limits<int64_t>::max()) {
             oss << "  Time range: " << min_time << " to " << max_time << "\n";
         }
+        
+        // Add object pool statistics
+        oss << "\n" << time_series_pool_->stats();
+        oss << "\n" << labels_pool_->stats();
+        oss << "\n" << sample_pool_->stats();
+        
+        // Add working set cache statistics
+        oss << "\n" << working_set_cache_->stats();
         
         return oss.str();
     } catch (const std::exception& e) {

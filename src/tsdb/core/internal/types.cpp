@@ -19,6 +19,10 @@ void Labels::remove(const std::string& name) {
     labels_.erase(name);
 }
 
+void Labels::clear() {
+    labels_.clear();
+}
+
 bool Labels::has(const std::string& name) const {
     return labels_.find(name) != labels_.end();
 }
