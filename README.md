@@ -115,15 +115,22 @@ make -j$(nproc)  # Use all available cores
 
 ### Step 3: Verify Build Success
 ```bash
-# Check that all targets were built
-ls -la *.a *.so 2>/dev/null || ls -la *.a *.dylib 2>/dev/null
+# From the build directory, check that all targets were built
+cd build
+ls -la src/libtsdb_lib* src/tsdb/libtsdb_* 2>/dev/null
 
 # Expected output should include:
-# - libtsdb_lib.a
-# - libtsdb_core_impl.a
-# - libtsdb_storage_impl.a
-# - libtsdb_histogram_impl.a
-# - libtsdb_otel_impl.a
+# - src/libtsdb_lib.1.0.0.dylib (or .so on Linux)
+# - src/libtsdb_lib.1.dylib (symlink)
+# - src/libtsdb_lib.dylib (symlink)
+# - src/tsdb/libtsdb_main.dylib
+# - src/tsdb/core/libtsdb_core_impl.dylib
+# - src/tsdb/storage/libtsdb_storage_impl.dylib
+# - src/tsdb/histogram/libtsdb_histogram_impl.dylib
+# - src/tsdb/otel/libtsdb_otel_impl.dylib
+
+# Alternative: Find all libraries recursively
+find . -name "*.dylib" -o -name "*.so" -o -name "*.a" | head -10
 ```
 
 ## 🧪 Testing Instructions
