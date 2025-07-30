@@ -140,12 +140,17 @@ find . -name "*.dylib" -o -name "*.so" -o -name "*.a" | head -10
 ### **Test Output Options**
 By default, test results are displayed in the terminal. You can also generate output files:
 
+**📁 Output Directory**: All test output files are written to the **current working directory** where you run the test command (typically the `build/` directory).
+
 ```bash
-# Generate XML report
+# Generate XML report (saved to build/test_results.xml)
 ./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_results.xml
 
-# Generate JSON report  
+# Generate JSON report (saved to build/test_results.json)
 ./test/unit/tsdb_core_unit_tests --gtest_output=json:test_results.json
+
+# Specify a different directory (saved to build/test_outputs/results.xml)
+./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_outputs/results.xml
 
 # Only show failures (brief output)
 ./test/unit/tsdb_core_unit_tests --gtest_brief=1
