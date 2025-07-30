@@ -135,10 +135,15 @@ find . -name "*.dylib" -o -name "*.so" -o -name "*.a" | head -10
 
 ## 🧪 Testing Instructions
 
+> **📋 Important**: All make commands must be run from the `build` directory, not the project root!
+
 ### Step 1: Run Core Tests
 ```bash
-# Build and run core unit tests
+# Navigate to build directory and build core unit tests
+cd build
 make tsdb_core_unit_tests
+
+# Run the tests (from build directory)
 ./test/unit/tsdb_core_unit_tests
 
 # Expected: 38/38 tests passing
@@ -146,8 +151,11 @@ make tsdb_core_unit_tests
 
 ### Step 2: Run Storage Tests
 ```bash
-# Build and run storage unit tests
+# From build directory, build storage unit tests
+cd build
 make tsdb_storage_unit_tests
+
+# Run specific storage tests
 ./test/unit/tsdb_storage_unit_tests --gtest_filter="*Compression*:*Block*"
 
 # Expected: 21/21 tests passing
@@ -157,7 +165,8 @@ make tsdb_storage_unit_tests
 
 ### Step 3: Run All Storage Tests
 ```bash
-# Run complete storage test suite
+# From build directory, run complete storage test suite
+cd build
 ./test/unit/tsdb_storage_unit_tests
 
 # Expected: 30/32 tests passing (93.8%)
@@ -166,7 +175,8 @@ make tsdb_storage_unit_tests
 
 ### Step 4: Run Integration Tests
 ```bash
-# Build and run integration tests
+# From build directory, build and run integration tests
+cd build
 make tsdb_integration_test_suite
 ./test/integration/tsdb_integration_test_suite
 
