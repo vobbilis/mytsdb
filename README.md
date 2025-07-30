@@ -142,15 +142,29 @@ By default, test results are displayed in the terminal. You can also generate ou
 
 **📁 Output Directory**: All test output files are written to the **current working directory** where you run the test command (typically the `build/` directory).
 
+#### **XML/JSON Reports (Test Results Summary)**
+These contain structured test metadata (pass/fail status, timing, file locations) but NOT the actual console output:
+
 ```bash
-# Generate XML report (saved to build/test_results.xml)
+# Generate XML report (test results summary only)
 ./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_results.xml
 
-# Generate JSON report (saved to build/test_results.json)
+# Generate JSON report (test results summary only)
 ./test/unit/tsdb_core_unit_tests --gtest_output=json:test_results.json
 
-# Specify a different directory (saved to build/test_outputs/results.xml)
+# Specify a different directory
 ./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_outputs/results.xml
+```
+
+#### **Full Console Output (Including Test Details)**
+To capture the actual test console output (print statements, debug messages, etc.):
+
+```bash
+# Capture full console output to file
+./test/unit/tsdb_core_unit_tests 2>&1 | tee test_console_output.txt
+
+# Generate both XML report AND capture console output
+./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_results.xml 2>&1 | tee test_console_output.txt
 
 # Only show failures (brief output)
 ./test/unit/tsdb_core_unit_tests --gtest_brief=1
