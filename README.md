@@ -137,6 +137,23 @@ find . -name "*.dylib" -o -name "*.so" -o -name "*.a" | head -10
 
 > **📋 Important**: All make commands must be run from the `build` directory, not the project root!
 
+### **Test Output Options**
+By default, test results are displayed in the terminal. You can also generate output files:
+
+```bash
+# Generate XML report
+./test/unit/tsdb_core_unit_tests --gtest_output=xml:test_results.xml
+
+# Generate JSON report  
+./test/unit/tsdb_core_unit_tests --gtest_output=json:test_results.json
+
+# Only show failures (brief output)
+./test/unit/tsdb_core_unit_tests --gtest_brief=1
+
+# Disable colored output
+./test/unit/tsdb_core_unit_tests --gtest_color=no
+```
+
 ### Step 1: Run Core Tests
 ```bash
 # Navigate to build directory
