@@ -139,11 +139,13 @@ find . -name "*.dylib" -o -name "*.so" -o -name "*.a" | head -10
 
 ### Step 1: Run Core Tests
 ```bash
-# Navigate to build directory and build core unit tests
+# Navigate to build directory
 cd build
+
+# Build the core unit tests
 make tsdb_core_unit_tests
 
-# Run the tests (from build directory)
+# Run the core unit tests
 ./test/unit/tsdb_core_unit_tests
 
 # Expected: 38/38 tests passing
@@ -151,8 +153,10 @@ make tsdb_core_unit_tests
 
 ### Step 2: Run Storage Tests
 ```bash
-# From build directory, build storage unit tests
+# From build directory
 cd build
+
+# Build the storage unit tests
 make tsdb_storage_unit_tests
 
 # Run specific storage tests
@@ -175,9 +179,13 @@ cd build
 
 ### Step 4: Run Integration Tests
 ```bash
-# From build directory, build and run integration tests
+# From build directory
 cd build
+
+# Build the integration test suite
 make tsdb_integration_test_suite
+
+# Run the integration test suite
 ./test/integration/tsdb_integration_test_suite
 
 # Expected: 60/60 integration tests passing across 4 phases:
