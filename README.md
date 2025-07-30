@@ -106,8 +106,8 @@ mkdir build && cd build
 
 ### Step 2: Configure and Build
 ```bash
-# Configure with CMake
-cmake .. -DCMAKE_BUILD_TYPE=Release
+# Configure with CMake (enable tests by default)
+cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
 
 # Build all components
 make -j$(nproc)  # Use all available cores
