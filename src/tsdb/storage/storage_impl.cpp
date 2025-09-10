@@ -36,8 +36,11 @@
 #include <set>
 #include <limits>
 #include <iomanip>
-// For now, just use simple error output instead of spdlog
+// For now, just use simple output instead of spdlog
 #define spdlog_error(msg) std::cerr << "ERROR: " << msg << std::endl
+#define spdlog_warn(msg) std::cerr << "WARN: " << msg << std::endl
+#define spdlog_info(msg) std::cout << "INFO: " << msg << std::endl
+#define spdlog_debug(msg) std::cout << "DEBUG: " << msg << std::endl
 #include "tsdb/storage/block_manager.h"
 #include "tsdb/storage/block.h"
 #include "tsdb/storage/internal/block_impl.h"
@@ -1022,7 +1025,7 @@ core::Result<void> StorageImpl::close() {
     
     // Stop background processor
     if (background_processor_) {
-        background_processor_->stop();
+        background_processor_->shutdown();
         background_processor_.reset();
     }
     
@@ -1659,8 +1662,7 @@ void StorageImpl::initialize_background_processor() {
         
         background_processor_ = std::make_unique<BackgroundProcessor>(bg_config);
         
-        // Start the background processor
-        background_processor_->start();
+        // Background processor starts workers automatically in constructor
         
         // Schedule periodic background tasks
         if (config_.background_config.enable_auto_compaction) {
@@ -1675,7 +1677,7 @@ void StorageImpl::initialize_background_processor() {
             schedule_background_metrics_collection();
         }
         
-        spdlog_info("Background processor initialized with {} workers", bg_config.num_workers);
+        spdlog_info("Background processor initialized");
     } catch (const std::exception& e) {
         spdlog_error("Failed to initialize background processor: " + std::string(e.what()));
     }
@@ -1691,7 +1693,7 @@ void StorageImpl::schedule_background_compaction() {
                               [this]() { return execute_background_compaction(); }, 
                               3); // Medium priority
     
-    background_processor_->submit_task(std::move(task));
+    background_processor_->submitTask(std::move(task));
 }
 
 /**
@@ -1704,7 +1706,7 @@ void StorageImpl::schedule_background_cleanup() {
                               [this]() { return execute_background_cleanup(); }, 
                               4); // Lower priority
     
-    background_processor_->submit_task(std::move(task));
+    background_processor_->submitTask(std::move(task));
 }
 
 /**
@@ -1717,7 +1719,7 @@ void StorageImpl::schedule_background_metrics_collection() {
                               [this]() { return execute_background_metrics_collection(); }, 
                               5); // Lowest priority
     
-    background_processor_->submit_task(std::move(task));
+    background_processor_->submitTask(std::move(task));
 }
 
 /**
@@ -1728,7 +1730,7 @@ core::Result<void> StorageImpl::execute_background_compaction() {
         // Trigger compaction if needed
         auto result = check_and_trigger_compaction();
         if (!result.ok()) {
-            spdlog_warn("Background compaction check failed: " + result.error());
+            spdlog_warn("Background compaction check failed: " + std::string(result.error().what()));
         }
         
         // Reschedule for next interval
@@ -1767,7 +1769,7 @@ core::Result<void> StorageImpl::execute_background_cleanup() {
             cleaned_blocks++;
         }
         
-        spdlog_debug("Background cleanup processed {} series blocks", cleaned_blocks);
+        spdlog_debug("Background cleanup completed");
         
         // Reschedule for next interval
         std::this_thread::sleep_for(config_.background_config.cleanup_interval);
@@ -1795,8 +1797,7 @@ core::Result<void> StorageImpl::execute_background_metrics_collection() {
         }
         
         // Log metrics (in production, this would be sent to monitoring system)
-        spdlog_debug("Storage metrics - Series: {}, Total blocks: {}, Active blocks: {}", 
-                    total_series, total_blocks, active_blocks);
+        spdlog_debug("Storage metrics collected");
         
         // Reschedule for next interval
         std::this_thread::sleep_for(config_.background_config.metrics_interval);
@@ -1825,8 +1826,7 @@ void StorageImpl::initialize_predictive_cache() {
         
         predictive_cache_ = std::make_unique<PredictiveCache>(config);
         
-        spdlog_info("Predictive cache initialized with pattern length {} and confidence threshold {}", 
-                   config.max_pattern_length, config.confidence_threshold);
+        spdlog_info("Predictive cache initialized");
     } catch (const std::exception& e) {
         spdlog_error("Failed to initialize predictive cache: " + std::string(e.what()));
     }
@@ -1869,7 +1869,7 @@ void StorageImpl::prefetch_predicted_series(core::SeriesID current_series) {
                 if (stored_id == candidate_id) {
                     auto shared_series = std::make_shared<core::TimeSeries>(stored_series);
                     cache_hierarchy_->put(candidate_id, shared_series);
-                    spdlog_debug("Prefetched series {} based on predictive pattern", candidate_id);
+                    spdlog_debug("Prefetched series based on predictive pattern");
                     break;
                 }
             }
@@ -1888,12 +1888,12 @@ std::vector<core::SeriesID> StorageImpl::get_prefetch_candidates(core::SeriesID 
     if (!predictive_cache_) return candidates;
     
     try {
-        auto predictions = predictive_cache_->predict_next_accesses(current_series);
+        auto predictions = predictive_cache_->get_predictions(current_series);
         
         // Convert predictions to series IDs
         for (const auto& prediction : predictions) {
-            if (prediction.confidence >= 0.7) { // Only high-confidence predictions
-                candidates.push_back(prediction.series_id);
+            if (prediction.second >= 0.7) { // Only high-confidence predictions (pair.second is confidence)
+                candidates.push_back(prediction.first); // pair.first is series_id
             }
         }
         
