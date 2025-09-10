@@ -24,6 +24,7 @@
 #include "tsdb/storage/cache_types.h"
 #include "tsdb/storage/compression.h"
 #include "tsdb/storage/background_processor.h"
+#include "tsdb/storage/predictive_cache.h"
 #include "tsdb/storage/internal/block_internal.h"
 #include "tsdb/storage/internal/block_impl.h"
 
@@ -91,6 +92,9 @@ private:
     // Background processing components
     std::unique_ptr<BackgroundProcessor> background_processor_;
     
+    // Predictive caching components
+    std::unique_ptr<PredictiveCache> predictive_cache_;
+    
     // Block management components
     std::shared_ptr<internal::BlockInternal> current_block_;
     std::map<core::SeriesID, std::vector<std::shared_ptr<internal::BlockInternal>>> series_blocks_;
@@ -140,6 +144,12 @@ private:
     core::Result<void> execute_background_compaction();
     core::Result<void> execute_background_cleanup();
     core::Result<void> execute_background_metrics_collection();
+    
+    // Helper methods for predictive caching integration
+    void initialize_predictive_cache();
+    void record_access_pattern(const core::Labels& labels);
+    void prefetch_predicted_series(core::SeriesID current_series);
+    std::vector<core::SeriesID> get_prefetch_candidates(core::SeriesID current_series);
 };
 
 } // namespace storage
