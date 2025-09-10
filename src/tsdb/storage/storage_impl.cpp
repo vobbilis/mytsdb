@@ -379,6 +379,9 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         initialize_background_processor();
     }
     
+    // Initialize predictive caching
+    initialize_predictive_cache();
+    
     // Initialize block management
     initialize_block_management();
     
@@ -501,6 +504,13 @@ core::Result<core::TimeSeries> StorageImpl::read(
     try {
         // Try cache hierarchy first for fast access (if available)
         auto series_id = calculate_series_id(labels);
+        
+        // Record access pattern for predictive caching
+        record_access_pattern(labels);
+        
+        // Prefetch predicted series based on access patterns
+        prefetch_predicted_series(series_id);
+        
         std::shared_ptr<core::TimeSeries> cached_series = nullptr;
         if (cache_hierarchy_) {
             cached_series = cache_hierarchy_->get(series_id);
@@ -1014,6 +1024,11 @@ core::Result<void> StorageImpl::close() {
     if (background_processor_) {
         background_processor_->stop();
         background_processor_.reset();
+    }
+    
+    // Clean up predictive cache
+    if (predictive_cache_) {
+        predictive_cache_.reset();
     }
     
     // Just flush since BlockManager doesn't have close()
@@ -1792,6 +1807,106 @@ core::Result<void> StorageImpl::execute_background_metrics_collection() {
         spdlog_error("Background metrics collection failed: " + std::string(e.what()));
         return core::Result<void>::error("Background metrics collection failed: " + std::string(e.what()));
     }
+}
+
+/**
+ * @brief Initialize predictive cache with default configuration
+ */
+void StorageImpl::initialize_predictive_cache() {
+    try {
+        PredictiveCacheConfig config;
+        config.max_pattern_length = 10;
+        config.min_pattern_confidence = 3;
+        config.confidence_threshold = 0.7;
+        config.max_prefetch_size = 5;
+        config.enable_adaptive_prefetch = true;
+        config.max_tracked_series = 10000;
+        config.integrate_with_cache_hierarchy = true;
+        
+        predictive_cache_ = std::make_unique<PredictiveCache>(config);
+        
+        spdlog_info("Predictive cache initialized with pattern length {} and confidence threshold {}", 
+                   config.max_pattern_length, config.confidence_threshold);
+    } catch (const std::exception& e) {
+        spdlog_error("Failed to initialize predictive cache: " + std::string(e.what()));
+    }
+}
+
+/**
+ * @brief Record access pattern for the given labels
+ */
+void StorageImpl::record_access_pattern(const core::Labels& labels) {
+    if (!predictive_cache_) return;
+    
+    try {
+        auto series_id = calculate_series_id(labels);
+        predictive_cache_->record_access(series_id);
+    } catch (const std::exception& e) {
+        spdlog_debug("Failed to record access pattern: " + std::string(e.what()));
+    }
+}
+
+/**
+ * @brief Prefetch predicted series based on current access
+ */
+void StorageImpl::prefetch_predicted_series(core::SeriesID current_series) {
+    if (!predictive_cache_ || !cache_hierarchy_) return;
+    
+    try {
+        // Get prefetch candidates from predictive cache
+        auto candidates = get_prefetch_candidates(current_series);
+        
+        // Prefetch each candidate series
+        for (const auto& candidate_id : candidates) {
+            // Check if already in cache to avoid unnecessary work
+            if (cache_hierarchy_->get(candidate_id)) {
+                continue; // Already cached
+            }
+            
+            // Find the series in our stored data and prefetch it
+            for (const auto& stored_series : stored_series_) {
+                auto stored_id = calculate_series_id(stored_series.labels());
+                if (stored_id == candidate_id) {
+                    auto shared_series = std::make_shared<core::TimeSeries>(stored_series);
+                    cache_hierarchy_->put(candidate_id, shared_series);
+                    spdlog_debug("Prefetched series {} based on predictive pattern", candidate_id);
+                    break;
+                }
+            }
+        }
+    } catch (const std::exception& e) {
+        spdlog_debug("Prefetch operation failed: " + std::string(e.what()));
+    }
+}
+
+/**
+ * @brief Get prefetch candidates for the given series
+ */
+std::vector<core::SeriesID> StorageImpl::get_prefetch_candidates(core::SeriesID current_series) {
+    std::vector<core::SeriesID> candidates;
+    
+    if (!predictive_cache_) return candidates;
+    
+    try {
+        auto predictions = predictive_cache_->predict_next_accesses(current_series);
+        
+        // Convert predictions to series IDs
+        for (const auto& prediction : predictions) {
+            if (prediction.confidence >= 0.7) { // Only high-confidence predictions
+                candidates.push_back(prediction.series_id);
+            }
+        }
+        
+        // Limit the number of prefetch candidates
+        if (candidates.size() > 5) {
+            candidates.resize(5);
+        }
+        
+    } catch (const std::exception& e) {
+        spdlog_debug("Failed to get prefetch candidates: " + std::string(e.what()));
+    }
+    
+    return candidates;
 }
 
 } // namespace storage
