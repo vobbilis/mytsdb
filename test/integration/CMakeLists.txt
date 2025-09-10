@@ -13,8 +13,28 @@ add_executable(tsdb_integration_test_suite
     recovery_test.cpp
     load_test.cpp
     stress_test.cpp
+    storageimpl_phases/phase1_object_pool_integration_test.cpp
+    storageimpl_phases/debug_stats_test.cpp
+    storageimpl_phases/object_pool_education_test.cpp
+    storageimpl_phases/object_pool_size_analysis_test.cpp
+    storageimpl_phases/phase2_cache_hierarchy_integration_test.cpp
+    storageimpl_phases/debug_cache_test.cpp
+    storageimpl_phases/phase3_compression_integration_test.cpp
+    storageimpl_phases/phase4_block_management_integration_test.cpp
+    storageimpl_phases/phase5_background_processing_integration_test.cpp
+    storageimpl_phases/phase6_predictive_caching_integration_test.cpp
+    storageimpl_phases/comprehensive_integration_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )
+
+# Add semantic vector integration tests when enabled
+if(TSDB_SEMVEC)
+    target_sources(tsdb_integration_test_suite PRIVATE
+        semantic_vector_integration_test.cpp
+        semantic_vector_performance_test.cpp
+        semantic_vector_stress_test.cpp
+    )
+endif()
 
 target_include_directories(tsdb_integration_test_suite
     PRIVATE
