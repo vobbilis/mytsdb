@@ -1,0 +1,5 @@
+if(EXISTS "/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/integration/tsdb_end_to_end_workflow_test[1]_tests.cmake")
+  include("/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/integration/tsdb_end_to_end_workflow_test[1]_tests.cmake")
+else()
+  add_test(tsdb_end_to_end_workflow_test_NOT_BUILT tsdb_end_to_end_workflow_test_NOT_BUILT)
+endif()

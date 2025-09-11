@@ -237,15 +237,17 @@ make tsdb_core_unit_tests
 
 #### **Integration Tests (Meaningful Coverage)**
 ```
-✅ EndToEndWorkflowTest: 7/7 tests - Complete data pipelines
-✅ OpenTelemetryIntegrationTest: 8/8 tests - Real OTEL processing
+✅ CoreStorageIntegrationTest: 3/3 tests - Core storage integration
 ✅ StorageHistogramIntegrationTest: 5/5 tests - Storage/histogram integration
+✅ ConfigIntegrationTest: 8/8 tests - Configuration integration
+✅ OpenTelemetryIntegrationTest: 8/8 tests - Real OTEL processing
 ✅ GRPCServiceIntegrationTest: 8/8 tests - gRPC service functionality
+⚠️ EndToEndWorkflowTest: 5/7 tests - Complete data pipelines (2 failed)
 ✅ MultiComponentTest: 7/7 tests - Cross-component interactions
-✅ ErrorHandlingTest: 7/7 tests - Real error scenarios
+⚠️ ErrorHandlingTest: 4/7 tests - Real error scenarios (3 failed)
 ✅ RecoveryTest: 7/7 tests - System recovery and resilience
 
-Total: 49/49 integration tests - Testing actual TSDB functionality
+Total: 55/60 integration tests passing (91.7%) - Testing actual TSDB functionality
 ```
 
 #### **Storage Unit Tests (Experimental)**

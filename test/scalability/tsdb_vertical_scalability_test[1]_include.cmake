@@ -1,0 +1,5 @@
+if(EXISTS "/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/scalability/tsdb_vertical_scalability_test[1]_tests.cmake")
+  include("/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/scalability/tsdb_vertical_scalability_test[1]_tests.cmake")
+else()
+  add_test(tsdb_vertical_scalability_test_NOT_BUILT tsdb_vertical_scalability_test_NOT_BUILT)
+endif()

@@ -31,7 +31,7 @@ struct PredictiveCacheConfig {
     // Performance settings
     size_t max_tracked_series = 10000;        // Maximum series to track patterns for
     size_t cleanup_interval_ms = 60000;       // Cleanup interval for old patterns (ms)
-    bool enable_background_cleanup = true;    // Enable background cleanup thread
+    bool enable_background_cleanup = false;   // DISABLED BY DEFAULT FOR TESTING
     
     // Integration settings
     bool integrate_with_cache_hierarchy = true; // Integrate with existing cache hierarchy

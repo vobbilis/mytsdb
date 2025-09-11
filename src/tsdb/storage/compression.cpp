@@ -810,6 +810,69 @@ bool XORCompressor::is_compressed() const {
     return true;
 }
 
+// Factory function implementations
+std::unique_ptr<TimestampCompressor> create_timestamp_compressor() {
+    return std::make_unique<SimpleTimestampCompressor>();
+}
+
+std::unique_ptr<ValueCompressor> create_value_compressor() {
+    return std::make_unique<SimpleValueCompressor>();
+}
+
+std::unique_ptr<LabelCompressor> create_label_compressor() {
+    return std::make_unique<SimpleLabelCompressor>();
+}
+
+std::unique_ptr<Compressor> create_gorilla_compressor() {
+    return std::make_unique<GorillaCompressor>();
+}
+
+std::unique_ptr<Compressor> create_rle_compressor() {
+    return std::make_unique<RLECompressor>();
+}
+
+std::unique_ptr<Compressor> create_xor_compressor() {
+    return std::make_unique<XORCompressor>();
+}
+
+// Concrete CompressorFactory implementation
+class CompressorFactoryImpl : public CompressorFactory {
+public:
+    std::unique_ptr<TimestampCompressor> create_timestamp_compressor() override {
+        return std::make_unique<SimpleTimestampCompressor>();
+    }
+    
+    std::unique_ptr<ValueCompressor> create_value_compressor() override {
+        return std::make_unique<SimpleValueCompressor>();
+    }
+    
+    std::unique_ptr<LabelCompressor> create_label_compressor() override {
+        return std::make_unique<SimpleLabelCompressor>();
+    }
+    
+    std::unique_ptr<Compressor> create_compressor(CompressionConfig::Algorithm algo) override {
+        switch (algo) {
+            case CompressionConfig::Algorithm::GORILLA:
+                return std::make_unique<GorillaCompressor>();
+            case CompressionConfig::Algorithm::DELTA_XOR:
+                return std::make_unique<XORCompressor>();
+            case CompressionConfig::Algorithm::RLE:
+                return std::make_unique<RLECompressor>();
+            case CompressionConfig::Algorithm::DICTIONARY:
+                // For now, use RLE as a placeholder for dictionary compression
+                return std::make_unique<RLECompressor>();
+            case CompressionConfig::Algorithm::NONE:
+            default:
+                // Return a no-op compressor that doesn't actually compress
+                return std::make_unique<XORCompressor>(); // Placeholder
+        }
+    }
+};
+
+std::unique_ptr<CompressorFactory> create_compressor_factory() {
+    return std::make_unique<CompressorFactoryImpl>();
+}
+
 } // namespace internal
 } // namespace storage
 } // namespace tsdb 

@@ -313,6 +313,31 @@ target_link_libraries(tsdb_integration_tests
         tsdb_lib
 )
 
+# Semantic vector smoke tests (gated by TSDB_SEMVEC)
+if(TSDB_SEMVEC)
+    add_executable(tsdb_semvec_smoke_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/semantic_vector/quantized_vector_index_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/semantic_vector/pruned_semantic_index_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/semantic_vector/sparse_temporal_graph_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/semantic_vector/memory_management_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+    target_include_directories(tsdb_semvec_smoke_tests PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+    )
+    target_link_libraries(tsdb_semvec_smoke_tests PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+    )
+    gtest_discover_tests(tsdb_semvec_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+endif()
+
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_custom_command(TARGET tsdb_core_unit_tests POST_BUILD
@@ -492,4 +517,178 @@ gtest_discover_tests(tsdb_atomic_ref_counted_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-) 
+)
+
+# Semantic vector tests (gated by TSDB_SEMVEC option)
+if(TSDB_SEMVEC)
+    # Semantic vector quantized vector index smoke tests
+    add_executable(tsdb_semvec_quantized_vector_index_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/quantized_vector_index_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_quantized_vector_index_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_quantized_vector_index_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector pruned semantic index smoke tests
+    add_executable(tsdb_semvec_pruned_semantic_index_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/pruned_semantic_index_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_pruned_semantic_index_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_pruned_semantic_index_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector sparse temporal graph smoke tests
+    add_executable(tsdb_semvec_sparse_temporal_graph_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/sparse_temporal_graph_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_sparse_temporal_graph_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_sparse_temporal_graph_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector memory management smoke tests
+    add_executable(tsdb_semvec_memory_management_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/memory_management_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_memory_management_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_memory_management_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector compression smoke tests
+    add_executable(tsdb_semvec_compression_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/compression_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_compression_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_compression_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector advanced analytics smoke tests
+    add_executable(tsdb_semvec_analytics_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/advanced_analytics_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_analytics_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_analytics_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector query processing smoke tests
+    add_executable(tsdb_semvec_query_processor_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/query_processor_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_query_processor_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_query_processor_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector migration manager smoke tests
+    add_executable(tsdb_semvec_migration_manager_smoke_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/migration_manager_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_migration_manager_smoke_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_migration_manager_smoke_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+
+    # Semantic vector architecture validation tests
+    add_executable(tsdb_semvec_architecture_validation_tests
+        ${CMAKE_CURRENT_SOURCE_DIR}/semantic_vector/architecture_validation_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_link_libraries(tsdb_semvec_architecture_validation_tests
+        tsdb_storage_impl
+        tsdb_core
+        GTest::gtest
+        GTest::gtest_main
+    )
+
+    gtest_discover_tests(tsdb_semvec_architecture_validation_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+endif() 

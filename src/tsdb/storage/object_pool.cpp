@@ -175,8 +175,14 @@ std::string TimeSeriesPool::stats() const {
     size_t total_acquired = total_acquired_.load(std::memory_order_relaxed);
     size_t total_created = total_created_.load(std::memory_order_relaxed);
     if (total_acquired > 0) {
-        double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
-        oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        // Calculate reuse ratio: (acquired - created) / acquired * 100
+        // This represents the percentage of requests that were served from the pool
+        if (total_acquired > total_created) {
+            double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
+            oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        } else {
+            oss << "  Object reuse ratio: 0.00%\n";
+        }
     }
     
     return oss.str();
@@ -367,8 +373,14 @@ std::string LabelsPool::stats() const {
     size_t total_acquired = total_acquired_.load(std::memory_order_relaxed);
     size_t total_created = total_created_.load(std::memory_order_relaxed);
     if (total_acquired > 0) {
-        double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
-        oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        // Calculate reuse ratio: (acquired - created) / acquired * 100
+        // This represents the percentage of requests that were served from the pool
+        if (total_acquired > total_created) {
+            double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
+            oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        } else {
+            oss << "  Object reuse ratio: 0.00%\n";
+        }
     }
     
     return oss.str();
@@ -550,8 +562,14 @@ std::string SamplePool::stats() const {
     size_t total_acquired = total_acquired_.load(std::memory_order_relaxed);
     size_t total_created = total_created_.load(std::memory_order_relaxed);
     if (total_acquired > 0) {
-        double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
-        oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        // Calculate reuse ratio: (acquired - created) / acquired * 100
+        // This represents the percentage of requests that were served from the pool
+        if (total_acquired > total_created) {
+            double reuse_ratio = static_cast<double>(total_acquired - total_created) / total_acquired * 100.0;
+            oss << "  Object reuse ratio: " << reuse_ratio << "%\n";
+        } else {
+            oss << "  Object reuse ratio: 0.00%\n";
+        }
     }
     
     return oss.str();
