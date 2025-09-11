@@ -900,8 +900,11 @@ core::Result<void> StorageImpl::delete_series(
         // Find and remove series that match the criteria
         auto it = stored_series_.begin();
         int matches_found = 0;
+        std::cout << "DEBUG: Starting delete loop, stored_series_.size()=" << stored_series_.size() << std::endl;
+        
         while (it != stored_series_.end()) {
             bool matches = true;
+            std::cout << "DEBUG: Checking series in delete loop" << std::endl;
             
             // Check if all matchers are satisfied
             for (const auto& [key, value] : matchers) {
@@ -912,35 +915,27 @@ core::Result<void> StorageImpl::delete_series(
                 }
             }
             
+            std::cout << "DEBUG: Series matches=" << matches << std::endl;
+            
             if (matches) {
                 matches_found++;
+                std::cout << "DEBUG: Found matching series, matches_found=" << matches_found << std::endl;
+                
                 // Get series_id and labels before erasing the iterator
                 auto series_id = calculate_series_id(it->labels());
                 auto labels = it->labels();
                 
-                // Remove from stored_series_ metadata
+                std::cout << "DEBUG: About to delete series with id=" << series_id << std::endl;
+                
+                // Remove from stored_series_ metadata (minimal delete for debugging)
                 it = stored_series_.erase(it);
                 
-                // Also remove from series_blocks_ (the actual data)
-                series_blocks_.erase(series_id);
+                std::cout << "DEBUG: Removed from stored_series_, remaining size=" << stored_series_.size() << std::endl;
                 
-                // Remove from block index mappings (using labels as key)
-                label_to_blocks_.erase(labels);
-                
-                // Remove from block-to-series mapping (remove series_id from sets)
-                for (auto block_it = block_to_series_.begin(); block_it != block_to_series_.end();) {
-                    block_it->second.erase(series_id);
-                    if (block_it->second.empty()) {
-                        block_it = block_to_series_.erase(block_it);
-                    } else {
-                        ++block_it;
-                    }
-                }
-                
-                // Clear from cache hierarchy
-                if (cache_hierarchy_) {
-                    cache_hierarchy_->remove(series_id);
-                }
+                // TODO: Add back other deletions once basic delete works
+                // series_blocks_.erase(series_id);
+                // label_to_blocks_.erase(labels);
+                // ... etc
             } else {
                 ++it;
             }
