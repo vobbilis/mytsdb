@@ -195,26 +195,10 @@ public:
      */
     const BackgroundProcessorConfig& getConfig() const { return config_; }
     
-    /**
-     * @brief Update configuration
-     * @param new_config New configuration
-     * @return Result indicating success or failure
-     */
-    core::Result<void> updateConfig(const BackgroundProcessorConfig& new_config);
-    
-    /**
-     * @brief Check if processor is healthy
-     * @return True if healthy, false otherwise
-     */
-    bool isHealthy() const;
-    
-    /**
-     * @brief Get queue size
-     * @return Current number of pending tasks
-     */
-    uint32_t getQueueSize() const;
-
 private:
+    std::atomic<uint32_t> active_tasks_{0};
+    std::condition_variable tasks_finished_cond_;
+    
     /**
      * @brief Worker thread function
      */
@@ -289,4 +273,4 @@ private:
 };
 
 } // namespace storage
-} // namespace tsdb 
+} // namespace tsdb

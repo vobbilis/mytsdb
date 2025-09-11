@@ -11,7 +11,7 @@
 #define HAVE_SPDLOG
 #define HAVE_GRPC
 /* #undef HAVE_OTEL */
-/* #undef HAVE_GTEST */
+#define HAVE_GTEST
 
 // Conditional includes
 #ifdef HAVE_SPDLOG

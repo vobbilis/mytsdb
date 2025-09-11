@@ -1,0 +1,27 @@
+{
+    "metadata": {
+        "start_time": 1646092800,
+        "end_time": 1646096400,
+        "labels": {
+            "service": "test_service",
+            "instance": "test_instance",
+            "metric": "test_metric"
+        }
+    },
+    "data": {
+        "timestamps": [
+            1646092800,
+            1646093100,
+            1646093400,
+            1646093700,
+            1646094000
+        ],
+        "values": [
+            10.5,
+            11.2,
+            10.8,
+            11.5,
+            10.9
+        ]
+    }
+} 

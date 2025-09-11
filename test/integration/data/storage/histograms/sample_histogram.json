@@ -1,0 +1,22 @@
+{
+    "type": "fixed",
+    "metadata": {
+        "start_time": 1646092800,
+        "end_time": 1646096400,
+        "labels": {
+            "service": "test_service",
+            "instance": "test_instance",
+            "metric": "test_histogram"
+        }
+    },
+    "buckets": {
+        "bounds": [0.0, 10.0, 20.0, 30.0, 40.0, 50.0],
+        "counts": [5, 15, 25, 20, 10, 5]
+    },
+    "statistics": {
+        "min": 0.5,
+        "max": 49.5,
+        "sum": 1500.0,
+        "count": 80
+    }
+} 

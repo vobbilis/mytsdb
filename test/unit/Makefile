@@ -395,146 +395,6 @@ tsdb_integration_tests/fast:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_integration_tests.dir/build.make test/unit/CMakeFiles/tsdb_integration_tests.dir/build
 .PHONY : tsdb_integration_tests/fast
 
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build
-.PHONY : tsdb_semvec_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_quantized_vector_index_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_quantized_vector_index_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_quantized_vector_index_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build
-.PHONY : tsdb_semvec_quantized_vector_index_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_pruned_semantic_index_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_pruned_semantic_index_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_pruned_semantic_index_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build
-.PHONY : tsdb_semvec_pruned_semantic_index_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_sparse_temporal_graph_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_sparse_temporal_graph_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_sparse_temporal_graph_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build
-.PHONY : tsdb_semvec_sparse_temporal_graph_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_memory_management_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_memory_management_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_memory_management_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build
-.PHONY : tsdb_semvec_memory_management_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_compression_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_compression_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_compression_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build
-.PHONY : tsdb_semvec_compression_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_analytics_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_analytics_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_analytics_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build
-.PHONY : tsdb_semvec_analytics_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_query_processor_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_query_processor_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_query_processor_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build
-.PHONY : tsdb_semvec_query_processor_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_migration_manager_smoke_tests: test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/rule
-.PHONY : tsdb_semvec_migration_manager_smoke_tests
-
-# fast build rule for target.
-tsdb_semvec_migration_manager_smoke_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build
-.PHONY : tsdb_semvec_migration_manager_smoke_tests/fast
-
-# Convenience name for target.
-test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/rule:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/rule
-.PHONY : test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/rule
-
-# Convenience name for target.
-tsdb_semvec_architecture_validation_tests: test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/rule
-.PHONY : tsdb_semvec_architecture_validation_tests
-
-# fast build rule for target.
-tsdb_semvec_architecture_validation_tests/fast:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build
-.PHONY : tsdb_semvec_architecture_validation_tests/fast
-
 __/histogram/ddsketch_test.o: __/histogram/ddsketch_test.cpp.o
 .PHONY : __/histogram/ddsketch_test.o
 
@@ -604,16 +464,6 @@ __/main.cpp.o:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/__/main.cpp.o
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/__/main.cpp.o
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_integration_tests.dir/build.make test/unit/CMakeFiles/tsdb_integration_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/__/main.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/__/main.cpp.o
 .PHONY : __/main.cpp.o
 
 __/main.i: __/main.cpp.i
@@ -637,16 +487,6 @@ __/main.cpp.i:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/__/main.cpp.i
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/__/main.cpp.i
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_integration_tests.dir/build.make test/unit/CMakeFiles/tsdb_integration_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/__/main.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/__/main.cpp.i
 .PHONY : __/main.cpp.i
 
 __/main.s: __/main.cpp.s
@@ -670,16 +510,6 @@ __/main.cpp.s:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_predictive_cache_unit_tests.dir/__/main.cpp.s
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_atomic_ref_counted_unit_tests.dir/__/main.cpp.s
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_integration_tests.dir/build.make test/unit/CMakeFiles/tsdb_integration_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/__/main.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/__/main.cpp.s
 .PHONY : __/main.cpp.s
 
 __/tsdb/storage/block_management_test.o: __/tsdb/storage/block_management_test.cpp.o
@@ -828,234 +658,6 @@ core/result_test.s: core/result_test.cpp.s
 core/result_test.cpp.s:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_core_unit_tests.dir/build.make test/unit/CMakeFiles/tsdb_core_unit_tests.dir/core/result_test.cpp.s
 .PHONY : core/result_test.cpp.s
-
-semantic_vector/advanced_analytics_test.o: semantic_vector/advanced_analytics_test.cpp.o
-.PHONY : semantic_vector/advanced_analytics_test.o
-
-# target to build an object file
-semantic_vector/advanced_analytics_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/semantic_vector/advanced_analytics_test.cpp.o
-.PHONY : semantic_vector/advanced_analytics_test.cpp.o
-
-semantic_vector/advanced_analytics_test.i: semantic_vector/advanced_analytics_test.cpp.i
-.PHONY : semantic_vector/advanced_analytics_test.i
-
-# target to preprocess a source file
-semantic_vector/advanced_analytics_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/semantic_vector/advanced_analytics_test.cpp.i
-.PHONY : semantic_vector/advanced_analytics_test.cpp.i
-
-semantic_vector/advanced_analytics_test.s: semantic_vector/advanced_analytics_test.cpp.s
-.PHONY : semantic_vector/advanced_analytics_test.s
-
-# target to generate assembly for a file
-semantic_vector/advanced_analytics_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_analytics_smoke_tests.dir/semantic_vector/advanced_analytics_test.cpp.s
-.PHONY : semantic_vector/advanced_analytics_test.cpp.s
-
-semantic_vector/architecture_validation_test.o: semantic_vector/architecture_validation_test.cpp.o
-.PHONY : semantic_vector/architecture_validation_test.o
-
-# target to build an object file
-semantic_vector/architecture_validation_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/semantic_vector/architecture_validation_test.cpp.o
-.PHONY : semantic_vector/architecture_validation_test.cpp.o
-
-semantic_vector/architecture_validation_test.i: semantic_vector/architecture_validation_test.cpp.i
-.PHONY : semantic_vector/architecture_validation_test.i
-
-# target to preprocess a source file
-semantic_vector/architecture_validation_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/semantic_vector/architecture_validation_test.cpp.i
-.PHONY : semantic_vector/architecture_validation_test.cpp.i
-
-semantic_vector/architecture_validation_test.s: semantic_vector/architecture_validation_test.cpp.s
-.PHONY : semantic_vector/architecture_validation_test.s
-
-# target to generate assembly for a file
-semantic_vector/architecture_validation_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_architecture_validation_tests.dir/semantic_vector/architecture_validation_test.cpp.s
-.PHONY : semantic_vector/architecture_validation_test.cpp.s
-
-semantic_vector/compression_test.o: semantic_vector/compression_test.cpp.o
-.PHONY : semantic_vector/compression_test.o
-
-# target to build an object file
-semantic_vector/compression_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/semantic_vector/compression_test.cpp.o
-.PHONY : semantic_vector/compression_test.cpp.o
-
-semantic_vector/compression_test.i: semantic_vector/compression_test.cpp.i
-.PHONY : semantic_vector/compression_test.i
-
-# target to preprocess a source file
-semantic_vector/compression_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/semantic_vector/compression_test.cpp.i
-.PHONY : semantic_vector/compression_test.cpp.i
-
-semantic_vector/compression_test.s: semantic_vector/compression_test.cpp.s
-.PHONY : semantic_vector/compression_test.s
-
-# target to generate assembly for a file
-semantic_vector/compression_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_compression_smoke_tests.dir/semantic_vector/compression_test.cpp.s
-.PHONY : semantic_vector/compression_test.cpp.s
-
-semantic_vector/memory_management_test.o: semantic_vector/memory_management_test.cpp.o
-.PHONY : semantic_vector/memory_management_test.o
-
-# target to build an object file
-semantic_vector/memory_management_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/memory_management_test.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/semantic_vector/memory_management_test.cpp.o
-.PHONY : semantic_vector/memory_management_test.cpp.o
-
-semantic_vector/memory_management_test.i: semantic_vector/memory_management_test.cpp.i
-.PHONY : semantic_vector/memory_management_test.i
-
-# target to preprocess a source file
-semantic_vector/memory_management_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/memory_management_test.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/semantic_vector/memory_management_test.cpp.i
-.PHONY : semantic_vector/memory_management_test.cpp.i
-
-semantic_vector/memory_management_test.s: semantic_vector/memory_management_test.cpp.s
-.PHONY : semantic_vector/memory_management_test.s
-
-# target to generate assembly for a file
-semantic_vector/memory_management_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/memory_management_test.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_memory_management_smoke_tests.dir/semantic_vector/memory_management_test.cpp.s
-.PHONY : semantic_vector/memory_management_test.cpp.s
-
-semantic_vector/migration_manager_test.o: semantic_vector/migration_manager_test.cpp.o
-.PHONY : semantic_vector/migration_manager_test.o
-
-# target to build an object file
-semantic_vector/migration_manager_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/semantic_vector/migration_manager_test.cpp.o
-.PHONY : semantic_vector/migration_manager_test.cpp.o
-
-semantic_vector/migration_manager_test.i: semantic_vector/migration_manager_test.cpp.i
-.PHONY : semantic_vector/migration_manager_test.i
-
-# target to preprocess a source file
-semantic_vector/migration_manager_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/semantic_vector/migration_manager_test.cpp.i
-.PHONY : semantic_vector/migration_manager_test.cpp.i
-
-semantic_vector/migration_manager_test.s: semantic_vector/migration_manager_test.cpp.s
-.PHONY : semantic_vector/migration_manager_test.s
-
-# target to generate assembly for a file
-semantic_vector/migration_manager_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_migration_manager_smoke_tests.dir/semantic_vector/migration_manager_test.cpp.s
-.PHONY : semantic_vector/migration_manager_test.cpp.s
-
-semantic_vector/pruned_semantic_index_test.o: semantic_vector/pruned_semantic_index_test.cpp.o
-.PHONY : semantic_vector/pruned_semantic_index_test.o
-
-# target to build an object file
-semantic_vector/pruned_semantic_index_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.o
-.PHONY : semantic_vector/pruned_semantic_index_test.cpp.o
-
-semantic_vector/pruned_semantic_index_test.i: semantic_vector/pruned_semantic_index_test.cpp.i
-.PHONY : semantic_vector/pruned_semantic_index_test.i
-
-# target to preprocess a source file
-semantic_vector/pruned_semantic_index_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.i
-.PHONY : semantic_vector/pruned_semantic_index_test.cpp.i
-
-semantic_vector/pruned_semantic_index_test.s: semantic_vector/pruned_semantic_index_test.cpp.s
-.PHONY : semantic_vector/pruned_semantic_index_test.s
-
-# target to generate assembly for a file
-semantic_vector/pruned_semantic_index_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_pruned_semantic_index_smoke_tests.dir/semantic_vector/pruned_semantic_index_test.cpp.s
-.PHONY : semantic_vector/pruned_semantic_index_test.cpp.s
-
-semantic_vector/quantized_vector_index_test.o: semantic_vector/quantized_vector_index_test.cpp.o
-.PHONY : semantic_vector/quantized_vector_index_test.o
-
-# target to build an object file
-semantic_vector/quantized_vector_index_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.o
-.PHONY : semantic_vector/quantized_vector_index_test.cpp.o
-
-semantic_vector/quantized_vector_index_test.i: semantic_vector/quantized_vector_index_test.cpp.i
-.PHONY : semantic_vector/quantized_vector_index_test.i
-
-# target to preprocess a source file
-semantic_vector/quantized_vector_index_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.i
-.PHONY : semantic_vector/quantized_vector_index_test.cpp.i
-
-semantic_vector/quantized_vector_index_test.s: semantic_vector/quantized_vector_index_test.cpp.s
-.PHONY : semantic_vector/quantized_vector_index_test.s
-
-# target to generate assembly for a file
-semantic_vector/quantized_vector_index_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_quantized_vector_index_smoke_tests.dir/semantic_vector/quantized_vector_index_test.cpp.s
-.PHONY : semantic_vector/quantized_vector_index_test.cpp.s
-
-semantic_vector/query_processor_test.o: semantic_vector/query_processor_test.cpp.o
-.PHONY : semantic_vector/query_processor_test.o
-
-# target to build an object file
-semantic_vector/query_processor_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/semantic_vector/query_processor_test.cpp.o
-.PHONY : semantic_vector/query_processor_test.cpp.o
-
-semantic_vector/query_processor_test.i: semantic_vector/query_processor_test.cpp.i
-.PHONY : semantic_vector/query_processor_test.i
-
-# target to preprocess a source file
-semantic_vector/query_processor_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/semantic_vector/query_processor_test.cpp.i
-.PHONY : semantic_vector/query_processor_test.cpp.i
-
-semantic_vector/query_processor_test.s: semantic_vector/query_processor_test.cpp.s
-.PHONY : semantic_vector/query_processor_test.s
-
-# target to generate assembly for a file
-semantic_vector/query_processor_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_query_processor_smoke_tests.dir/semantic_vector/query_processor_test.cpp.s
-.PHONY : semantic_vector/query_processor_test.cpp.s
-
-semantic_vector/sparse_temporal_graph_test.o: semantic_vector/sparse_temporal_graph_test.cpp.o
-.PHONY : semantic_vector/sparse_temporal_graph_test.o
-
-# target to build an object file
-semantic_vector/sparse_temporal_graph_test.cpp.o:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.o
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.o
-.PHONY : semantic_vector/sparse_temporal_graph_test.cpp.o
-
-semantic_vector/sparse_temporal_graph_test.i: semantic_vector/sparse_temporal_graph_test.cpp.i
-.PHONY : semantic_vector/sparse_temporal_graph_test.i
-
-# target to preprocess a source file
-semantic_vector/sparse_temporal_graph_test.cpp.i:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.i
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.i
-.PHONY : semantic_vector/sparse_temporal_graph_test.cpp.i
-
-semantic_vector/sparse_temporal_graph_test.s: semantic_vector/sparse_temporal_graph_test.cpp.s
-.PHONY : semantic_vector/sparse_temporal_graph_test.s
-
-# target to generate assembly for a file
-semantic_vector/sparse_temporal_graph_test.cpp.s:
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.s
-	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/build.make test/unit/CMakeFiles/tsdb_semvec_sparse_temporal_graph_smoke_tests.dir/semantic_vector/sparse_temporal_graph_test.cpp.s
-.PHONY : semantic_vector/sparse_temporal_graph_test.cpp.s
 
 storage/adaptive_compressor_test.o: storage/adaptive_compressor_test.cpp.o
 .PHONY : storage/adaptive_compressor_test.o
@@ -1377,16 +979,6 @@ help:
 	@echo "... tsdb_object_pool_unit_tests"
 	@echo "... tsdb_performance_config_unit_tests"
 	@echo "... tsdb_predictive_cache_unit_tests"
-	@echo "... tsdb_semvec_analytics_smoke_tests"
-	@echo "... tsdb_semvec_architecture_validation_tests"
-	@echo "... tsdb_semvec_compression_smoke_tests"
-	@echo "... tsdb_semvec_memory_management_smoke_tests"
-	@echo "... tsdb_semvec_migration_manager_smoke_tests"
-	@echo "... tsdb_semvec_pruned_semantic_index_smoke_tests"
-	@echo "... tsdb_semvec_quantized_vector_index_smoke_tests"
-	@echo "... tsdb_semvec_query_processor_smoke_tests"
-	@echo "... tsdb_semvec_smoke_tests"
-	@echo "... tsdb_semvec_sparse_temporal_graph_smoke_tests"
 	@echo "... tsdb_sharded_write_buffer_unit_tests"
 	@echo "... tsdb_storage_unit_tests"
 	@echo "... tsdb_working_set_cache_unit_tests"
@@ -1417,33 +1009,6 @@ help:
 	@echo "... core/result_test.o"
 	@echo "... core/result_test.i"
 	@echo "... core/result_test.s"
-	@echo "... semantic_vector/advanced_analytics_test.o"
-	@echo "... semantic_vector/advanced_analytics_test.i"
-	@echo "... semantic_vector/advanced_analytics_test.s"
-	@echo "... semantic_vector/architecture_validation_test.o"
-	@echo "... semantic_vector/architecture_validation_test.i"
-	@echo "... semantic_vector/architecture_validation_test.s"
-	@echo "... semantic_vector/compression_test.o"
-	@echo "... semantic_vector/compression_test.i"
-	@echo "... semantic_vector/compression_test.s"
-	@echo "... semantic_vector/memory_management_test.o"
-	@echo "... semantic_vector/memory_management_test.i"
-	@echo "... semantic_vector/memory_management_test.s"
-	@echo "... semantic_vector/migration_manager_test.o"
-	@echo "... semantic_vector/migration_manager_test.i"
-	@echo "... semantic_vector/migration_manager_test.s"
-	@echo "... semantic_vector/pruned_semantic_index_test.o"
-	@echo "... semantic_vector/pruned_semantic_index_test.i"
-	@echo "... semantic_vector/pruned_semantic_index_test.s"
-	@echo "... semantic_vector/quantized_vector_index_test.o"
-	@echo "... semantic_vector/quantized_vector_index_test.i"
-	@echo "... semantic_vector/quantized_vector_index_test.s"
-	@echo "... semantic_vector/query_processor_test.o"
-	@echo "... semantic_vector/query_processor_test.i"
-	@echo "... semantic_vector/query_processor_test.s"
-	@echo "... semantic_vector/sparse_temporal_graph_test.o"
-	@echo "... semantic_vector/sparse_temporal_graph_test.i"
-	@echo "... semantic_vector/sparse_temporal_graph_test.s"
 	@echo "... storage/adaptive_compressor_test.o"
 	@echo "... storage/adaptive_compressor_test.i"
 	@echo "... storage/adaptive_compressor_test.s"

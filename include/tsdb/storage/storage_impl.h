@@ -39,38 +39,112 @@ class Series;
  */
 class StorageImpl : public Storage {
 public:
-    StorageImpl();
+    /**
+     * @brief Constructs a new StorageImpl instance
+     */
     explicit StorageImpl(const core::StorageConfig& config);
+    StorageImpl();
+
+    /**
+     * @brief Destructor that ensures proper cleanup of storage resources
+     */
     ~StorageImpl() override;
     
     // Implement pure virtual methods from Storage interface
+    /**
+     * @brief Initializes the storage with the given configuration
+     * @param config The storage configuration to use
+     * @note This method can only be called once. Subsequent calls will return an error.
+     */
     core::Result<void> init(const core::StorageConfig& config) override;
+
+    /**
+     * @brief Writes a time series to storage
+     * @param series The time series data to write
+     * @return Result object indicating success or failure
+     */
     core::Result<void> write(const core::TimeSeries& series) override;
+
+    /**
+     * @brief Reads a time series from storage
+     * @param labels The labels identifying the time series
+     * @param start_time The start time for the query range
+     * @param end_time The end time for the query range
+     * @return Result object containing the requested time series data
+     */
     core::Result<core::TimeSeries> read(
         const core::Labels& labels,
         int64_t start_time,
         int64_t end_time) override;
+
+    /**
+     * @brief Queries time series data based on label matchers
+     * @param matchers The label matchers for selecting time series
+     * @param start_time The start time for the query range
+     * @param end_time The end time for the query range
+     * @return Result object containing the matching time series data
+     */
     core::Result<std::vector<core::TimeSeries>> query(
         const std::vector<std::pair<std::string, std::string>>& matchers,
         int64_t start_time,
         int64_t end_time) override;
+
+    /**
+     * @brief Retrieves the available label names in the storage
+     * @return Result object containing the list of label names
+     */
     core::Result<std::vector<std::string>> label_names() override;
+
+    /**
+     * @brief Retrieves the values for a specific label
+     * @param label_name The name of the label
+     * @return Result object containing the list of label values
+     */
     core::Result<std::vector<std::string>> label_values(
         const std::string& label_name) override;
+
+    /**
+     * @brief Deletes time series data matching the given label matchers
+     * @param matchers The label matchers for selecting time series to delete
+     * @return Result object indicating success or failure
+     */
     core::Result<void> delete_series(
         const std::vector<std::pair<std::string, std::string>>& matchers) override;
+
+    /**
+     * @brief Compacts the storage to optimize space and performance
+     * @return Result object indicating success or failure
+     */
     core::Result<void> compact() override;
+
+    /**
+     * @brief Flushes any pending changes to the storage
+     * @return Result object indicating success or failure
+     */
     core::Result<void> flush() override;
+
+    /**
+     * @brief Closes the storage and releases any resources
+     * @return Result object indicating success or failure
+     */
     core::Result<void> close() override;
+
+    /**
+     * @brief Returns statistics about the storage
+     * @return A string containing storage statistics
+     */
     std::string stats() const override;
 
 private:
+    core::Result<void> flush_nolock();
     mutable std::shared_mutex mutex_;
     std::shared_ptr<BlockManager> block_manager_;
-    bool initialized_;
-    core::StorageConfig config_;  // Storage configuration
-    std::vector<core::TimeSeries> stored_series_;  // In-memory storage for series
-    std::vector<std::vector<uint8_t>> compressed_data_;  // Compressed data storage
+    std::atomic<bool> initialized_;
+    core::StorageConfig config_;
+
+    // In-memory storage for backward compatibility
+    std::vector<core::TimeSeries> stored_series_;
+    std::vector<std::vector<uint8_t>> compressed_data_;
     
     // Object pools for reducing memory allocations
     std::unique_ptr<TimeSeriesPool> time_series_pool_;
@@ -125,18 +199,21 @@ private:
     // Helper methods for cache integration
     core::SeriesID calculate_series_id(const core::Labels& labels) const;
     void filter_series_to_time_range(const core::TimeSeries& source, 
-                                   int64_t start_time, int64_t end_time,
-                                   core::TimeSeries& result) const;
-    
+                                     int64_t start_time, int64_t end_time, 
+                                     core::TimeSeries& result) const;
+    void record_access_pattern(const core::Labels& labels);
+    void prefetch_predicted_series(core::SeriesID current_series);
+    std::vector<core::SeriesID> get_prefetch_candidates(core::SeriesID current_series);
+
     // Helper methods for compression integration
+    void initialize_compressors();
+    void extract_series_data(const core::TimeSeries& series,
+                             std::vector<int64_t>& timestamps,
+                             std::vector<double>& values);
     std::vector<uint8_t> compress_series_data(const core::TimeSeries& series);
     core::TimeSeries decompress_series_data(const std::vector<uint8_t>& compressed_data);
-    void extract_series_data(const core::TimeSeries& series, 
-                           std::vector<int64_t>& timestamps, 
-                           std::vector<double>& values);
-    void initialize_compressors();
-    
-    // Helper methods for background processing integration
+
+    // Background processing helpers
     void initialize_background_processor();
     void schedule_background_compaction();
     void schedule_background_cleanup();
@@ -147,12 +224,9 @@ private:
     
     // Helper methods for predictive caching integration
     void initialize_predictive_cache();
-    void record_access_pattern(const core::Labels& labels);
-    void prefetch_predicted_series(core::SeriesID current_series);
-    std::vector<core::SeriesID> get_prefetch_candidates(core::SeriesID current_series);
 };
 
 } // namespace storage
 } // namespace tsdb 
 
-#endif  // TSDB_STORAGE_STORAGE_IMPL_H_ 
+#endif  // TSDB_STORAGE_STORAGE_IMPL_H_

@@ -44,39 +44,39 @@ public:
     virtual ~IVectorIndex() = default;
     
     // Vector management
-    virtual Result<void> add_vector(const core::SeriesID& series_id, const core::Vector& vector) = 0;
-    virtual Result<void> update_vector(const core::SeriesID& series_id, const core::Vector& vector) = 0;
-    virtual Result<void> remove_vector(const core::SeriesID& series_id) = 0;
-    virtual Result<core::Vector> get_vector(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<void> add_vector(const core::SeriesID& series_id, const core::Vector& vector) = 0;
+    virtual core::Result<void> update_vector(const core::SeriesID& series_id, const core::Vector& vector) = 0;
+    virtual core::Result<void> remove_vector(const core::SeriesID& series_id) = 0;
+    virtual core::Result<core::Vector> get_vector(const core::SeriesID& series_id) const = 0;
     
     // Similarity search
-    virtual Result<std::vector<std::pair<core::SeriesID, double>>> search_similar(
+    virtual core::Result<std::vector<std::pair<core::SeriesID, double>>> search_similar(
         const core::Vector& query_vector, 
         size_t k_nearest,
         double similarity_threshold = 0.7) const = 0;
     
     // Quantized vector operations
-    virtual Result<core::QuantizedVector> quantize_vector(const core::Vector& vector) const = 0;
-    virtual Result<core::Vector> dequantize_vector(const core::QuantizedVector& qvector) const = 0;
-    virtual Result<std::vector<std::pair<core::SeriesID, double>>> search_quantized(
+    virtual core::Result<core::QuantizedVector> quantize_vector(const core::Vector& vector) const = 0;
+    virtual core::Result<core::Vector> dequantize_vector(const core::QuantizedVector& qvector) const = 0;
+    virtual core::Result<std::vector<std::pair<core::SeriesID, double>>> search_quantized(
         const core::QuantizedVector& query_vector,
         size_t k_nearest) const = 0;
     
     // Binary vector operations
-    virtual Result<core::BinaryVector> binarize_vector(const core::Vector& vector) const = 0;
-    virtual Result<std::vector<std::pair<core::SeriesID, uint32_t>>> search_binary(
+    virtual core::Result<core::BinaryVector> binarize_vector(const core::Vector& vector) const = 0;
+    virtual core::Result<std::vector<std::pair<core::SeriesID, uint32_t>>> search_binary(
         const core::BinaryVector& query_vector,
         size_t k_nearest,
         uint32_t max_hamming_distance = 10) const = 0;
     
     // Index management
-    virtual Result<void> build_index() = 0;
-    virtual Result<void> optimize_index() = 0;
-    virtual Result<core::VectorIndex> get_index_stats() const = 0;
+    virtual core::Result<void> build_index() = 0;
+    virtual core::Result<void> optimize_index() = 0;
+    virtual core::Result<core::VectorIndex> get_index_stats() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::VectorConfig& config) = 0;
@@ -94,24 +94,24 @@ public:
     virtual ~IVectorCompressor() = default;
     
     // Compression operations
-    virtual Result<std::vector<uint8_t>> compress_vector(const core::Vector& vector) = 0;
-    virtual Result<core::Vector> decompress_vector(const std::vector<uint8_t>& compressed_data) = 0;
-    virtual Result<double> get_compression_ratio() const = 0;
+    virtual core::Result<std::vector<uint8_t>> compress_vector(const core::Vector& vector) = 0;
+    virtual core::Result<core::Vector> decompress_vector(const std::vector<uint8_t>& compressed_data) = 0;
+    virtual core::Result<double> get_compression_ratio() const = 0;
     
     // Quantization operations
-    virtual Result<core::QuantizedVector> quantize_vector(const core::Vector& vector) = 0;
-    virtual Result<core::Vector> dequantize_vector(const core::QuantizedVector& qvector) = 0;
-    virtual Result<double> get_quantization_error() const = 0;
+    virtual core::Result<core::QuantizedVector> quantize_vector(const core::Vector& vector) = 0;
+    virtual core::Result<core::Vector> dequantize_vector(const core::QuantizedVector& qvector) = 0;
+    virtual core::Result<double> get_quantization_error() const = 0;
     
     // Binary operations
-    virtual Result<core::BinaryVector> binarize_vector(const core::Vector& vector) = 0;
-    virtual Result<core::Vector> debinarize_vector(const core::BinaryVector& bvector) = 0;
-    virtual Result<double> get_binarization_error() const = 0;
+    virtual core::Result<core::BinaryVector> binarize_vector(const core::Vector& vector) = 0;
+    virtual core::Result<core::Vector> debinarize_vector(const core::BinaryVector& bvector) = 0;
+    virtual core::Result<double> get_binarization_error() const = 0;
     
     // Memory optimization
-    virtual Result<size_t> get_memory_usage() const = 0;
-    virtual Result<size_t> get_optimized_memory_usage() const = 0;
-    virtual Result<double> get_memory_reduction_ratio() const = 0;
+    virtual core::Result<size_t> get_memory_usage() const = 0;
+    virtual core::Result<size_t> get_optimized_memory_usage() const = 0;
+    virtual core::Result<double> get_memory_reduction_ratio() const = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::MemoryConfig& config) = 0;
@@ -133,33 +133,33 @@ public:
     virtual ~ISemanticIndex() = default;
     
     // Semantic embedding management
-    virtual Result<void> add_semantic_embedding(const core::SeriesID& series_id, const core::Vector& embedding) = 0;
-    virtual Result<void> update_semantic_embedding(const core::SeriesID& series_id, const core::Vector& embedding) = 0;
-    virtual Result<void> remove_semantic_embedding(const core::SeriesID& series_id) = 0;
-    virtual Result<core::Vector> get_semantic_embedding(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<void> add_semantic_embedding(const core::SeriesID& series_id, const core::Vector& embedding) = 0;
+    virtual core::Result<void> update_semantic_embedding(const core::SeriesID& series_id, const core::Vector& embedding) = 0;
+    virtual core::Result<void> remove_semantic_embedding(const core::SeriesID& series_id) = 0;
+    virtual core::Result<core::Vector> get_semantic_embedding(const core::SeriesID& series_id) const = 0;
     
     // Natural language search
-    virtual Result<std::vector<std::pair<core::SeriesID, double>>> semantic_search(
-        const core::SemanticQuery& query) const = 0;
+    virtual core::Result<std::vector<std::pair<core::SeriesID, double>>> semantic_search(
+        const core::semantic_vector::SemanticQuery& query) const = 0;
     
     // Entity and concept management
-    virtual Result<void> add_entities(const core::SeriesID& series_id, const std::vector<std::string>& entities) = 0;
-    virtual Result<void> add_concepts(const core::SeriesID& series_id, const std::vector<std::string>& concepts) = 0;
-    virtual Result<std::vector<std::string>> get_entities(const core::SeriesID& series_id) const = 0;
-    virtual Result<std::vector<std::string>> get_concepts(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<void> add_entities(const core::SeriesID& series_id, const std::vector<std::string>& entities) = 0;
+    virtual core::Result<void> add_concepts(const core::SeriesID& series_id, const std::vector<std::string>& concepts) = 0;
+    virtual core::Result<std::vector<std::string>> get_entities(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<std::vector<std::string>> get_concepts(const core::SeriesID& series_id) const = 0;
     
     // Entity and concept search
-    virtual Result<std::vector<core::SeriesID>> search_by_entity(const std::string& entity) const = 0;
-    virtual Result<std::vector<core::SeriesID>> search_by_concept(const std::string& concept) const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> search_by_entity(const std::string& entity) const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> search_by_concept(const std::string& concept) const = 0;
     
     // Pruned embedding operations
-    virtual Result<core::PrunedEmbedding> prune_embedding(const core::Vector& embedding) = 0;
-    virtual Result<core::Vector> reconstruct_embedding(const core::PrunedEmbedding& pruned) = 0;
-    virtual Result<double> get_pruning_accuracy() const = 0;
+    virtual core::Result<core::semantic_vector::PrunedEmbedding> prune_embedding(const core::Vector& embedding) = 0;
+    virtual core::Result<core::Vector> reconstruct_embedding(const core::semantic_vector::PrunedEmbedding& pruned) = 0;
+    virtual core::Result<double> get_pruning_accuracy() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::SemanticConfig& config) = 0;
@@ -177,26 +177,26 @@ public:
     virtual ~ISemanticEmbeddingGenerator() = default;
     
     // Embedding generation
-    virtual Result<core::Vector> generate_embedding(const std::string& text) = 0;
-    virtual Result<core::Vector> generate_embedding_for_series(const core::SeriesID& series_id) = 0;
-    virtual Result<std::vector<core::Vector>> generate_batch_embeddings(const std::vector<std::string>& texts) = 0;
+    virtual core::Result<core::Vector> generate_embedding(const std::string& text) = 0;
+    virtual core::Result<core::Vector> generate_embedding_for_series(const core::SeriesID& series_id) = 0;
+    virtual core::Result<std::vector<core::Vector>> generate_batch_embeddings(const std::vector<std::string>& texts) = 0;
     
     // Entity and concept extraction
-    virtual Result<std::vector<std::string>> extract_entities(const std::string& text) = 0;
-    virtual Result<std::vector<std::string>> extract_concepts(const std::string& text) = 0;
+    virtual core::Result<std::vector<std::string>> extract_entities(const std::string& text) = 0;
+    virtual core::Result<std::vector<std::string>> extract_concepts(const std::string& text) = 0;
     
     // Query processing
-    virtual Result<core::SemanticQuery> process_natural_language_query(const std::string& query) = 0;
-    virtual Result<std::vector<core::SemanticQuery>> expand_query(const core::SemanticQuery& query) = 0;
+    virtual core::Result<core::semantic_vector::SemanticQuery> process_natural_language_query(const std::string& query) = 0;
+    virtual core::Result<std::vector<core::semantic_vector::SemanticQuery>> expand_query(const core::semantic_vector::SemanticQuery& query) = 0;
     
     // Model management
-    virtual Result<void> load_model(const std::string& model_path) = 0;
-    virtual Result<void> unload_model() = 0;
-    virtual Result<bool> is_model_loaded() const = 0;
+    virtual core::Result<void> load_model(const std::string& model_path) = 0;
+    virtual core::Result<void> unload_model() = 0;
+    virtual core::Result<bool> is_model_loaded() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::SemanticConfig& config) = 0;
@@ -218,34 +218,34 @@ public:
     virtual ~ITemporalGraph() = default;
     
     // Graph construction
-    virtual Result<void> add_series(const core::SeriesID& series_id) = 0;
-    virtual Result<void> remove_series(const core::SeriesID& series_id) = 0;
-    virtual Result<void> add_correlation(const core::SeriesID& source, const core::SeriesID& target, double correlation) = 0;
-    virtual Result<void> remove_correlation(const core::SeriesID& source, const core::SeriesID& target) = 0;
+    virtual core::Result<void> add_series(const core::SeriesID& series_id) = 0;
+    virtual core::Result<void> remove_series(const core::SeriesID& series_id) = 0;
+    virtual core::Result<void> add_correlation(const core::SeriesID& source, const core::SeriesID& target, double correlation) = 0;
+    virtual core::Result<void> remove_correlation(const core::SeriesID& source, const core::SeriesID& target) = 0;
     
     // Graph queries
-    virtual Result<std::vector<core::SeriesID>> get_neighbors(const core::SeriesID& series_id) const = 0;
-    virtual Result<double> get_correlation(const core::SeriesID& source, const core::SeriesID& target) const = 0;
-    virtual Result<std::vector<std::pair<core::SeriesID, double>>> get_top_correlations(const core::SeriesID& series_id, size_t k) const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> get_neighbors(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<double> get_correlation(const core::SeriesID& source, const core::SeriesID& target) const = 0;
+    virtual core::Result<std::vector<std::pair<core::SeriesID, double>>> get_top_correlations(const core::SeriesID& series_id, size_t k) const = 0;
     
     // Graph analysis
-    virtual Result<core::TemporalGraph> get_graph_stats() const = 0;
-    virtual Result<std::vector<core::SeriesID>> find_communities() const = 0;
-    virtual Result<std::vector<core::SeriesID>> find_influential_nodes(size_t k) const = 0;
+    virtual core::Result<core::semantic_vector::TemporalGraph> get_graph_stats() const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> find_communities() const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> find_influential_nodes(size_t k) const = 0;
     
     // Sparse graph operations
-    virtual Result<void> enable_sparse_representation() = 0;
-    virtual Result<void> disable_sparse_representation() = 0;
-    virtual Result<bool> is_sparse_enabled() const = 0;
+    virtual core::Result<void> enable_sparse_representation() = 0;
+    virtual core::Result<void> disable_sparse_representation() = 0;
+    virtual core::Result<bool> is_sparse_enabled() const = 0;
     
     // Graph compression
-    virtual Result<void> compress_graph() = 0;
-    virtual Result<void> decompress_graph() = 0;
-    virtual Result<double> get_compression_ratio() const = 0;
+    virtual core::Result<void> compress_graph() = 0;
+    virtual core::Result<void> decompress_graph() = 0;
+    virtual core::Result<double> get_compression_ratio() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::TemporalConfig& config) = 0;
@@ -263,34 +263,34 @@ public:
     virtual ~ICorrelationMatrix() = default;
     
     // Matrix operations
-    virtual Result<void> set_correlation(const core::SeriesID& i, const core::SeriesID& j, double correlation) = 0;
-    virtual Result<double> get_correlation(const core::SeriesID& i, const core::SeriesID& j) const = 0;
-    virtual Result<void> remove_correlation(const core::SeriesID& i, const core::SeriesID& j) = 0;
+    virtual core::Result<void> set_correlation(const core::SeriesID& i, const core::SeriesID& j, double correlation) = 0;
+    virtual core::Result<double> get_correlation(const core::SeriesID& i, const core::SeriesID& j) const = 0;
+    virtual core::Result<void> remove_correlation(const core::SeriesID& i, const core::SeriesID& j) = 0;
     
     // Matrix queries
-    virtual Result<std::vector<std::pair<core::SeriesID, double>>> get_top_correlations(
+    virtual core::Result<std::vector<std::pair<core::SeriesID, double>>> get_top_correlations(
         const core::SeriesID& series_id, size_t k) const = 0;
-    virtual Result<std::vector<core::SeriesID>> get_highly_correlated_series(
+    virtual core::Result<std::vector<core::SeriesID>> get_highly_correlated_series(
         const core::SeriesID& series_id, double threshold) const = 0;
     
     // Matrix analysis
-    virtual Result<core::CorrelationMatrix> get_matrix_stats() const = 0;
-    virtual Result<std::vector<double>> get_eigenvalues() const = 0;
-    virtual Result<std::vector<std::vector<double>>> get_eigenvectors() const = 0;
+    virtual core::Result<core::semantic_vector::CorrelationMatrix> get_matrix_stats() const = 0;
+    virtual core::Result<std::vector<double>> get_eigenvalues() const = 0;
+    virtual core::Result<std::vector<std::vector<double>>> get_eigenvectors() const = 0;
     
     // Sparse matrix operations
-    virtual Result<void> enable_sparse_storage() = 0;
-    virtual Result<void> disable_sparse_storage() = 0;
-    virtual Result<bool> is_sparse_enabled() const = 0;
+    virtual core::Result<void> enable_sparse_storage() = 0;
+    virtual core::Result<void> disable_sparse_storage() = 0;
+    virtual core::Result<bool> is_sparse_enabled() const = 0;
     
     // Matrix compression
-    virtual Result<void> compress_matrix() = 0;
-    virtual Result<void> decompress_matrix() = 0;
-    virtual Result<double> get_compression_ratio() const = 0;
+    virtual core::Result<void> compress_matrix() = 0;
+    virtual core::Result<void> decompress_matrix() = 0;
+    virtual core::Result<double> get_compression_ratio() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::TemporalConfig& config) = 0;
@@ -312,29 +312,29 @@ public:
     virtual ~ITieredMemoryManager() = default;
     
     // Memory tier management
-    virtual Result<void> add_to_tier(const core::SeriesID& series_id, core::semantic_vector::TieredMemoryPolicy::Tier tier) = 0;
-    virtual Result<void> promote_to_tier(const core::SeriesID& series_id, core::semantic_vector::TieredMemoryPolicy::Tier tier) = 0;
-    virtual Result<void> demote_from_tier(const core::SeriesID& series_id) = 0;
-    virtual Result<core::semantic_vector::TieredMemoryPolicy::Tier> get_tier(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<void> add_to_tier(const core::SeriesID& series_id, core::semantic_vector::TieredMemoryPolicy::Tier tier) = 0;
+    virtual core::Result<void> promote_to_tier(const core::SeriesID& series_id, core::semantic_vector::TieredMemoryPolicy::Tier tier) = 0;
+    virtual core::Result<void> demote_from_tier(const core::SeriesID& series_id) = 0;
+    virtual core::Result<core::semantic_vector::TieredMemoryPolicy::Tier> get_tier(const core::SeriesID& series_id) const = 0;
     
     // Memory access
-    virtual Result<void> access_series(const core::SeriesID& series_id) = 0;
-    virtual Result<double> get_access_frequency(const core::SeriesID& series_id) const = 0;
-    virtual Result<std::vector<core::SeriesID>> get_series_in_tier(core::semantic_vector::TieredMemoryPolicy::Tier tier) const = 0;
+    virtual core::Result<void> access_series(const core::SeriesID& series_id) = 0;
+    virtual core::Result<double> get_access_frequency(const core::SeriesID& series_id) const = 0;
+    virtual core::Result<std::vector<core::SeriesID>> get_series_in_tier(core::semantic_vector::TieredMemoryPolicy::Tier tier) const = 0;
     
     // Memory optimization
-    virtual Result<void> optimize_memory_usage() = 0;
-    virtual Result<void> defragment_memory() = 0;
-    virtual Result<size_t> get_memory_usage(core::semantic_vector::TieredMemoryPolicy::Tier tier) const = 0;
-    virtual Result<size_t> get_total_memory_usage() const = 0;
+    virtual core::Result<void> optimize_memory_usage() = 0;
+    virtual core::Result<void> defragment_memory() = 0;
+    virtual core::Result<size_t> get_memory_usage(core::semantic_vector::TieredMemoryPolicy::Tier tier) const = 0;
+    virtual core::Result<size_t> get_total_memory_usage() const = 0;
     
     // Policy management
-    virtual Result<void> update_policy(const core::semantic_vector::TieredMemoryPolicy& policy) = 0;
-    virtual Result<core::semantic_vector::TieredMemoryPolicy> get_policy() const = 0;
+    virtual core::Result<void> update_policy(const core::semantic_vector::TieredMemoryPolicy& policy) = 0;
+    virtual core::Result<core::semantic_vector::TieredMemoryPolicy> get_policy() const = 0;
     
     // Performance monitoring
-    virtual Result<core::semantic_vector::TieredMemoryPolicy::Metrics> get_metrics() const = 0;
-    virtual Result<void> reset_metrics() = 0;
+    virtual core::Result<core::semantic_vector::TieredMemoryPolicy::Metrics> get_metrics() const = 0;
+    virtual core::Result<void> reset_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::MemoryConfig& config) = 0;
@@ -352,26 +352,26 @@ public:
     virtual ~IAdaptiveMemoryPool() = default;
     
     // Memory allocation
-    virtual Result<void*> allocate(size_t size) = 0;
-    virtual Result<void> deallocate(void* ptr) = 0;
-    virtual Result<void*> reallocate(void* ptr, size_t new_size) = 0;
+    virtual core::Result<void*> allocate(size_t size) = 0;
+    virtual core::Result<void> deallocate(void* ptr) = 0;
+    virtual core::Result<void*> reallocate(void* ptr, size_t new_size) = 0;
     
     // Memory pool management
-    virtual Result<void> create_pool(size_t initial_size) = 0;
-    virtual Result<void> destroy_pool() = 0;
-    virtual Result<size_t> get_pool_size() const = 0;
-    virtual Result<size_t> get_allocated_size() const = 0;
-    virtual Result<size_t> get_free_size() const = 0;
+    virtual core::Result<void> create_pool(size_t initial_size) = 0;
+    virtual core::Result<void> destroy_pool() = 0;
+    virtual core::Result<size_t> get_pool_size() const = 0;
+    virtual core::Result<size_t> get_allocated_size() const = 0;
+    virtual core::Result<size_t> get_free_size() const = 0;
     
     // Memory optimization
-    virtual Result<void> defragment() = 0;
-    virtual Result<void> compact() = 0;
-    virtual Result<double> get_fragmentation_ratio() const = 0;
-    virtual Result<double> get_allocation_efficiency() const = 0;
+    virtual core::Result<void> defragment() = 0;
+    virtual core::Result<void> compact() = 0;
+    virtual core::Result<double> get_fragmentation_ratio() const = 0;
+    virtual core::Result<double> get_allocation_efficiency() const = 0;
     
     // Performance monitoring
-    virtual Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
-    virtual Result<void> reset_performance_metrics() = 0;
+    virtual core::Result<core::PerformanceMetrics> get_performance_metrics() const = 0;
+    virtual core::Result<void> reset_performance_metrics() = 0;
     
     // Configuration
     virtual void update_config(const core::semantic_vector::SemanticVectorConfig::MemoryConfig& config) = 0;
@@ -393,26 +393,27 @@ class IAdvancedQueryProcessor {
 public:
     virtual ~IAdvancedQueryProcessor() = default;
     
-    // Vector similarity queries
-    virtual Result<core::QueryResult> process_vector_query(
+        // Vector similarity queries
+    virtual core::Result<core::QueryResult> process_vector_query(
         const core::Vector& query_vector, 
         size_t k_nearest,
         const core::semantic_vector::SemanticVectorConfig::QueryConfig& config) = 0;
     
-    // Semantic queries
-    virtual Result<core::QueryResult> process_semantic_query(
-        const core::SemanticQuery& query,
+    // Semantic search queries
+    virtual core::Result<core::QueryResult> process_semantic_query(
+        const core::semantic_vector::SemanticQuery& query,
         const core::semantic_vector::SemanticVectorConfig::QueryConfig& config) = 0;
     
-    // Correlation queries
-    virtual Result<core::QueryResult> process_correlation_query(
-        const std::vector<core::SeriesID>& series_ids,
+    // Correlation analysis queries
+    virtual core::Result<core::QueryResult> process_correlation_query(
+        const core::SeriesID& series_id,
+        double correlation_threshold,
         const core::semantic_vector::SemanticVectorConfig::QueryConfig& config) = 0;
     
     // Causal inference queries
-    virtual Result<core::QueryResult> process_causal_query(
-        const core::SeriesID& treatment_series,
-        const core::SeriesID& outcome_series,
+    virtual core::Result<core::QueryResult> process_causal_query(
+        const core::SeriesID& cause_series,
+        const core::SeriesID& effect_series,
         const core::semantic_vector::SemanticVectorConfig::QueryConfig& config) = 0;
     
     // Temporal reasoning queries
