@@ -1,0 +1,908 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>diagrams.md</title>
+<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
+
+<style>
+/* https://github.com/microsoft/vscode/blob/master/extensions/markdown-language-features/media/markdown.css */
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+body {
+	font-family: var(--vscode-markdown-font-family, -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif);
+	font-size: var(--vscode-markdown-font-size, 14px);
+	padding: 0 26px;
+	line-height: var(--vscode-markdown-line-height, 22px);
+	word-wrap: break-word;
+}
+
+#code-csp-warning {
+	position: fixed;
+	top: 0;
+	right: 0;
+	color: white;
+	margin: 16px;
+	text-align: center;
+	font-size: 12px;
+	font-family: sans-serif;
+	background-color:#444444;
+	cursor: pointer;
+	padding: 6px;
+	box-shadow: 1px 1px 1px rgba(0,0,0,.25);
+}
+
+#code-csp-warning:hover {
+	text-decoration: none;
+	background-color:#007acc;
+	box-shadow: 2px 2px 2px rgba(0,0,0,.25);
+}
+
+body.scrollBeyondLastLine {
+	margin-bottom: calc(100vh - 22px);
+}
+
+body.showEditorSelection .code-line {
+	position: relative;
+}
+
+body.showEditorSelection .code-active-line:before,
+body.showEditorSelection .code-line:hover:before {
+	content: "";
+	display: block;
+	position: absolute;
+	top: 0;
+	left: -12px;
+	height: 100%;
+}
+
+body.showEditorSelection li.code-active-line:before,
+body.showEditorSelection li.code-line:hover:before {
+	left: -30px;
+}
+
+.vscode-light.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.15);
+}
+
+.vscode-light.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(0, 0, 0, 0.40);
+}
+
+.vscode-light.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-dark.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.vscode-dark.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 255, 255, 0.60);
+}
+
+.vscode-dark.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+.vscode-high-contrast.showEditorSelection .code-active-line:before {
+	border-left: 3px solid rgba(255, 160, 0, 0.7);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line:hover:before {
+	border-left: 3px solid rgba(255, 160, 0, 1);
+}
+
+.vscode-high-contrast.showEditorSelection .code-line .code-line:hover:before {
+	border-left: none;
+}
+
+img {
+	max-width: 100%;
+	max-height: 100%;
+}
+
+a {
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+a:focus,
+input:focus,
+select:focus,
+textarea:focus {
+	outline: 1px solid -webkit-focus-ring-color;
+	outline-offset: -1px;
+}
+
+hr {
+	border: 0;
+	height: 2px;
+	border-bottom: 2px solid;
+}
+
+h1 {
+	padding-bottom: 0.3em;
+	line-height: 1.2;
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+h1, h2, h3 {
+	font-weight: normal;
+}
+
+table {
+	border-collapse: collapse;
+}
+
+table > thead > tr > th {
+	text-align: left;
+	border-bottom: 1px solid;
+}
+
+table > thead > tr > th,
+table > thead > tr > td,
+table > tbody > tr > th,
+table > tbody > tr > td {
+	padding: 5px 10px;
+}
+
+table > tbody > tr + tr > td {
+	border-top: 1px solid;
+}
+
+blockquote {
+	margin: 0 7px 0 5px;
+	padding: 0 16px 0 10px;
+	border-left-width: 5px;
+	border-left-style: solid;
+}
+
+code {
+	font-family: Menlo, Monaco, Consolas, "Droid Sans Mono", "Courier New", monospace, "Droid Sans Fallback";
+	font-size: 1em;
+	line-height: 1.357em;
+}
+
+body.wordWrap pre {
+	white-space: pre-wrap;
+}
+
+pre:not(.hljs),
+pre.hljs code > div {
+	padding: 16px;
+	border-radius: 3px;
+	overflow: auto;
+}
+
+pre code {
+	color: var(--vscode-editor-foreground);
+	tab-size: 4;
+}
+
+/** Theming */
+
+.vscode-light pre {
+	background-color: rgba(220, 220, 220, 0.4);
+}
+
+.vscode-dark pre {
+	background-color: rgba(10, 10, 10, 0.4);
+}
+
+.vscode-high-contrast pre {
+	background-color: rgb(0, 0, 0);
+}
+
+.vscode-high-contrast h1 {
+	border-color: rgb(0, 0, 0);
+}
+
+.vscode-light table > thead > tr > th {
+	border-color: rgba(0, 0, 0, 0.69);
+}
+
+.vscode-dark table > thead > tr > th {
+	border-color: rgba(255, 255, 255, 0.69);
+}
+
+.vscode-light h1,
+.vscode-light hr,
+.vscode-light table > tbody > tr + tr > td {
+	border-color: rgba(0, 0, 0, 0.18);
+}
+
+.vscode-dark h1,
+.vscode-dark hr,
+.vscode-dark table > tbody > tr + tr > td {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+</style>
+
+<style>
+/* Tomorrow Theme */
+/* http://jmblog.github.com/color-themes-for-google-code-highlightjs */
+/* Original theme - https://github.com/chriskempson/tomorrow-theme */
+
+/* Tomorrow Comment */
+.hljs-comment,
+.hljs-quote {
+	color: #8e908c;
+}
+
+/* Tomorrow Red */
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-selector-id,
+.hljs-selector-class,
+.hljs-regexp,
+.hljs-deletion {
+	color: #c82829;
+}
+
+/* Tomorrow Orange */
+.hljs-number,
+.hljs-built_in,
+.hljs-builtin-name,
+.hljs-literal,
+.hljs-type,
+.hljs-params,
+.hljs-meta,
+.hljs-link {
+	color: #f5871f;
+}
+
+/* Tomorrow Yellow */
+.hljs-attribute {
+	color: #eab700;
+}
+
+/* Tomorrow Green */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition {
+	color: #718c00;
+}
+
+/* Tomorrow Blue */
+.hljs-title,
+.hljs-section {
+	color: #4271ae;
+}
+
+/* Tomorrow Purple */
+.hljs-keyword,
+.hljs-selector-tag {
+	color: #8959a8;
+}
+
+.hljs {
+	display: block;
+	overflow-x: auto;
+	color: #4d4d4c;
+	padding: 0.5em;
+}
+
+.hljs-emphasis {
+	font-style: italic;
+}
+
+.hljs-strong {
+	font-weight: bold;
+}
+</style>
+
+<style>
+/*
+ * Markdown PDF CSS
+ */
+
+ body {
+	font-family: -apple-system, BlinkMacSystemFont, "Segoe WPC", "Segoe UI", "Ubuntu", "Droid Sans", sans-serif, "Meiryo";
+	padding: 0 12px;
+}
+
+pre {
+	background-color: #f8f8f8;
+	border: 1px solid #cccccc;
+	border-radius: 3px;
+	overflow-x: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+}
+
+pre:not(.hljs) {
+	padding: 23px;
+	line-height: 19px;
+}
+
+blockquote {
+	background: rgba(127, 127, 127, 0.1);
+	border-color: rgba(0, 122, 204, 0.5);
+}
+
+.emoji {
+	height: 1.4em;
+}
+
+code {
+	font-size: 14px;
+	line-height: 19px;
+}
+
+/* for inline code */
+:not(pre):not(.hljs) > code {
+	color: #C9AE75; /* Change the old color so it seems less like an error */
+	font-size: inherit;
+}
+
+/* Page Break : use <div class="page"/> to insert page break
+-------------------------------------------------------- */
+.page {
+	page-break-after: always;
+}
+
+</style>
+
+<script src="https://unpkg.com/mermaid/dist/mermaid.min.js"></script>
+</head>
+<body>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: document.body.classList.contains('vscode-dark') || document.body.classList.contains('vscode-high-contrast')
+          ? 'dark'
+          : 'default'
+    });
+  </script>
+<h1 id="tsdb-architecture-diagrams">TSDB Architecture Diagrams</h1>
+<p><strong>Updated</strong>: July 2025<br>
+<strong>Status</strong>: Comprehensive architecture reflecting all implemented features and integration plans</p>
+<h2 id="system-architecture-overview">System Architecture Overview</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    Client[Client Applications] --> GRPC[gRPC Interface]
+    OTEL[OpenTelemetry] --> GRPC
+    Prometheus[Prometheus] --> GRPC
+    
+    subgraph Ingestion Layer
+        GRPC --> Parser[Protocol Parser]
+        Parser --> Validator[Validation Layer]
+        Validator --> Router[Metric Router]
+        Router --> StorageImpl[StorageImpl Interface]
+    end
+    
+    subgraph Advanced Storage Engine
+        StorageImpl --> ObjectPools[Object Pools]
+        StorageImpl --> CacheHierarchy[Cache Hierarchy]
+        StorageImpl --> Compression[Compression Engine]
+        StorageImpl --> BlockManager[Block Manager]
+        StorageImpl --> BackgroundProc[Background Processor]
+        StorageImpl --> PredictiveCache[Predictive Cache]
+    end
+    
+    subgraph Multi-Tier Storage
+        BlockManager --> HotStorage[Hot Storage]
+        BlockManager --> WarmStorage[Warm Storage]
+        BlockManager --> ColdStorage[Cold Storage]
+        
+        subgraph HistogramStorage
+            HotStorage --> HBuckets[Hot Buckets]
+            WarmStorage --> WBuckets[Warm Buckets]
+            ColdStorage --> CBuckets[Cold Buckets]
+        end
+    end
+    
+    subgraph Query Engine
+        Query[Query Processor] --> PromQL[PromQL Engine]
+        PromQL --> Planner[Query Planner]
+        Planner --> Executor[Query Executor]
+        Executor --> CacheHierarchy
+        Executor --> BlockManager
+    end
+    
+    subgraph Monitoring & Metrics
+        AtomicMetrics[Atomic Metrics] --> StorageImpl
+        PerformanceConfig[Performance Config] --> StorageImpl
+        BackgroundProc --> MetricsCollection[Metrics Collection]
+    end
+</div></code></pre>
+<h2 id="storageimpl-integration-architecture">StorageImpl Integration Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph StorageImpl Interface
+        WriteOp[Write Operations] --> ObjectPoolIntegration[Object Pool Integration]
+        ReadOp[Read Operations] --> CacheIntegration[Cache Integration]
+        QueryOp[Query Operations] --> CompressionIntegration[Compression Integration]
+    end
+    
+    subgraph Object Pool Layer
+        ObjectPoolIntegration --> TimeSeriesPool[TimeSeries Pool]
+        ObjectPoolIntegration --> LabelsPool[Labels Pool]
+        ObjectPoolIntegration --> SamplePool[Sample Pool]
+    end
+    
+    subgraph Cache Hierarchy Layer
+        CacheIntegration --> L1Cache[L1 Cache<br/>WorkingSetCache]
+        CacheIntegration --> L2Cache[L2 Cache<br/>MemoryMappedCache]
+        CacheIntegration --> L3Cache[L3 Cache<br/>Disk Storage]
+        L1Cache --> L2Cache
+        L2Cache --> L3Cache
+    end
+    
+    subgraph Compression Layer
+        CompressionIntegration --> TimestampComp[Timestamp Compression<br/>Delta-of-Delta]
+        CompressionIntegration --> ValueComp[Value Compression<br/>XOR/RLE]
+        CompressionIntegration --> LabelComp[Label Compression<br/>RLE]
+    end
+    
+    subgraph Block Management Layer
+        BlockManager --> BlockCreation[Block Creation]
+        BlockManager --> BlockRotation[Block Rotation]
+        BlockManager --> BlockCompaction[Block Compaction]
+        BlockManager --> BlockIndexing[Block Indexing]
+    end
+    
+    subgraph Background Processing
+        BackgroundProc --> CacheMaintenance[Cache Maintenance]
+        BackgroundProc --> BlockMaintenance[Block Maintenance]
+        BackgroundProc --> MetricsCollection[Metrics Collection]
+        BackgroundProc --> PredictiveAnalysis[Predictive Analysis]
+    end
+</div></code></pre>
+<h2 id="advanced-features-architecture">Advanced Features Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph AdvPerf Features
+        ObjectPooling[Object Pooling<br/>Memory Efficiency]
+        MultiLevelCache[Multi-Level Cache<br/>Performance Optimization]
+        PredictiveCaching[Predictive Caching<br/>Access Pattern Analysis]
+        AdaptiveCompression[Adaptive Compression<br/>Multiple Algorithms]
+        BackgroundProcessing[Background Processing<br/>Automatic Maintenance]
+        AtomicReferenceCounting[Atomic Reference Counting<br/>Memory Management]
+    end
+    
+    subgraph Performance Optimization
+        ObjectPooling --> MemoryEfficiency[Memory Efficiency]
+        MultiLevelCache --> AccessSpeed[Access Speed]
+        PredictiveCaching --> Prefetching[Intelligent Prefetching]
+        AdaptiveCompression --> StorageEfficiency[Storage Efficiency]
+        BackgroundProcessing --> SystemOptimization[System Optimization]
+        AtomicReferenceCounting --> SafeMemory[Safe Memory Management]
+    end
+    
+    subgraph Integration Points
+        MemoryEfficiency --> StorageImpl
+        AccessSpeed --> StorageImpl
+        Prefetching --> StorageImpl
+        StorageEfficiency --> StorageImpl
+        SystemOptimization --> StorageImpl
+        SafeMemory --> StorageImpl
+    end
+</div></code></pre>
+<h2 id="data-model-with-advanced-features">Data Model with Advanced Features</h2>
+<pre><code class="language-mermaid"><div class="mermaid">classDiagram
+    class StorageImpl {
+        -ObjectPools object_pools
+        -CacheHierarchy cache_hierarchy
+        -BlockManager block_manager
+        -BackgroundProcessor background_processor
+        -AtomicMetrics atomic_metrics
+        +write(TimeSeries) Result
+        +read(Labels, start, end) TimeSeries
+        +query(matchers, start, end) TimeSeries[]
+        +stats() string
+    }
+    
+    class ObjectPools {
+        -TimeSeriesPool time_series_pool
+        -LabelsPool labels_pool
+        -SamplePool sample_pool
+        +acquire() unique_ptr
+        +release(unique_ptr) void
+        +stats() string
+    }
+    
+    class CacheHierarchy {
+        -WorkingSetCache l1_cache
+        -MemoryMappedCache l2_cache
+        -DiskStorage l3_cache
+        +get(SeriesID) shared_ptr
+        +put(SeriesID, TimeSeries) void
+        +promote(SeriesID) void
+        +demote(SeriesID) void
+    }
+    
+    class BlockManager {
+        -FileBlockStorage hot_storage
+        -FileBlockStorage warm_storage
+        -FileBlockStorage cold_storage
+        +createBlock(start, end) Result
+        +writeData(header, data) Result
+        +readData(header) Result
+        +compact() Result
+    }
+    
+    class CompressionEngine {
+        -TimestampCompressor ts_compressor
+        -ValueCompressor val_compressor
+        -LabelCompressor label_compressor
+        +compress(data) vector
+        +decompress(data) vector
+        +getCompressionRatio() double
+    }
+    
+    class BackgroundProcessor {
+        -vector tasks
+        -thread worker_thread
+        +add_task(name, func, interval) void
+        +start() void
+        +stop() void
+    }
+    
+    class PredictiveCache {
+        -vector access_patterns
+        -map predictions
+        +record_access(SeriesID) void
+        +get_predictions() vector
+        +calculate_confidence() double
+    }
+    
+    StorageImpl --> ObjectPools
+    StorageImpl --> CacheHierarchy
+    StorageImpl --> BlockManager
+    StorageImpl --> CompressionEngine
+    StorageImpl --> BackgroundProcessor
+    StorageImpl --> PredictiveCache
+</div></code></pre>
+<h2 id="multi-tier-storage-architecture">Multi-Tier Storage Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Storage Tiers
+        subgraph Hot Tier
+            HotMemory[In-Memory Storage]
+            HotCache[L1 Cache<br/>WorkingSetCache]
+            HotBlocks[Hot Blocks<br/>Recent Data]
+        end
+        
+        subgraph Warm Tier
+            WarmMemory[Memory-Mapped Storage]
+            WarmCache[L2 Cache<br/>MemoryMappedCache]
+            WarmBlocks[Warm Blocks<br/>Compressed Data]
+        end
+        
+        subgraph Cold Tier
+            ColdDisk[Disk Storage]
+            ColdCache[L3 Cache<br/>Persistent Storage]
+            ColdBlocks[Cold Blocks<br/>Archived Data]
+        end
+    end
+    
+    subgraph Data Flow
+        Write[Write Operations] --> HotMemory
+        HotMemory --> HotCache
+        HotCache --> HotBlocks
+        
+        HotBlocks --> WarmMemory
+        WarmMemory --> WarmCache
+        WarmCache --> WarmBlocks
+        
+        WarmBlocks --> ColdDisk
+        ColdDisk --> ColdCache
+        ColdCache --> ColdBlocks
+    end
+    
+    subgraph Background Operations
+        BackgroundProc --> TierPromotion[Promotion<br/>Cold → Warm → Hot]
+        BackgroundProc --> TierDemotion[Demotion<br/>Hot → Warm → Cold]
+        BackgroundProc --> Compaction[Block Compaction]
+        BackgroundProc --> Cleanup[Data Cleanup]
+    end
+</div></code></pre>
+<h2 id="compression-architecture">Compression Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Compression Algorithms
+        subgraph Timestamp Compression
+            DeltaOfDelta[Delta-of-Delta<br/>High Compression]
+            SimpleDelta[Simple Delta<br/>Fast Processing]
+            XOR[XOR Compression<br/>Efficient for Timestamps]
+        end
+        
+        subgraph Value Compression
+            XORValue[XOR Compression<br/>Floating Point]
+            RLEValue[RLE Compression<br/>Repeated Values]
+            AdaptiveValue[Adaptive Compression<br/>Auto Selection]
+        end
+        
+        subgraph Label Compression
+            RLELabel[RLE Compression<br/>String Labels]
+            DictionaryLabel[Dictionary Compression<br/>Label Sets]
+        end
+    end
+    
+    subgraph Compression Pipeline
+        InputData[Input Data] --> AlgorithmSelector[Algorithm Selector]
+        AlgorithmSelector --> TimestampComp[Timestamp Compression]
+        AlgorithmSelector --> ValueComp[Value Compression]
+        AlgorithmSelector --> LabelComp[Label Compression]
+        
+        TimestampComp --> CompressedData[Compressed Data]
+        ValueComp --> CompressedData
+        LabelComp --> CompressedData
+        
+        CompressedData --> BlockStorage[Block Storage]
+    end
+    
+    subgraph Performance Monitoring
+        CompressionRatio[Compression Ratio] --> AlgorithmSelector
+        CompressionSpeed[Compression Speed] --> AlgorithmSelector
+        DecompressionSpeed[Decompression Speed] --> AlgorithmSelector
+    end
+</div></code></pre>
+<h2 id="cache-hierarchy-architecture">Cache Hierarchy Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Cache Levels
+        subgraph L1 Cache (Fastest)
+            L1WorkingSet[Working Set Cache<br/>LRU Eviction]
+            L1Memory[In-Memory Storage<br/>~10-100ns Access]
+            L1Size[Small Size<br/>~1K Entries]
+        end
+        
+        subgraph L2 Cache (Medium)
+            L2MemoryMapped[Memory-Mapped Cache<br/>File-Based]
+            L2Medium[Medium Speed<br/>~1-10μs Access]
+            L2Size[Medium Size<br/>~10K Entries]
+        end
+        
+        subgraph L3 Cache (Slowest)
+            L3Disk[Disk Storage<br/>Persistent]
+            L3Slow[Slow Speed<br/>~1-10ms Access]
+            L3Size[Large Size<br/>Unlimited]
+        end
+    end
+    
+    subgraph Cache Operations
+        ReadRequest[Read Request] --> L1WorkingSet
+        L1WorkingSet --> L1Hit{L1 Hit?}
+        L1Hit -->|Yes| ReturnData[Return Data]
+        L1Hit -->|No| L2MemoryMapped
+        L2MemoryMapped --> L2Hit{L2 Hit?}
+        L2Hit -->|Yes| PromoteToL1[Promote to L1]
+        L2Hit -->|No| L3Disk
+        L3Disk --> PromoteToL2[Promote to L2]
+        PromoteToL2 --> PromoteToL1
+        PromoteToL1 --> ReturnData
+    end
+    
+    subgraph Background Maintenance
+        BackgroundProc --> CacheOptimization[Cache Optimization]
+        CacheOptimization --> EvictionPolicy[LRU Eviction]
+        CacheOptimization --> PromotionPolicy[Access-Based Promotion]
+        CacheOptimization --> DemotionPolicy[Time-Based Demotion]
+    end
+</div></code></pre>
+<h2 id="block-management-architecture">Block Management Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Block Lifecycle
+        BlockCreation[Block Creation] --> BlockWriting[Block Writing]
+        BlockWriting --> BlockCompression[Block Compression]
+        BlockCompression --> BlockStorage[Block Storage]
+        BlockStorage --> BlockRotation[Block Rotation]
+        BlockRotation --> BlockCompaction[Block Compaction]
+        BlockCompaction --> BlockArchival[Block Archival]
+    end
+    
+    subgraph Block Types
+        subgraph Hot Blocks
+            HotActive[Active Blocks<br/>Current Writing]
+            HotRecent[Recent Blocks<br/>Frequently Accessed]
+        end
+        
+        subgraph Warm Blocks
+            WarmCompressed[Compressed Blocks<br/>Medium Access]
+            WarmIndexed[Indexed Blocks<br/>Query Optimization]
+        end
+        
+        subgraph Cold Blocks
+            ColdArchived[Archived Blocks<br/>Rare Access]
+            ColdCompacted[Compacted Blocks<br/>Space Optimized]
+        end
+    end
+    
+    subgraph Block Operations
+        WriteData[Write Data] --> BlockManager
+        BlockManager --> BlockCreation
+        BlockManager --> BlockRotation
+        BlockManager --> BlockCompaction
+        
+        ReadData[Read Data] --> BlockManager
+        BlockManager --> BlockLookup[Block Lookup]
+        BlockManager --> BlockDecompression[Block Decompression]
+    end
+</div></code></pre>
+<h2 id="background-processing-architecture">Background Processing Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Background Tasks
+        subgraph Cache Maintenance
+            CacheOptimization[Cache Optimization]
+            EvictionManagement[Eviction Management]
+            PromotionManagement[Promotion Management]
+        end
+        
+        subgraph Block Maintenance
+            BlockCompaction[Block Compaction]
+            BlockRotation[Block Rotation]
+            BlockCleanup[Block Cleanup]
+        end
+        
+        subgraph Metrics Collection
+            PerformanceMetrics[Performance Metrics]
+            ResourceMetrics[Resource Metrics]
+            SystemMetrics[System Metrics]
+        end
+        
+        subgraph Predictive Analysis
+            PatternAnalysis[Pattern Analysis]
+            Prefetching[Intelligent Prefetching]
+            ConfidenceScoring[Confidence Scoring]
+        end
+    end
+    
+    subgraph Task Scheduling
+        BackgroundProcessor --> TaskScheduler[Task Scheduler]
+        TaskScheduler --> PeriodicTasks[Periodic Tasks]
+        TaskScheduler --> EventDrivenTasks[Event-Driven Tasks]
+        TaskScheduler --> PriorityTasks[Priority Tasks]
+    end
+    
+    subgraph Execution
+        PeriodicTasks --> CacheOptimization
+        PeriodicTasks --> BlockCompaction
+        PeriodicTasks --> PerformanceMetrics
+        
+        EventDrivenTasks --> EvictionManagement
+        EventDrivenTasks --> BlockRotation
+        EventDrivenTasks --> PatternAnalysis
+        
+        PriorityTasks --> PromotionManagement
+        PriorityTasks --> BlockCleanup
+        PriorityTasks --> Prefetching
+    end
+</div></code></pre>
+<h2 id="query-processing-architecture">Query Processing Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Query Processing
+        Query[Query Request] --> Parser[Query Parser]
+        Parser --> Analyzer[Query Analyzer]
+        Analyzer --> Planner[Query Planner]
+        Planner --> Optimizer[Query Optimizer]
+        Optimizer --> Executor[Query Executor]
+    end
+    
+    subgraph Storage Access
+        Executor --> CacheLookup[Cache Lookup]
+        CacheLookup --> CacheHit{Cache Hit?}
+        CacheHit -->|Yes| ReturnResult[Return Result]
+        CacheHit -->|No| BlockLookup[Block Lookup]
+        BlockLookup --> BlockDecompression[Block Decompression]
+        BlockDecompression --> ReturnResult
+    end
+    
+    subgraph Optimization
+        QueryOptimizer[Query Optimizer] --> IndexSelection[Index Selection]
+        QueryOptimizer --> CacheStrategy[Cache Strategy]
+        QueryOptimizer --> Parallelization[Parallelization]
+        
+        IndexSelection --> BlockLookup
+        CacheStrategy --> CacheLookup
+        Parallelization --> Executor
+    end
+</div></code></pre>
+<h2 id="performance-monitoring-architecture">Performance Monitoring Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Metrics Collection
+        AtomicMetrics --> PerformanceMetrics[Performance Metrics]
+        AtomicMetrics --> ResourceMetrics[Resource Metrics]
+        AtomicMetrics --> SystemMetrics[System Metrics]
+    end
+    
+    subgraph Performance Metrics
+        PerformanceMetrics --> Throughput[Throughput<br/>Ops/Second]
+        PerformanceMetrics --> Latency[Latency<br/>Response Time]
+        PerformanceMetrics --> HitRate[Cache Hit Rate]
+        PerformanceMetrics --> CompressionRatio[Compression Ratio]
+    end
+    
+    subgraph Resource Metrics
+        ResourceMetrics --> MemoryUsage[Memory Usage]
+        ResourceMetrics --> DiskUsage[Disk Usage]
+        ResourceMetrics --> CPUUsage[CPU Usage]
+        ResourceMetrics --> NetworkUsage[Network Usage]
+    end
+    
+    subgraph System Metrics
+        SystemMetrics --> ErrorRate[Error Rate]
+        SystemMetrics --> Availability[Availability]
+        SystemMetrics --> Scalability[Scalability]
+        SystemMetrics --> Reliability[Reliability]
+    end
+    
+    subgraph Monitoring Integration
+        PerformanceMetrics --> MonitoringSystem[Monitoring System]
+        ResourceMetrics --> MonitoringSystem
+        SystemMetrics --> MonitoringSystem
+        MonitoringSystem --> Alerting[Alerting]
+        MonitoringSystem --> Dashboards[Dashboards]
+    end
+</div></code></pre>
+<h2 id="integration-testing-architecture">Integration Testing Architecture</h2>
+<pre><code class="language-mermaid"><div class="mermaid">graph TB
+    subgraph Test Phases
+        subgraph Phase 1: Object Pool Integration
+            ObjectPoolTests[Object Pool Tests]
+            MemoryEfficiencyTests[Memory Efficiency Tests]
+            PoolStatisticsTests[Pool Statistics Tests]
+        end
+        
+        subgraph Phase 2: Cache Hierarchy Integration
+            CacheHitMissTests[Cache Hit/Miss Tests]
+            CacheEvictionTests[Cache Eviction Tests]
+            CachePromotionTests[Cache Promotion Tests]
+        end
+        
+        subgraph Phase 3: Compression Integration
+            CompressionAccuracyTests[Compression Accuracy Tests]
+            CompressionRatioTests[Compression Ratio Tests]
+            AlgorithmSelectionTests[Algorithm Selection Tests]
+        end
+        
+        subgraph Phase 4: Block Management Integration
+            BlockCreationTests[Block Creation Tests]
+            BlockRotationTests[Block Rotation Tests]
+            BlockCompactionTests[Block Compaction Tests]
+        end
+        
+        subgraph Phase 5: Background Processing Integration
+            BackgroundTaskTests[Background Task Tests]
+            MaintenanceTests[Maintenance Tests]
+            MetricsCollectionTests[Metrics Collection Tests]
+        end
+        
+        subgraph Phase 6: Comprehensive Integration
+            EndToEndTests[End-to-End Tests]
+            PerformanceTests[Performance Tests]
+            StressTests[Stress Tests]
+        end
+    end
+    
+    subgraph Test Execution
+        TestRunner[Test Runner] --> Phase1[Phase 1 Tests]
+        TestRunner --> Phase2[Phase 2 Tests]
+        TestRunner --> Phase3[Phase 3 Tests]
+        TestRunner --> Phase4[Phase 4 Tests]
+        TestRunner --> Phase5[Phase 5 Tests]
+        TestRunner --> Phase6[Phase 6 Tests]
+    end
+    
+    subgraph Test Results
+        Phase1 --> TestResults[Test Results]
+        Phase2 --> TestResults
+        Phase3 --> TestResults
+        Phase4 --> TestResults
+        Phase5 --> TestResults
+        Phase6 --> TestResults
+        
+        TestResults --> PerformanceBenchmarks[Performance Benchmarks]
+        TestResults --> QualityMetrics[Quality Metrics]
+        TestResults --> SuccessCriteria[Success Criteria]
+    end
+</div></code></pre>
+
+</body>
+</html>

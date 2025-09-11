@@ -26,6 +26,25 @@ target_sources(tsdb_storage_impl
         internal/block_impl.cpp
 )
 
+# Optional: compile semantic vector sources for early feedback when enabled
+if(TSDB_SEMVEC)
+    message(STATUS "TSDB_SEMVEC enabled: compiling semantic vector sources for early feedback")
+    target_sources(tsdb_storage_impl PRIVATE
+        semantic_vector_storage_impl.cpp
+        semantic_vector/quantized_vector_index.cpp
+        semantic_vector/pruned_semantic_index.cpp
+        semantic_vector/sparse_temporal_graph.cpp
+        semantic_vector/tiered_memory_manager_stub.cpp
+        semantic_vector/adaptive_memory_pool_stub.cpp
+        semantic_vector/delta_compressed_vectors.cpp
+        semantic_vector/dictionary_compressed_metadata.cpp
+        semantic_vector/causal_inference.cpp
+        semantic_vector/temporal_reasoning.cpp
+        semantic_vector/query_processor.cpp
+        semantic_vector/migration_manager.cpp
+    )
+endif()
+
 # Suppress -Wunused-function for compression.cpp due to persistent issues with tool edits
 set_source_files_properties(compression.cpp PROPERTIES COMPILE_FLAGS "-Wno-unused-function")
 

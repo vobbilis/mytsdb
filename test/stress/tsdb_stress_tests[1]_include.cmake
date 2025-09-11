@@ -1,0 +1,5 @@
+if(EXISTS "/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/stress/tsdb_stress_tests[1]_tests.cmake")
+  include("/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/stress/tsdb_stress_tests[1]_tests.cmake")
+else()
+  add_test(tsdb_stress_tests_NOT_BUILT tsdb_stress_tests_NOT_BUILT)
+endif()

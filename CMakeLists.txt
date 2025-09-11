@@ -21,6 +21,7 @@ option(ENABLE_SIMD "Enable SIMD optimizations" ON)
 option(ENABLE_OTEL "Enable OpenTelemetry support" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
+option(TSDB_SEMVEC "Enable semantic vector components (compile-time only)" OFF)
 
 # Dependencies
 include(GNUInstallDirs)

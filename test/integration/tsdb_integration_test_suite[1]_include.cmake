@@ -1,0 +1,5 @@
+if(EXISTS "/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/integration/tsdb_integration_test_suite[1]_tests.cmake")
+  include("/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/integration/tsdb_integration_test_suite[1]_tests.cmake")
+else()
+  add_test(tsdb_integration_test_suite_NOT_BUILT tsdb_integration_test_suite_NOT_BUILT)
+endif()

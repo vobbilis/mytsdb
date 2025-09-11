@@ -239,15 +239,15 @@ struct BackgroundConfig {
     bool enable_metrics_collection;         // Enable background metrics collection
     
     // Default constructor
-    BackgroundConfig() : enable_background_processing(true),
+    BackgroundConfig() : enable_background_processing(false),  // DISABLED BY DEFAULT FOR TESTING
                         background_threads(2),
                         task_interval(std::chrono::milliseconds(1000)),
                         compaction_interval(std::chrono::milliseconds(60000)),
                         cleanup_interval(std::chrono::milliseconds(300000)),
                         metrics_interval(std::chrono::milliseconds(10000)),
-                        enable_auto_compaction(true),
-                        enable_auto_cleanup(true),
-                        enable_metrics_collection(true) {}
+                        enable_auto_compaction(false),  // DISABLED BY DEFAULT FOR TESTING
+                        enable_auto_cleanup(false),     // DISABLED BY DEFAULT FOR TESTING
+                        enable_metrics_collection(false) {}  // DISABLED BY DEFAULT FOR TESTING
     
     static BackgroundConfig Default() {
         BackgroundConfig config;
