@@ -52,11 +52,28 @@
 #include "tsdb/core/interfaces.h"
 #include <system_error>
 #include <shared_mutex>
+#include <spdlog/spdlog.h>
 
 namespace tsdb {
 namespace storage {
 
 using namespace internal;
+
+StorageImpl::StorageImpl(const core::StorageConfig& config)
+    : initialized_(false)
+    , config_(config)
+    , time_series_pool_(std::make_unique<TimeSeriesPool>(
+        config_.object_pool_config.time_series_initial_size,
+        config_.object_pool_config.time_series_max_size))
+    , labels_pool_(std::make_unique<LabelsPool>(
+        config_.object_pool_config.labels_initial_size,
+        config_.object_pool_config.labels_max_size))
+    , sample_pool_(std::make_unique<SamplePool>(
+        config_.object_pool_config.samples_initial_size,
+        config_.object_pool_config.samples_max_size))
+    , working_set_cache_(std::make_unique<WorkingSetCache>(500))
+    , next_block_id_(1)
+    , total_blocks_created_(0) {}
 
 } // namespace storage
 } // namespace tsdb
@@ -271,41 +288,7 @@ StorageImpl::StorageImpl()
     , next_block_id_(1)
     , total_blocks_created_(0) {}
 
-/**
- * @brief Constructs a new StorageImpl with custom configuration
- * 
- * This constructor initializes the storage system with the provided configuration,
- * allowing customization of object pool sizes and other settings.
- * 
- * @param config The storage configuration to use
- */
-StorageImpl::StorageImpl(const core::StorageConfig& config)
-    : initialized_(false)
-    , config_(config)
-    , time_series_pool_(std::make_unique<TimeSeriesPool>(
-        config.object_pool_config.time_series_initial_size,
-        config.object_pool_config.time_series_max_size))
-    , labels_pool_(std::make_unique<LabelsPool>(
-        config.object_pool_config.labels_initial_size,
-        config.object_pool_config.labels_max_size))
-    , sample_pool_(std::make_unique<SamplePool>(
-        config.object_pool_config.samples_initial_size,
-        config.object_pool_config.samples_max_size))
-    , working_set_cache_(std::make_unique<WorkingSetCache>(500))
-    , next_block_id_(1)
-    , total_blocks_created_(0) {
-    
-    // Initialize cache hierarchy with default configuration
-    CacheHierarchyConfig cache_config;
-    cache_config.l1_max_size = 1000;
-    cache_config.l2_max_size = 10000;
-    cache_config.l2_storage_path = config.data_dir + "/cache/l2";
-    cache_config.l3_storage_path = config.data_dir + "/cache/l3";
-    cache_config.enable_background_processing = false;  // DISABLED BY DEFAULT FOR TESTING
-    cache_config.background_interval = std::chrono::milliseconds(5000);
-    
-    cache_hierarchy_ = std::make_unique<CacheHierarchy>(cache_config);
-}
+
 
 /**
  * @brief Destructor that ensures proper cleanup of storage resources
@@ -348,15 +331,19 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         return core::Result<void>::error("Storage already initialized");
     }
     
+    spdlog_info("StorageImpl::init() - Starting initialization");
+
     // Update config with the provided configuration
     config_ = config;
     
     // Create block manager with data directory from config
+    spdlog_info("StorageImpl::init() - Initializing BlockManager");
     block_manager_ = std::make_shared<BlockManager>(config.data_dir);
     
     // Initialize cache hierarchy if not already initialized
     bool should_start_background_processing = false;
     if (!cache_hierarchy_) {
+        spdlog_info("StorageImpl::init() - Initializing CacheHierarchy");
         CacheHierarchyConfig cache_config;
         cache_config.l1_max_size = 1000;
         cache_config.l2_max_size = 10000;
@@ -371,26 +358,32 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
     
     // Start background processing for cache hierarchy (only if enabled)
     if (cache_hierarchy_ && should_start_background_processing) {
+        spdlog_info("StorageImpl::init() - Starting CacheHierarchy background processing");
         cache_hierarchy_->start_background_processing();
     }
     
     // Initialize compression components if compression is enabled
     if (config.enable_compression) {
+        spdlog_info("StorageImpl::init() - Initializing compressors");
         initialize_compressors();
     }
     
     // Initialize background processing if enabled
     if (config.background_config.enable_background_processing) {
+        spdlog_info("StorageImpl::init() - Initializing BackgroundProcessor");
         initialize_background_processor();
     }
     
     // Initialize predictive caching
+    spdlog_info("StorageImpl::init() - Initializing PredictiveCache");
     initialize_predictive_cache();
     
     // Initialize block management
+    spdlog_info("StorageImpl::init() - Initializing BlockManagement");
     initialize_block_management();
     
     initialized_ = true;
+    spdlog_info("StorageImpl::init() - Initialization complete");
     return core::Result<void>();
 }
 
@@ -521,7 +514,7 @@ core::Result<core::TimeSeries> StorageImpl::read(
         record_access_pattern(labels);
         
         // Prefetch predicted series based on access patterns
-        prefetch_predicted_series(series_id);
+        // prefetch_predicted_series(series_id);
         
         std::shared_ptr<core::TimeSeries> cached_series = nullptr;
         if (cache_hierarchy_) {
@@ -995,9 +988,14 @@ core::Result<void> StorageImpl::flush() {
     
     std::cout << "DEBUG: StorageImpl::flush() - About to acquire lock" << std::endl; std::cout.flush();
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    std::cout << "DEBUG: StorageImpl::flush() - Lock acquired, calling block_manager_->flush()" << std::endl; std::cout.flush();
+    std::cout << "DEBUG: StorageImpl::flush() - Lock acquired, calling flush_nolock()" << std::endl; std::cout.flush();
+    return flush_nolock();
+}
+
+core::Result<void> StorageImpl::flush_nolock() {
+    std::cout << "DEBUG: StorageImpl::flush_nolock() - calling block_manager_->flush()" << std::endl; std::cout.flush();
     auto result = block_manager_->flush();
-    std::cout << "DEBUG: StorageImpl::flush() - block_manager_->flush() returned" << std::endl; std::cout.flush();
+    std::cout << "DEBUG: StorageImpl::flush_nolock() - block_manager_->flush() returned" << std::endl; std::cout.flush();
     return result;
 }
 
@@ -1026,12 +1024,49 @@ core::Result<void> StorageImpl::flush() {
  * Thread Safety: Uses exclusive locking to prevent concurrent access
  */
 core::Result<void> StorageImpl::close() {
-    std::cout << "DEBUG: StorageImpl::close() - MINIMAL IMPLEMENTATION START" << std::endl; std::cout.flush();
-    
-    // MINIMAL IMPLEMENTATION - just mark as uninitialized
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    if (!initialized_) {
+        return core::Result<void>();
+    }
+
+    // Flush all pending data to persistent storage
+    auto flush_result = flush_nolock();
+    if (!flush_result.ok()) {
+        // Log the error but continue with closing
+        spdlog::error("Failed to flush data during close: {}", flush_result.error().what());
+    }
+
+    // Shutdown background processor only if it was initialized
+    if (background_processor_) {
+        auto shutdown_result = background_processor_->shutdown();
+        if (!shutdown_result.ok()) {
+            spdlog::error("Background processor shutdown failed: {}", shutdown_result.error().what());
+        }
+    }
+
+    // Finalize the current block if it exists
+    auto finalize_result = finalize_current_block();
+    if (!finalize_result.ok()) {
+        spdlog::error("Failed to finalize current block during close: {}", finalize_result.error().what());
+    }
+
+    // Clear in-memory data structures
+    stored_series_.clear();
+    compressed_data_.clear();
+    series_blocks_.clear();
+    label_to_blocks_.clear();
+    block_to_series_.clear();
+
+    // Release resources from caches and pools
+    if (cache_hierarchy_) {
+        // cache_hierarchy_->clear(); // Assuming a clear method exists
+    }
+    if (time_series_pool_) {
+        // time_series_pool_->clear(); // Assuming a clear method exists
+    }
+
+
     initialized_ = false;
-    
-    std::cout << "DEBUG: StorageImpl::close() - MINIMAL IMPLEMENTATION END" << std::endl; std::cout.flush();
     return core::Result<void>();
 }
 
@@ -1386,9 +1421,18 @@ std::shared_ptr<internal::BlockInternal> StorageImpl::create_new_block() {
     header.version = internal::BlockHeader::VERSION;
     header.flags = 0;
     header.crc32 = 0;
-    header.start_time = std::numeric_limits<int64_t>::max();
-    header.end_time = std::numeric_limits<int64_t>::min();
+    header.start_time = std::numeric_limits<int64_t>::min();
+    header.end_time = std::numeric_limits<int64_t>::max();
     header.reserved = 0;
+    
+    // Register the block with BlockManager first
+    if (block_manager_) {
+        auto create_result = block_manager_->createBlock(header.start_time, header.end_time);
+        if (!create_result.ok()) {
+            spdlog_error("Failed to create block in BlockManager: " + std::string(create_result.error().what()));
+            return nullptr;
+        }
+    }
     
     // Create compressors for the block
     auto ts_compressor = std::make_unique<SimpleTimestampCompressor>();
@@ -1645,6 +1689,11 @@ core::Result<void> StorageImpl::update_block_index(const core::TimeSeries& serie
  */
 void StorageImpl::initialize_background_processor() {
     try {
+        if (!config_.background_config.enable_background_processing) {
+            spdlog_info("Background processing is disabled. Skipping initialization.");
+            return;
+        }
+
         BackgroundProcessorConfig bg_config;
         bg_config.num_workers = static_cast<uint32_t>(config_.background_config.background_threads);
         bg_config.max_queue_size = 10000;
@@ -1898,4 +1947,4 @@ std::vector<core::SeriesID> StorageImpl::get_prefetch_candidates(core::SeriesID 
 }
 
 } // namespace storage
-} // namespace tsdb 
+} // namespace tsdb

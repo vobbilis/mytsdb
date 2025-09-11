@@ -609,6 +609,30 @@ storage_histogram_integration_test.cpp.s:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_storage_histogram_integration_test.dir/build.make test/integration/CMakeFiles/tsdb_storage_histogram_integration_test.dir/storage_histogram_integration_test.cpp.s
 .PHONY : storage_histogram_integration_test.cpp.s
 
+storageimpl_phases/comprehensive_integration_test.o: storageimpl_phases/comprehensive_integration_test.cpp.o
+.PHONY : storageimpl_phases/comprehensive_integration_test.o
+
+# target to build an object file
+storageimpl_phases/comprehensive_integration_test.cpp.o:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/comprehensive_integration_test.cpp.o
+.PHONY : storageimpl_phases/comprehensive_integration_test.cpp.o
+
+storageimpl_phases/comprehensive_integration_test.i: storageimpl_phases/comprehensive_integration_test.cpp.i
+.PHONY : storageimpl_phases/comprehensive_integration_test.i
+
+# target to preprocess a source file
+storageimpl_phases/comprehensive_integration_test.cpp.i:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/comprehensive_integration_test.cpp.i
+.PHONY : storageimpl_phases/comprehensive_integration_test.cpp.i
+
+storageimpl_phases/comprehensive_integration_test.s: storageimpl_phases/comprehensive_integration_test.cpp.s
+.PHONY : storageimpl_phases/comprehensive_integration_test.s
+
+# target to generate assembly for a file
+storageimpl_phases/comprehensive_integration_test.cpp.s:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/comprehensive_integration_test.cpp.s
+.PHONY : storageimpl_phases/comprehensive_integration_test.cpp.s
+
 storageimpl_phases/debug_cache_test.o: storageimpl_phases/debug_cache_test.cpp.o
 .PHONY : storageimpl_phases/debug_cache_test.o
 
@@ -777,6 +801,78 @@ storageimpl_phases/phase3_compression_integration_test.cpp.s:
 	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase3_compression_integration_test.cpp.s
 .PHONY : storageimpl_phases/phase3_compression_integration_test.cpp.s
 
+storageimpl_phases/phase4_block_management_integration_test.o: storageimpl_phases/phase4_block_management_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.o
+
+# target to build an object file
+storageimpl_phases/phase4_block_management_integration_test.cpp.o:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase4_block_management_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.cpp.o
+
+storageimpl_phases/phase4_block_management_integration_test.i: storageimpl_phases/phase4_block_management_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.i
+
+# target to preprocess a source file
+storageimpl_phases/phase4_block_management_integration_test.cpp.i:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase4_block_management_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.cpp.i
+
+storageimpl_phases/phase4_block_management_integration_test.s: storageimpl_phases/phase4_block_management_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.s
+
+# target to generate assembly for a file
+storageimpl_phases/phase4_block_management_integration_test.cpp.s:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase4_block_management_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase4_block_management_integration_test.cpp.s
+
+storageimpl_phases/phase5_background_processing_integration_test.o: storageimpl_phases/phase5_background_processing_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.o
+
+# target to build an object file
+storageimpl_phases/phase5_background_processing_integration_test.cpp.o:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase5_background_processing_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.cpp.o
+
+storageimpl_phases/phase5_background_processing_integration_test.i: storageimpl_phases/phase5_background_processing_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.i
+
+# target to preprocess a source file
+storageimpl_phases/phase5_background_processing_integration_test.cpp.i:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase5_background_processing_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.cpp.i
+
+storageimpl_phases/phase5_background_processing_integration_test.s: storageimpl_phases/phase5_background_processing_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.s
+
+# target to generate assembly for a file
+storageimpl_phases/phase5_background_processing_integration_test.cpp.s:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase5_background_processing_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase5_background_processing_integration_test.cpp.s
+
+storageimpl_phases/phase6_predictive_caching_integration_test.o: storageimpl_phases/phase6_predictive_caching_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.o
+
+# target to build an object file
+storageimpl_phases/phase6_predictive_caching_integration_test.cpp.o:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase6_predictive_caching_integration_test.cpp.o
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.cpp.o
+
+storageimpl_phases/phase6_predictive_caching_integration_test.i: storageimpl_phases/phase6_predictive_caching_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.i
+
+# target to preprocess a source file
+storageimpl_phases/phase6_predictive_caching_integration_test.cpp.i:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase6_predictive_caching_integration_test.cpp.i
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.cpp.i
+
+storageimpl_phases/phase6_predictive_caching_integration_test.s: storageimpl_phases/phase6_predictive_caching_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.s
+
+# target to generate assembly for a file
+storageimpl_phases/phase6_predictive_caching_integration_test.cpp.s:
+	cd /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb && $(MAKE) $(MAKESILENT) -f test/integration/CMakeFiles/tsdb_integration_test_suite.dir/build.make test/integration/CMakeFiles/tsdb_integration_test_suite.dir/storageimpl_phases/phase6_predictive_caching_integration_test.cpp.s
+.PHONY : storageimpl_phases/phase6_predictive_caching_integration_test.cpp.s
+
 stress_test.o: stress_test.cpp.o
 .PHONY : stress_test.o
 
@@ -856,6 +952,9 @@ help:
 	@echo "... storage_histogram_integration_test.o"
 	@echo "... storage_histogram_integration_test.i"
 	@echo "... storage_histogram_integration_test.s"
+	@echo "... storageimpl_phases/comprehensive_integration_test.o"
+	@echo "... storageimpl_phases/comprehensive_integration_test.i"
+	@echo "... storageimpl_phases/comprehensive_integration_test.s"
 	@echo "... storageimpl_phases/debug_cache_test.o"
 	@echo "... storageimpl_phases/debug_cache_test.i"
 	@echo "... storageimpl_phases/debug_cache_test.s"
@@ -877,6 +976,15 @@ help:
 	@echo "... storageimpl_phases/phase3_compression_integration_test.o"
 	@echo "... storageimpl_phases/phase3_compression_integration_test.i"
 	@echo "... storageimpl_phases/phase3_compression_integration_test.s"
+	@echo "... storageimpl_phases/phase4_block_management_integration_test.o"
+	@echo "... storageimpl_phases/phase4_block_management_integration_test.i"
+	@echo "... storageimpl_phases/phase4_block_management_integration_test.s"
+	@echo "... storageimpl_phases/phase5_background_processing_integration_test.o"
+	@echo "... storageimpl_phases/phase5_background_processing_integration_test.i"
+	@echo "... storageimpl_phases/phase5_background_processing_integration_test.s"
+	@echo "... storageimpl_phases/phase6_predictive_caching_integration_test.o"
+	@echo "... storageimpl_phases/phase6_predictive_caching_integration_test.i"
+	@echo "... storageimpl_phases/phase6_predictive_caching_integration_test.s"
 	@echo "... stress_test.o"
 	@echo "... stress_test.i"
 	@echo "... stress_test.s"

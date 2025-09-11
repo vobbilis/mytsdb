@@ -46,15 +46,17 @@ core::Result<void> BackgroundProcessor::shutdown() {
     
     // Set shutdown flag first
     shutdown_requested_.store(true);
+    queue_condition_.notify_all();
     
-    // Wait for completion with timeout
-    auto result = waitForCompletion(config_.shutdown_timeout);
+    // Wait for all active tasks to complete
+    std::unique_lock<std::mutex> lock(queue_mutex_);
+    tasks_finished_cond_.wait(lock, [this] { return active_tasks_.load() == 0; });
     
     // Stop workers
     stopWorkers();
     
     initialized_.store(false);
-    return result;
+    return core::Result<void>();
 }
 
 core::Result<void> BackgroundProcessor::submitTask(BackgroundTask task) {
@@ -166,24 +168,6 @@ const BackgroundProcessorStats& BackgroundProcessor::getStatsRef() const {
     return stats_;
 }
 
-core::Result<void> BackgroundProcessor::updateConfig(const BackgroundProcessorConfig& new_config) {
-    if (initialized_.load()) {
-        return core::Result<void>::error("Cannot update config while running");
-    }
-    
-    config_ = new_config;
-    return core::Result<void>();
-}
-
-bool BackgroundProcessor::isHealthy() const {
-    return initialized_.load() && !shutdown_requested_.load();
-}
-
-uint32_t BackgroundProcessor::getQueueSize() const {
-    std::lock_guard<std::mutex> lock(queue_mutex_);
-    return static_cast<uint32_t>(task_queue_.size());
-}
-
 void BackgroundProcessor::workerThread() {
     active_workers_.fetch_add(1);
     
@@ -207,10 +191,13 @@ void BackgroundProcessor::workerThread() {
 }
 
 void BackgroundProcessor::processTask(BackgroundTask& task) {
+    active_tasks_.fetch_add(1);
     try {
         // Check for timeout before processing
         if (isTaskTimedOut(task)) {
             updateStats(task, false, true);
+            active_tasks_.fetch_sub(1);
+            tasks_finished_cond_.notify_all();
             return;
         }
         
@@ -220,6 +207,8 @@ void BackgroundProcessor::processTask(BackgroundTask& task) {
         // Check for timeout after execution
         if (isTaskTimedOut(task)) {
             updateStats(task, false, true);
+            active_tasks_.fetch_sub(1);
+            tasks_finished_cond_.notify_all();
             return;
         }
         
@@ -228,6 +217,8 @@ void BackgroundProcessor::processTask(BackgroundTask& task) {
     } catch (const std::exception& e) {
         updateStats(task, false, false);
     }
+    active_tasks_.fetch_sub(1);
+    tasks_finished_cond_.notify_all();
 }
 
 std::unique_ptr<BackgroundTask> BackgroundProcessor::getNextTask() {
@@ -314,4 +305,4 @@ bool BackgroundProcessor::isTaskTimedOut(const BackgroundTask& task) const {
 }
 
 } // namespace storage
-} // namespace tsdb 
+} // namespace tsdb
