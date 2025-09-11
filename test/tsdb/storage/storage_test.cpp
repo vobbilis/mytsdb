@@ -198,7 +198,9 @@ TEST_F(StorageTest, DeleteSeries) {
     ASSERT_TRUE(storage_->write(series).ok());
     
     // Verify it exists
+    std::cout << "DEBUG: About to read series before delete" << std::endl;
     auto read_result = storage_->read(series.labels(), 0, 3000);
+    std::cout << "DEBUG: Read result ok=" << read_result.ok() << ", size=" << (read_result.ok() ? read_result.value().samples().size() : 0) << std::endl;
     ASSERT_TRUE(read_result.ok());
     ASSERT_EQ(read_result.value().samples().size(), 2);
     
@@ -208,11 +210,23 @@ TEST_F(StorageTest, DeleteSeries) {
         {"instance", "host1"}
     };
     
+    std::cout << "DEBUG: About to call delete_series()" << std::endl;
     auto delete_result = storage_->delete_series(matchers);
+    std::cout << "DEBUG: delete_series() returned, ok=" << delete_result.ok() << std::endl;
+    if (!delete_result.ok()) {
+        std::cout << "DEBUG: delete_series() error: " << delete_result.error() << std::endl;
+    }
     ASSERT_TRUE(delete_result.ok()) << "Delete failed: " << delete_result.error();
     
     // Verify it's gone
+    std::cout << "DEBUG: About to read after delete" << std::endl;
     auto read_after_delete = storage_->read(series.labels(), 0, 3000);
+    std::cout << "DEBUG: Read after delete ok=" << read_after_delete.ok() << std::endl;
+    if (!read_after_delete.ok()) {
+        std::cout << "DEBUG: Read after delete error: " << read_after_delete.error() << std::endl;
+    } else {
+        std::cout << "DEBUG: Read after delete size=" << read_after_delete.value().samples().size() << std::endl;
+    }
     ASSERT_TRUE(read_after_delete.ok());
     ASSERT_EQ(read_after_delete.value().samples().size(), 0);
 }

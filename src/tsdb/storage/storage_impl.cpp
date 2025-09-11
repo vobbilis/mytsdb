@@ -888,6 +888,7 @@ core::Result<std::vector<std::string>> StorageImpl::label_values(
  */
 core::Result<void> StorageImpl::delete_series(
     const std::vector<std::pair<std::string, std::string>>& matchers) {
+    std::cerr << "DEBUG: delete_series() ENTRY POINT" << std::endl;
     if (!initialized_) {
         return core::Result<void>::error("Storage not initialized");
     }
@@ -895,8 +896,10 @@ core::Result<void> StorageImpl::delete_series(
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
     try {
+        
         // Find and remove series that match the criteria
         auto it = stored_series_.begin();
+        int matches_found = 0;
         while (it != stored_series_.end()) {
             bool matches = true;
             
@@ -910,11 +913,41 @@ core::Result<void> StorageImpl::delete_series(
             }
             
             if (matches) {
+                matches_found++;
+                // Get series_id and labels before erasing the iterator
+                auto series_id = calculate_series_id(it->labels());
+                auto labels = it->labels();
+                
+                // Remove from stored_series_ metadata
                 it = stored_series_.erase(it);
+                
+                // Also remove from series_blocks_ (the actual data)
+                series_blocks_.erase(series_id);
+                
+                // Remove from block index mappings (using labels as key)
+                label_to_blocks_.erase(labels);
+                
+                // Remove from block-to-series mapping (remove series_id from sets)
+                for (auto block_it = block_to_series_.begin(); block_it != block_to_series_.end();) {
+                    block_it->second.erase(series_id);
+                    if (block_it->second.empty()) {
+                        block_it = block_to_series_.erase(block_it);
+                    } else {
+                        ++block_it;
+                    }
+                }
+                
+                // Clear from cache hierarchy
+                if (cache_hierarchy_) {
+                    cache_hierarchy_->remove(series_id);
+                }
             } else {
                 ++it;
             }
         }
+        
+        // Debug: Print how many matches were found
+        std::cerr << "DEBUG: delete_series() found " << matches_found << " matching series" << std::endl;
         
         return core::Result<void>();
     } catch (const std::exception& e) {
