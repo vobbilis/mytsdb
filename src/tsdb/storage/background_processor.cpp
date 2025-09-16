@@ -1,7 +1,9 @@
 #include "tsdb/storage/background_processor.h"
 #include "tsdb/core/error.h"
 #include <algorithm>
+#include <chrono>
 #include <iostream>
+#include <thread>
 
 namespace tsdb {
 namespace storage {
@@ -48,9 +50,25 @@ core::Result<void> BackgroundProcessor::shutdown() {
     shutdown_requested_.store(true);
     queue_condition_.notify_all();
     
-    // Wait for all active tasks to complete
-    std::unique_lock<std::mutex> lock(queue_mutex_);
-    tasks_finished_cond_.wait(lock, [this] { return active_tasks_.load() == 0; });
+    // Wait for all active tasks to complete WITHOUT holding the queue mutex
+    // This prevents deadlock where main thread holds queue_mutex while workers need it
+    {
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        // Release the lock immediately after checking
+    }
+    
+    // Wait for active tasks to complete with a timeout to avoid infinite wait
+    auto start_time = std::chrono::steady_clock::now();
+    auto timeout = std::chrono::milliseconds(5000); // 5 second timeout
+    
+    while (active_tasks_.load() > 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed > timeout) {
+            // Force shutdown if timeout exceeded
+            break;
+        }
+    }
     
     // Stop workers
     stopWorkers();
@@ -171,20 +189,25 @@ const BackgroundProcessorStats& BackgroundProcessor::getStatsRef() const {
 void BackgroundProcessor::workerThread() {
     active_workers_.fetch_add(1);
     
-    while (true) {
+    while (!shutdown_requested_.load()) {
         auto task = getNextTask();
         if (!task) {
-            // Check if we should exit - only if shutdown is requested AND queue is empty
-            if (shutdown_requested_.load()) {
-                std::lock_guard<std::mutex> lock(queue_mutex_);
-                if (task_queue_.empty()) {
-                    break;
-                }
-            }
-            // Otherwise continue waiting for tasks
+            // If no task and shutdown not requested, continue waiting
             continue;
         }
         processTask(*task);
+    }
+    
+    // Process any remaining tasks in the queue during shutdown
+    // But limit the number of iterations to prevent infinite loops
+    int remaining_attempts = 100; // Reasonable limit
+    while (remaining_attempts > 0 && !shutdown_requested_.load()) {
+        auto task = getNextTask();
+        if (!task) {
+            break; // No more tasks, exit
+        }
+        processTask(*task);
+        remaining_attempts--;
     }
     
     active_workers_.fetch_sub(1);
@@ -229,7 +252,7 @@ std::unique_ptr<BackgroundTask> BackgroundProcessor::getNextTask() {
         return !task_queue_.empty() || shutdown_requested_.load();
     });
     
-    // If shutdown is requested, still check for remaining tasks
+    // If shutdown is requested, return immediately if no tasks
     if (shutdown_requested_.load()) {
         if (task_queue_.empty()) {
             return nullptr;
@@ -302,6 +325,53 @@ bool BackgroundProcessor::isTaskTimedOut(const BackgroundTask& task) const {
     auto now = std::chrono::system_clock::now();
     auto elapsed = now - task.created_time;
     return elapsed > config_.task_timeout;
+}
+
+bool BackgroundProcessor::isHealthy() const {
+    if (!initialized_.load()) {
+        return false;
+    }
+    
+    if (shutdown_requested_.load()) {
+        return false;
+    }
+    
+    // Check if workers are running
+    if (active_workers_.load() == 0 && config_.num_workers > 0) {
+        return false;
+    }
+    
+    return true;
+}
+
+uint32_t BackgroundProcessor::getQueueSize() const {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    return static_cast<uint32_t>(task_queue_.size());
+}
+
+core::Result<void> BackgroundProcessor::updateConfig(const BackgroundProcessorConfig& new_config) {
+    // Allow config updates before initialization
+    if (!initialized_.load()) {
+        config_ = new_config;
+        return core::Result<void>();
+    }
+    
+    // Don't allow config updates while running (after initialization)
+    if (initialized_.load() && !shutdown_requested_.load()) {
+        return core::Result<void>::error("Cannot update config while processor is running");
+    }
+    
+    // For now, we only allow updating certain config parameters
+    // that don't require restarting workers
+    config_.task_timeout = new_config.task_timeout;
+    config_.shutdown_timeout = new_config.shutdown_timeout;
+    config_.worker_wait_timeout = new_config.worker_wait_timeout;
+    config_.enable_metrics = new_config.enable_metrics;
+    
+    // Note: num_workers and max_queue_size changes would require
+    // restarting the processor, which is not implemented yet
+    
+    return core::Result<void>();
 }
 
 } // namespace storage

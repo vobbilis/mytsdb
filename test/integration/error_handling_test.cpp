@@ -117,8 +117,14 @@ TEST_F(ErrorHandlingTest, StorageErrorPropagation) {
     invalid_config.retention_period = 7 * 24 * 3600 * 1000;
     invalid_config.enable_compression = true;
     
-    auto init_result = invalid_storage->init(invalid_config);
-    // Note: This may fail if storage implementation is incomplete, which is expected
+    try {
+        auto init_result = invalid_storage->init(invalid_config);
+        // If we get here, the test should fail because we expected an error
+        FAIL() << "Expected storage initialization to fail with invalid data directory";
+    } catch (const std::exception& e) {
+        // This is expected - storage should fail to initialize with invalid directory
+        EXPECT_TRUE(std::string(e.what()).find("Failed to create storage directories") != std::string::npos);
+    }
     
     // Test 2: Invalid time series data
     core::Labels invalid_labels;
@@ -160,8 +166,14 @@ TEST_F(ErrorHandlingTest, HistogramErrorHandling) {
     // Test histogram error handling and propagation
     
     // Test 1: Invalid histogram configuration
-    auto invalid_histogram = histogram::DDSketch::create(-0.1); // Invalid relative accuracy
-    // Note: This may fail if histogram implementation validates parameters
+    try {
+        auto invalid_histogram = histogram::DDSketch::create(-0.1); // Invalid relative accuracy
+        // If we get here, the test should fail because we expected an error
+        FAIL() << "Expected histogram creation to fail with invalid relative accuracy";
+    } catch (const std::exception& e) {
+        // This is expected - histogram should fail to create with invalid parameters
+        EXPECT_TRUE(std::string(e.what()).find("Alpha must be between 0 and 1") != std::string::npos);
+    }
     
     // Test 2: Invalid data for histogram
     auto histogram = histogram::DDSketch::create(0.01);
@@ -210,15 +222,20 @@ TEST_F(ErrorHandlingTest, HistogramErrorHandling) {
     histogram->add(2.0);
     histogram->add(3.0);
     
-    EXPECT_EQ(histogram->count(), 3);
-    EXPECT_DOUBLE_EQ(histogram->sum(), 6.0);
+    // Add more data points to ensure meaningful percentile calculations
+    for (int i = 4; i <= 20; ++i) {
+        histogram->add(static_cast<double>(i));
+    }
+    
+    EXPECT_EQ(histogram->count(), 20);  // 3 original + 17 new values
+    EXPECT_DOUBLE_EQ(histogram->sum(), 6.0 + 204.0);  // 1+2+3 + (4+5+...+20)
     
     double p50 = histogram->quantile(0.5);
     double p90 = histogram->quantile(0.9);
     
     EXPECT_GT(p50, 0.0);
     EXPECT_GT(p90, p50);
-    EXPECT_LE(p90, 3.0); // Should be <= max value
+    EXPECT_LE(p90, 20.0); // Should be <= max value
 }
 
 TEST_F(ErrorHandlingTest, OpenTelemetryErrorHandling) {
@@ -296,8 +313,14 @@ TEST_F(ErrorHandlingTest, ConfigurationErrorHandling) {
     invalid_config.enable_compression = true;
     
     auto invalid_storage = std::make_shared<storage::StorageImpl>();
-    auto invalid_init_result = invalid_storage->init(invalid_config);
-    // Note: This may fail if storage implementation validates configuration
+    try {
+        auto invalid_init_result = invalid_storage->init(invalid_config);
+        // If we get here, the test should fail because we expected an error
+        FAIL() << "Expected storage initialization to fail with invalid configuration";
+    } catch (const std::exception& e) {
+        // This is expected - storage should fail to initialize with invalid configuration
+        EXPECT_TRUE(std::string(e.what()).find("Data directory path cannot be empty") != std::string::npos);
+    }
     
     // Test 2: Invalid histogram configuration
     core::HistogramConfig invalid_hist_config;

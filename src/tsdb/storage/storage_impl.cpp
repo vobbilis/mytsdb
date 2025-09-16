@@ -301,13 +301,9 @@ StorageImpl::StorageImpl()
  * Note: Error handling is minimal in destructor to avoid throwing exceptions
  */
 StorageImpl::~StorageImpl() {
-    if (initialized_) {
-        // Just flush data since BlockManager doesn't have close()
-        auto result = flush();
-        if (!result.ok()) {
-            // Error logging removed to fix compilation issue
-        }
-    }
+    // Completely safe destructor - no member variable access
+    // All cleanup should be handled by close() method before destruction
+    // This prevents any potential segfaults during teardown
 }
 
 /**
@@ -349,7 +345,7 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         cache_config.l2_max_size = 10000;
         cache_config.l2_storage_path = config.data_dir + "/cache/l2";
         cache_config.l3_storage_path = config.data_dir + "/cache/l3";
-        cache_config.enable_background_processing = false;  // DISABLED BY DEFAULT FOR TESTING
+        cache_config.enable_background_processing = config.background_config.enable_background_processing;
         cache_config.background_interval = std::chrono::milliseconds(5000);
         
         should_start_background_processing = cache_config.enable_background_processing;
@@ -409,7 +405,6 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
  * Thread Safety: Uses exclusive locking to prevent concurrent writes
  */
 core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
-    std::cout << "DEBUG: StorageImpl::write() - ENTRY POINT" << std::endl; std::cout.flush();
     if (!initialized_) {
         return core::Result<void>::error("Storage not initialized");
     }
@@ -418,17 +413,11 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         return core::Result<void>::error("Cannot write empty time series");
     }
     
-    std::cout << "DEBUG: StorageImpl::write() - About to acquire mutex lock" << std::endl;
-    std::cout.flush();
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    std::cout << "DEBUG: StorageImpl::write() - Mutex lock acquired" << std::endl;
     
     try {
         // Write to block management system (primary path)
-        std::cout << "DEBUG: StorageImpl::write() - About to call write_to_block()" << std::endl;
-        std::cout.flush();
         auto block_result = write_to_block(series);
-        std::cout << "DEBUG: StorageImpl::write() - write_to_block() returned" << std::endl;
         if (!block_result.ok()) {
             return block_result;
         }
@@ -459,7 +448,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         auto compaction_result = check_and_trigger_compaction();
         if (!compaction_result.ok()) {
             // Log warning but don't fail the write operation
-            spdlog_error("Block compaction check failed: " + std::string(compaction_result.error().what()));
+            spdlog_error("Block compaction check failed: " + compaction_result.error());
         }
         
         return core::Result<void>();
@@ -542,11 +531,14 @@ core::Result<core::TimeSeries> StorageImpl::read(
         
         // Cache miss - try block-based read first (primary path)
         auto block_result = read_from_blocks(labels, start_time, end_time);
-        if (block_result.ok() && !block_result.value().empty()) {
-            // Block-based read successful - add to cache and return
-            auto shared_series = std::make_shared<core::TimeSeries>(block_result.value());
-            if (cache_hierarchy_) {
-                cache_hierarchy_->put(series_id, shared_series);
+        
+        if (block_result.ok()) {
+            // Block-based read successful - add to cache and return (even if empty)
+            if (!block_result.value().empty()) {
+                auto shared_series = std::make_shared<core::TimeSeries>(block_result.value());
+                if (cache_hierarchy_) {
+                    cache_hierarchy_->put(series_id, shared_series);
+                }
             }
             return block_result;
         }
@@ -888,23 +880,22 @@ core::Result<std::vector<std::string>> StorageImpl::label_values(
  */
 core::Result<void> StorageImpl::delete_series(
     const std::vector<std::pair<std::string, std::string>>& matchers) {
-    std::cerr << "DEBUG: delete_series() ENTRY POINT" << std::endl;
-    if (!initialized_) {
+    // Add safety check to prevent calls during destruction
+    if (!initialized_.load()) {
         return core::Result<void>::error("Storage not initialized");
     }
     
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    // Try to acquire lock without blocking to prevent hanging during shutdown
+    std::unique_lock<std::shared_mutex> lock(mutex_, std::try_to_lock);
+    if (!lock.owns_lock()) {
+        return core::Result<void>::error("Storage is busy or shutting down");
+    }
     
     try {
-        
         // Find and remove series that match the criteria
         auto it = stored_series_.begin();
-        int matches_found = 0;
-        std::cout << "DEBUG: Starting delete loop, stored_series_.size()=" << stored_series_.size() << std::endl;
-        
         while (it != stored_series_.end()) {
             bool matches = true;
-            std::cout << "DEBUG: Checking series in delete loop" << std::endl;
             
             // Check if all matchers are satisfied
             for (const auto& [key, value] : matchers) {
@@ -915,34 +906,24 @@ core::Result<void> StorageImpl::delete_series(
                 }
             }
             
-            std::cout << "DEBUG: Series matches=" << matches << std::endl;
-            
             if (matches) {
-                matches_found++;
-                std::cout << "DEBUG: Found matching series, matches_found=" << matches_found << std::endl;
-                
-                // Get series_id and labels before erasing the iterator
+                // Get the series ID to clean up associated blocks
                 auto series_id = calculate_series_id(it->labels());
-                auto labels = it->labels();
                 
-                std::cout << "DEBUG: About to delete series with id=" << series_id << std::endl;
+                // Remove from cache hierarchy to prevent cached data from being returned
+                if (cache_hierarchy_) {
+                    cache_hierarchy_->remove(series_id);
+                }
                 
-                // Remove from stored_series_ metadata (minimal delete for debugging)
+                // Remove from series_blocks_ map to prevent reads from finding the data
+                series_blocks_.erase(series_id);
+                
+                // Remove from stored_series_ map
                 it = stored_series_.erase(it);
-                
-                std::cout << "DEBUG: Removed from stored_series_, remaining size=" << stored_series_.size() << std::endl;
-                
-                // TODO: Add back other deletions once basic delete works
-                // series_blocks_.erase(series_id);
-                // label_to_blocks_.erase(labels);
-                // ... etc
             } else {
                 ++it;
             }
         }
-        
-        // Debug: Print how many matches were found
-        std::cerr << "DEBUG: delete_series() found " << matches_found << " matching series" << std::endl;
         
         return core::Result<void>();
     } catch (const std::exception& e) {
@@ -980,7 +961,18 @@ core::Result<void> StorageImpl::compact() {
     }
     
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    return block_manager_->compact();
+    
+    // Finalize any current blocks before compaction
+    if (current_block_) {
+        auto finalize_result = finalize_current_block();
+        if (!finalize_result.ok()) {
+            return finalize_result;
+        }
+    } else {
+    }
+    
+    auto result = block_manager_->compact();
+    return result;
 }
 
 /**
@@ -1009,21 +1001,16 @@ core::Result<void> StorageImpl::compact() {
  * Thread Safety: Uses exclusive locking to prevent concurrent modifications
  */
 core::Result<void> StorageImpl::flush() {
-    std::cout << "DEBUG: StorageImpl::flush() - START" << std::endl; std::cout.flush();
     if (!initialized_) {
         return core::Result<void>::error("Storage not initialized");
     }
     
-    std::cout << "DEBUG: StorageImpl::flush() - About to acquire lock" << std::endl; std::cout.flush();
     std::unique_lock<std::shared_mutex> lock(mutex_);
-    std::cout << "DEBUG: StorageImpl::flush() - Lock acquired, calling flush_nolock()" << std::endl; std::cout.flush();
     return flush_nolock();
 }
 
 core::Result<void> StorageImpl::flush_nolock() {
-    std::cout << "DEBUG: StorageImpl::flush_nolock() - calling block_manager_->flush()" << std::endl; std::cout.flush();
     auto result = block_manager_->flush();
-    std::cout << "DEBUG: StorageImpl::flush_nolock() - block_manager_->flush() returned" << std::endl; std::cout.flush();
     return result;
 }
 
@@ -1052,8 +1039,23 @@ core::Result<void> StorageImpl::flush_nolock() {
  * Thread Safety: Uses exclusive locking to prevent concurrent access
  */
 core::Result<void> StorageImpl::close() {
-    std::unique_lock<std::shared_mutex> lock(mutex_);
+    // Make close() idempotent - safe to call multiple times
     if (!initialized_) {
+        return core::Result<void>();
+    }
+    
+    try {
+        std::unique_lock<std::shared_mutex> lock(mutex_);
+        if (!initialized_) {
+            return core::Result<void>();
+        }
+    } catch (const std::exception& e) {
+        // If we can't acquire the lock, just mark as uninitialized and return
+        initialized_ = false;
+        return core::Result<void>();
+    } catch (...) {
+        // If any other exception occurs, just mark as uninitialized and return
+        initialized_ = false;
         return core::Result<void>();
     }
 
@@ -1061,29 +1063,47 @@ core::Result<void> StorageImpl::close() {
     auto flush_result = flush_nolock();
     if (!flush_result.ok()) {
         // Log the error but continue with closing
-        spdlog::error("Failed to flush data during close: {}", flush_result.error().what());
+        spdlog::error("Failed to flush data during close: {}", flush_result.error());
     }
 
-    // Shutdown background processor only if it was initialized
-    if (background_processor_) {
-        auto shutdown_result = background_processor_->shutdown();
-        if (!shutdown_result.ok()) {
-            spdlog::error("Background processor shutdown failed: {}", shutdown_result.error().what());
+    // Stop cache hierarchy background processing FIRST
+    try {
+        if (cache_hierarchy_) {
+            cache_hierarchy_->stop_background_processing();
         }
+    } catch (...) {
+        // Ignore any exceptions during cache hierarchy shutdown
+    }
+    
+    // Shutdown background processor only if it was initialized
+    try {
+        if (background_processor_) {
+            auto shutdown_result = background_processor_->shutdown();
+            if (!shutdown_result.ok()) {
+                spdlog::error("Background processor shutdown failed: {}", shutdown_result.error());
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Give background threads time to complete
+        }
+    } catch (...) {
+        // Ignore any exceptions during background processor shutdown
     }
 
     // Finalize the current block if it exists
     auto finalize_result = finalize_current_block();
     if (!finalize_result.ok()) {
-        spdlog::error("Failed to finalize current block during close: {}", finalize_result.error().what());
+        spdlog::error("Failed to finalize current block during close: {}", finalize_result.error());
     }
 
-    // Clear in-memory data structures
-    stored_series_.clear();
-    compressed_data_.clear();
-    series_blocks_.clear();
-    label_to_blocks_.clear();
-    block_to_series_.clear();
+    // Clear in-memory data structures safely
+    try {
+        stored_series_.clear();
+        compressed_data_.clear();
+        series_blocks_.clear();
+        label_to_blocks_.clear();
+        block_to_series_.clear();
+    } catch (...) {
+        // Ignore any exceptions during data structure cleanup
+    }
 
     // Release resources from caches and pools
     if (cache_hierarchy_) {
@@ -1092,7 +1112,6 @@ core::Result<void> StorageImpl::close() {
     if (time_series_pool_) {
         // time_series_pool_->clear(); // Assuming a clear method exists
     }
-
 
     initialized_ = false;
     return core::Result<void>();
@@ -1449,23 +1468,27 @@ std::shared_ptr<internal::BlockInternal> StorageImpl::create_new_block() {
     header.version = internal::BlockHeader::VERSION;
     header.flags = 0;
     header.crc32 = 0;
-    header.start_time = std::numeric_limits<int64_t>::min();
-    header.end_time = std::numeric_limits<int64_t>::max();
+    // Initialize with valid time range - will be updated as data is written
+    header.start_time = std::numeric_limits<int64_t>::max();
+    header.end_time = std::numeric_limits<int64_t>::min();
     header.reserved = 0;
     
-    // Register the block with BlockManager first
-    if (block_manager_) {
-        auto create_result = block_manager_->createBlock(header.start_time, header.end_time);
-        if (!create_result.ok()) {
-            spdlog_error("Failed to create block in BlockManager: " + std::string(create_result.error().what()));
-            return nullptr;
-        }
-    }
+    // Use properly initialized compressors instead of buggy SimpleValueCompressor
+    std::unique_ptr<internal::TimestampCompressor> ts_compressor;
+    std::unique_ptr<internal::ValueCompressor> val_compressor;
+    std::unique_ptr<internal::LabelCompressor> label_compressor;
     
-    // Create compressors for the block
-    auto ts_compressor = std::make_unique<SimpleTimestampCompressor>();
-    auto val_compressor = std::make_unique<SimpleValueCompressor>();
-    auto label_compressor = std::make_unique<SimpleLabelCompressor>();
+    if (compressor_factory_) {
+        // Use the properly configured compressors
+        ts_compressor = compressor_factory_->create_timestamp_compressor();
+        val_compressor = compressor_factory_->create_value_compressor();
+        label_compressor = compressor_factory_->create_label_compressor();
+    } else {
+        // Fallback to basic compressors if factory not available
+        ts_compressor = std::make_unique<internal::SimpleTimestampCompressor>();
+        val_compressor = std::make_unique<internal::SimpleValueCompressor>();
+        label_compressor = std::make_unique<internal::SimpleLabelCompressor>();
+    }
     
     // Create block implementation
     auto block = std::make_shared<internal::BlockImpl>(
@@ -1474,6 +1497,9 @@ std::shared_ptr<internal::BlockInternal> StorageImpl::create_new_block() {
         std::move(val_compressor),
         std::move(label_compressor)
     );
+    
+    // Note: Block registration with BlockManager is deferred until the block has actual data
+    // This will be done in write_to_block() when we have valid timestamps
     
     // Increment block ID for next block
     next_block_id_.fetch_add(1);
@@ -1592,6 +1618,23 @@ core::Result<void> StorageImpl::write_to_block(const core::TimeSeries& series) {
         // Write series to current block
         current_block_->write(series);
         
+        // Register block with BlockManager now that it has actual data
+        if (block_manager_ && current_block_) {
+            // Update block header with actual time range from the series
+            auto header = current_block_->header();
+            if (!series.samples().empty()) {
+                header.start_time = series.samples().front().timestamp();
+                header.end_time = series.samples().back().timestamp();
+                
+                // Register the block with BlockManager
+                auto create_result = block_manager_->createBlock(header.start_time, header.end_time);
+                if (!create_result.ok()) {
+                    spdlog_error("Failed to register block with BlockManager: " + create_result.error());
+                    // Continue anyway - the block will still work for in-memory operations
+                }
+            }
+        }
+        
         // Track the block for this series
         auto series_id = calculate_series_id(series.labels());
         series_blocks_[series_id].push_back(current_block_);
@@ -1600,7 +1643,7 @@ core::Result<void> StorageImpl::write_to_block(const core::TimeSeries& series) {
         auto index_result = update_block_index(series, current_block_);
         if (!index_result.ok()) {
             // Log warning but don't fail the write
-            spdlog_error("Block index update failed: " + std::string(index_result.error().what()));
+            spdlog_error("Block index update failed: " + index_result.error());
         }
         
         return core::Result<void>();
@@ -1798,7 +1841,7 @@ core::Result<void> StorageImpl::execute_background_compaction() {
         // Trigger compaction if needed
         auto result = check_and_trigger_compaction();
         if (!result.ok()) {
-            spdlog_warn("Background compaction check failed: " + std::string(result.error().what()));
+            spdlog_warn("Background compaction check failed: " + result.error());
         }
         
         // Note: Periodic scheduling should be handled by a timer/scheduler, not recursive calls

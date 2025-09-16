@@ -93,6 +93,9 @@ std::shared_ptr<core::TimeSeries> WorkingSetCache::get(core::SeriesID series_id)
     move_to_front(it->second);
     hit_count_.fetch_add(1, std::memory_order_relaxed);
     
+    // Record access for metadata tracking
+    it->second->metadata.record_access();
+    
     return it->second->series;
 }
 
@@ -498,6 +501,30 @@ void WorkingSetCache::add_entry(core::SeriesID series_id, std::shared_ptr<core::
     
     // Store iterator in cache map
     cache_map_[series_id] = lru_list_.begin();
+}
+
+/**
+ * @brief Get metadata for a series in the cache
+ * 
+ * @param series_id The series ID to get metadata for
+ * @return Pointer to metadata if found, nullptr otherwise
+ * 
+ * This method retrieves the access metadata for a cached time series,
+ * which includes access count, last access time, and other tracking
+ * information used for promotion/demotion decisions.
+ * 
+ * Thread Safety: Uses mutex locking to ensure thread-safe access
+ * to cache metadata during concurrent operations.
+ */
+const CacheEntryMetadata* WorkingSetCache::get_metadata(core::SeriesID series_id) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    auto it = cache_map_.find(series_id);
+    if (it == cache_map_.end()) {
+        return nullptr;
+    }
+    
+    return &it->second->metadata;
 }
 
 } // namespace storage

@@ -124,7 +124,7 @@ Result<std::unique_ptr<Database>> DatabaseFactory::create(const Config& config) 
     auto db = std::make_unique<DatabaseImpl>(config);
     auto result = db->open();
     if (!result.ok()) {
-        return Result<std::unique_ptr<Database>>::error(std::string("Failed to open database: ") + result.error().what());
+        return Result<std::unique_ptr<Database>>::error(std::string("Failed to open database: ") + result.error());
     }
     
     return Result<std::unique_ptr<Database>>(std::move(db));

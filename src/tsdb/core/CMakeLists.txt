@@ -8,7 +8,6 @@ add_library(tsdb::core_impl ALIAS tsdb_core_impl)
 target_sources(tsdb_core_impl
     PRIVATE
         core.cpp
-        result.cpp
         internal/types.cpp
 )
 

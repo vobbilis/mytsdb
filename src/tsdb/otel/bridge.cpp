@@ -121,7 +121,7 @@ public:
                         metric, resource_labels, scope_labels);
                     if (!result.ok()) {
                         spdlog::warn("Failed to convert metric: {}",
-                                   result.error().what());
+                                   result.error());
                         dropped_metrics_++;
                         continue;
                     }
@@ -319,8 +319,8 @@ grpc::Status MetricsService::Export(
             
             auto result = bridge_->ConvertMetrics(metrics_data);
         if (!result.ok()) {
-                spdlog::error("Failed to convert metrics: {}", result.error().what());
-                return grpc::Status(grpc::StatusCode::INTERNAL, result.error().what());
+                spdlog::error("Failed to convert metrics: {}", result.error());
+                return grpc::Status(grpc::StatusCode::INTERNAL, result.error());
         }
     }
     

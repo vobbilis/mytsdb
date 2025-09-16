@@ -137,7 +137,8 @@ public:
 
 private:
     core::Result<void> flush_nolock();
-    mutable std::shared_mutex mutex_;
+    // Thread safety
+    mutable std::shared_mutex mutex_;  // Main mutex for concurrent access
     std::shared_ptr<BlockManager> block_manager_;
     std::atomic<bool> initialized_;
     core::StorageConfig config_;

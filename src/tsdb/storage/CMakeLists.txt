@@ -23,6 +23,8 @@ target_sources(tsdb_storage_impl
         atomic_ref_counted.cpp
         storage_impl.cpp
         storage_factory.cpp
+        sharded_storage_manager.cpp
+        high_concurrency_storage.cpp
         internal/block_impl.cpp
 )
 

@@ -15,7 +15,7 @@ class ObjectPoolSizeAnalysisTest : public ::testing::Test {
 protected:
     void SetUp() override {
         core::StorageConfig config;
-        config.data_dir = "./test_data_size_analysis";
+        config.data_dir = "./test/data/storageimpl_phases/size_analysis";
         config.object_pool_config.time_series_initial_size = 100;
         config.object_pool_config.time_series_max_size = 1000;
         config.object_pool_config.labels_initial_size = 200;

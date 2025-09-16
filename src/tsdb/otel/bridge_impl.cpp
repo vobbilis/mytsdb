@@ -54,7 +54,7 @@ void BridgeImpl::flush() {
     try {
         auto result = storage_->flush();
         if (!result.ok()) {
-            spdlog::error("Failed to flush storage: {}", result.error().what());
+            spdlog::error("Failed to flush storage: {}", result.error());
         }
     } catch (const std::exception& e) {
         spdlog::error("Failed to flush: {}", e.what());

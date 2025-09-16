@@ -319,14 +319,14 @@ std::vector<double> AdaptiveCompressor::decompressGauge(const std::vector<uint8_
                 case 1: // Small delta (1-byte scaled)
                     if (pos < data.size()) {
                         int8_t scaled = static_cast<int8_t>(data[pos++]);
-                        delta = static_cast<double>(scaled) / 1000.0; // Reverse scaling
+                        delta = static_cast<double>(scaled) / 100.0; // Less aggressive scaling
                     }
                     break;
                 case 2: // Medium delta (2-byte half-precision)
                     if (pos + 1 < data.size()) {
                         uint16_t half_precision = static_cast<uint16_t>(data[pos]) | 
                                                 (static_cast<uint16_t>(data[pos + 1]) << 8);
-                        delta = static_cast<double>(half_precision) / 10000.0; // Reverse scaling
+                        delta = static_cast<double>(half_precision) / 1000.0; // Less aggressive scaling
                         pos += 2;
                     }
                     break;

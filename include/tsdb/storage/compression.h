@@ -251,6 +251,138 @@ public:
     core::Result<size_t> decompressChunk(const uint8_t* data, size_t size, uint8_t* out, size_t out_size) override;
     bool is_compressed() const override;
 };
+
+// Adapter classes to bridge real compressors to specific interfaces
+
+/**
+ * @brief Adapter class that bridges GorillaCompressor to TimestampCompressor interface
+ */
+class GorillaTimestampCompressor : public TimestampCompressor {
+private:
+    std::unique_ptr<GorillaCompressor> gorilla_compressor_;
+    
+public:
+    GorillaTimestampCompressor() : gorilla_compressor_(std::make_unique<GorillaCompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<int64_t>& timestamps) override;
+    std::vector<int64_t> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges XORCompressor to TimestampCompressor interface
+ */
+class XORTimestampCompressor : public TimestampCompressor {
+private:
+    std::unique_ptr<XORCompressor> xor_compressor_;
+    
+public:
+    XORTimestampCompressor() : xor_compressor_(std::make_unique<XORCompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<int64_t>& timestamps) override;
+    std::vector<int64_t> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges RLECompressor to TimestampCompressor interface
+ */
+class RLETimestampCompressor : public TimestampCompressor {
+private:
+    std::unique_ptr<RLECompressor> rle_compressor_;
+    
+public:
+    RLETimestampCompressor() : rle_compressor_(std::make_unique<RLECompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<int64_t>& timestamps) override;
+    std::vector<int64_t> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges GorillaCompressor to ValueCompressor interface
+ */
+class GorillaValueCompressor : public ValueCompressor {
+private:
+    std::unique_ptr<GorillaCompressor> gorilla_compressor_;
+    
+public:
+    GorillaValueCompressor() : gorilla_compressor_(std::make_unique<GorillaCompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<double>& values) override;
+    std::vector<double> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges XORCompressor to ValueCompressor interface
+ */
+class XORValueCompressor : public ValueCompressor {
+private:
+    std::unique_ptr<XORCompressor> xor_compressor_;
+    
+public:
+    XORValueCompressor() : xor_compressor_(std::make_unique<XORCompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<double>& values) override;
+    std::vector<double> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges RLECompressor to ValueCompressor interface
+ */
+class RLEValueCompressor : public ValueCompressor {
+private:
+    std::unique_ptr<RLECompressor> rle_compressor_;
+    
+public:
+    RLEValueCompressor() : rle_compressor_(std::make_unique<RLECompressor>()) {}
+    
+    std::vector<uint8_t> compress(const std::vector<double>& values) override;
+    std::vector<double> decompress(const std::vector<uint8_t>& data) override;
+    bool is_compressed() const override { return true; }
+};
+
+/**
+ * @brief Adapter class that bridges RLECompressor to LabelCompressor interface
+ */
+class RLELabelCompressor : public LabelCompressor {
+private:
+    std::unique_ptr<RLECompressor> rle_compressor_;
+    
+public:
+    RLELabelCompressor() : rle_compressor_(std::make_unique<RLECompressor>()) {}
+    
+    std::vector<uint8_t> compress(const core::Labels& labels) override;
+    core::Labels decompress(const std::vector<uint8_t>& data) override;
+    
+    // Implement required pure virtual methods from LabelCompressor
+    uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+    std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+    size_t dictionary_size() const override { return 0; } // Not used for RLE
+    void clear() override {} // Not used for RLE
+};
+
+/**
+ * @brief Adapter class that provides dictionary compression for labels
+ */
+class DictionaryLabelCompressor : public LabelCompressor {
+private:
+    std::unordered_map<std::string, uint32_t> label_to_id_;
+    std::vector<std::string> id_to_label_;
+    
+public:
+    DictionaryLabelCompressor() = default;
+    
+    std::vector<uint8_t> compress(const core::Labels& labels) override;
+    core::Labels decompress(const std::vector<uint8_t>& data) override;
+    
+    uint32_t add_label(const std::string& label) override;
+    std::string get_label(uint32_t id) const override;
+    size_t dictionary_size() const override;
+    void clear() override;
+};
 // Factory functions
 std::unique_ptr<TimestampCompressor> create_timestamp_compressor();
 std::unique_ptr<ValueCompressor> create_value_compressor();
