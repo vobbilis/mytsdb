@@ -35,7 +35,7 @@ public:
         storage_ = std::make_shared<storage::StorageImpl>();
         auto init_result = storage_->init(config);
         if (!init_result.ok()) {
-            std::cerr << "Failed to initialize storage: " << init_result.error().what() << std::endl;
+            std::cerr << "Failed to initialize storage: " << init_result.error() << std::endl;
             return false;
         }
 
@@ -48,7 +48,7 @@ public:
         if (storage_) {
             auto result = storage_->close();
             if (!result.ok()) {
-                std::cerr << "Error closing storage: " << result.error().what() << std::endl;
+                std::cerr << "Error closing storage: " << result.error() << std::endl;
             }
         }
         std::cout << "TSDB server stopped" << std::endl;

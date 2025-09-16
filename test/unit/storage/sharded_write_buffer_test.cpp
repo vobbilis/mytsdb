@@ -108,7 +108,7 @@ protected:
         
         ShardedWriteBufferConfig config;
         config.num_shards = 4;  // Small number for testing
-        config.buffer_size_per_shard = 100;
+        config.buffer_size_per_shard = 1000;  // Increased to handle 1000 writes
         config.flush_interval_ms = 100;
         config.max_flush_workers = 2;
         config.retry_attempts = 2;

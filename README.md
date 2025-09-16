@@ -67,18 +67,16 @@ sudo apt-get update && sudo apt-get install -y build-essential cmake libgrpc++-d
 # macOS (using Homebrew):
 brew install cmake grpc protobuf spdlog fmt abseil
 
-# 3. Build the project
-mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
+# 3. Build the project (uses Makefile - handles CMake automatically)
 make -j$(nproc)
 
 # 4. Run tests to verify everything works
 make test-all
 
 # 5. Run specific storage tests (most important)
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.BasicWriteAndRead:StorageTest.MultipleSeries:StorageTest.LabelOperations"
+make test-storage-unit
 
-# Expected: All 3 tests should pass with perfect data integrity!
+# Expected: Core storage tests should pass with perfect data integrity!
 ```
 
 **That's it!** You now have a fully functional time series database with:
@@ -87,6 +85,8 @@ make test-all
 - ✅ Multi-tier storage (Hot/Warm/Cold)
 - ✅ OpenTelemetry integration
 - ✅ Comprehensive testing (632+ tests)
+
+> **📋 Note**: All project operations use Makefile targets. Never run CMake commands directly!
 
 ## 📋 Prerequisites
 
@@ -131,21 +131,17 @@ sudo yum install -y \
 
 ## 🛠️ Build Instructions
 
+> **📋 Important**: All project-level builds and cleans MUST be done via makefile targets. Do not use CMake commands directly!
+
 ### Step 1: Clone and Setup
 ```bash
 # Clone the repository
 git clone https://github.com/vobbilis/codegen.git
 cd codegen/mytsdb
-
-# Create build directory
-mkdir build && cd build
 ```
 
-### Step 2: Configure and Build
+### Step 2: Build Everything
 ```bash
-# Configure with CMake (enable tests by default)
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-
 # Build all components (this may take several minutes)
 make -j$(nproc)  # Use all available cores
 
@@ -156,30 +152,64 @@ make -j$(nproc)  # Use all available cores
 ### Step 3: Verify Build Success
 ```bash
 # Check that key libraries were built successfully
-ls -la src/tsdb/*/libtsdb_*.dylib 2>/dev/null || ls -la src/tsdb/*/libtsdb_*.so 2>/dev/null
+ls -la build/src/tsdb/*/libtsdb_*.dylib 2>/dev/null || ls -la build/src/tsdb/*/libtsdb_*.so 2>/dev/null
 
 # Expected output should include:
-# - src/tsdb/core/libtsdb_core_impl.dylib (or .so on Linux)
-# - src/tsdb/storage/libtsdb_storage_impl.dylib
-# - src/tsdb/histogram/libtsdb_histogram_impl.dylib
-# - src/tsdb/otel/libtsdb_otel_impl.dylib
-# - src/tsdb/libtsdb_main.dylib
+# - build/src/tsdb/core/libtsdb_core_impl.dylib (or .so on Linux)
+# - build/src/tsdb/storage/libtsdb_storage_impl.dylib
+# - build/src/tsdb/histogram/libtsdb_histogram_impl.dylib
+# - build/src/tsdb/otel/libtsdb_otel_impl.dylib
+# - build/src/tsdb/libtsdb_main.dylib
 
 # Check that test executables were built
-ls -la test/unit/tsdb_*_tests 2>/dev/null
-ls -la test/integration/tsdb_*_test_suite 2>/dev/null
+ls -la build/test/unit/tsdb_*_tests 2>/dev/null
+ls -la build/test/integration/tsdb_*_test_suite 2>/dev/null
 
 # If you see the libraries and test executables, the build was successful!
 ```
 
+### Makefile Targets Reference
+```bash
+# Build Targets
+make all              # Configure and build everything (default)
+make configure        # Run CMake configuration only
+make build           # Build all components only
+make rebuild         # Clean everything and rebuild from scratch
+make install         # Install built components
+
+# Clean Targets
+make clean           # Clean build artifacts (keep configuration)
+make clean-all       # Complete clean (remove build dir and cache)
+make test-clean      # Clean test results only
+
+# Help
+make help            # Show all available targets
+```
+
+## 📋 Makefile Build System
+
+This project uses a comprehensive Makefile system that **must be used for all project-level builds and cleans**. The Makefile automatically handles CMake configuration and provides organized targets for all operations.
+
+### **Why Makefile System?**
+- **Centralized Control**: All build and test operations go through consistent targets
+- **Dependency Management**: Automatic handling of build prerequisites
+- **Simplified Usage**: No need to remember complex CMake commands
+- **Error Prevention**: Prevents inconsistent build states from manual CMake usage
+- **Comprehensive Testing**: All 632+ tests accessible through organized targets
+
+### **Key Principles**
+- ✅ **ALWAYS use Makefile targets** - Never run CMake commands directly
+- ✅ **All operations from project root** - No need to cd into build directory
+- ✅ **Automatic dependency handling** - Tests build prerequisites automatically
+- ✅ **Comprehensive clean options** - Multiple clean levels available
+
 ## 🧪 Testing Instructions
 
-> **📋 Important**: All test commands must be run from the `build` directory, not the project root!
+> **📋 Important**: All test commands must be run from the project root directory using Makefile targets!
 
 ### **Quick Start - Run All Tests**
 ```bash
-# From the build directory, run the comprehensive test suite
-cd build
+# From the project root, run the comprehensive test suite
 make test-all
 
 # This will run all 632+ tests across the entire project
@@ -192,15 +222,14 @@ make test-all
 These test actual TSDB functionality and are the most reliable:
 
 ```bash
-# Build and run integration tests
-cd build
-make tsdb_integration_test_suite
-./test/integration/tsdb_integration_test_suite
+# Run main integration test suite (124 tests)
+make test-main-integration
 
-# Run specific integration test categories
-./test/integration/tsdb_integration_test_suite --gtest_filter="EndToEndWorkflowTest.*"
-./test/integration/tsdb_integration_test_suite --gtest_filter="OpenTelemetryIntegrationTest.*"
-./test/integration/tsdb_integration_test_suite --gtest_filter="StorageHistogramIntegrationTest.*"
+# Run StorageImpl phases tests (64 tests)
+make test-storageimpl-phases
+
+# Run individual integration tests (53 tests)
+make test-individual-integration
 ```
 
 **Available Integration Test Categories:**
@@ -216,69 +245,93 @@ make tsdb_integration_test_suite
 These test the core storage engine with excellent data integrity:
 
 ```bash
-# Build and run storage unit tests
-cd build
-make tsdb_storage_unit_tests
+# Run storage unit tests (60 tests)
+make test-storage-unit
 
-# Run all storage tests
-./test/unit/tsdb_storage_unit_tests
-
-# Run specific storage test categories (these work well)
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.BasicWriteAndRead"
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.MultipleSeries"
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.LabelOperations"
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.HighFrequencyData"
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.ConcurrentOperations"
-
-# Note: StorageTest.DeleteSeries and StorageTest.ErrorConditions may segfault during cleanup
-# This is a known issue and doesn't affect core functionality
+# Note: Some tests may segfault during cleanup - this is a known issue
+# and doesn't affect core functionality
 ```
 
 #### **3. PromQL Parser Tests (Some Failures Expected)**
 ```bash
-# Build and run PromQL parser tests
-cd build
-make tsdb_promql_parser_tests
-./test/unit/tsdb_promql_parser_tests
+# Run PromQL parser tests (34 tests)
+make test-parser
 
 # Expected: ~24/34 tests pass, ~10 tests fail (known parser issues)
 ```
 
 #### **4. Core Unit Tests (Basic Functionality)**
 ```bash
-# Build and run core unit tests
-cd build
-make tsdb_core_unit_tests
-./test/unit/tsdb_core_unit_tests
+# Run core unit tests (38 tests)
+make test-core-unit
 
 # Expected: All 38 tests pass (basic C++ functionality)
+```
+
+#### **5. Other Test Categories**
+```bash
+# Run all unit tests (357 tests)
+make test-unit
+
+# Run all integration tests (177 tests)
+make test-integration
+
+# Component-specific unit tests
+make test-cache-unit         # Cache unit tests (28 tests)
+make test-compression-unit   # Compression unit tests (19 tests)
+make test-histogram-unit     # Histogram unit tests (22 tests)
+```
+
+### **Test Targets Reference**
+```bash
+# Comprehensive Test Suites
+make test-all                    # Run ALL tests (632+ tests, 120s timeout)
+make test-main-integration      # Main integration suite (124 tests, 5min)
+make test-storageimpl-phases    # StorageImpl phases (64 tests, 10min)
+
+# Category Tests
+make test-unit                  # All unit tests (357 tests, 30s timeout)
+make test-integration           # All integration tests (177 tests, 60s)
+make test-parser                # PromQL parser tests (34 tests, 15s)
+
+# Component Unit Tests
+make test-core-unit             # Core unit tests (38 tests, 1min)
+make test-storage-unit          # Storage unit tests (60 tests, 2min)
+make test-cache-unit            # Cache unit tests (28 tests, 1min)
+make test-compression-unit      # Compression unit tests (19 tests, 1min)
+make test-histogram-unit        # Histogram unit tests (22 tests, 1min)
+make test-individual-integration # Individual integration tests (53 tests)
+
+# Utilities
+make test-summary               # Show available test targets
+make test-clean                 # Clean test results
 ```
 
 ### **Test Output Options**
 
 #### **Generate Test Reports**
 ```bash
-# Generate XML report with test results
-./test/integration/tsdb_integration_test_suite --gtest_output=xml:test_results.xml
+# Test results are automatically saved to build/test-results/ directory
+# XML reports are generated for each test category
+make test-all  # Generates XML reports in build/test-results/all/
 
-# Generate JSON report
-./test/integration/tsdb_integration_test_suite --gtest_output=json:test_results.json
-
-# Capture full console output to file
-./test/integration/tsdb_integration_test_suite 2>&1 | tee test_console_output.txt
+# View test results location
+make test-summary
 ```
 
 #### **Filter Test Output**
+Test filtering is handled automatically by the Makefile targets. For custom filtering, you can run individual test executables:
+
 ```bash
+# Run specific test patterns (advanced usage)
+./build/test/unit/tsdb_storage_unit_tests --gtest_filter="*Compression*"
+./build/test/unit/tsdb_storage_unit_tests --gtest_filter="*Block*"
+
 # Only show failures (brief output)
-./test/integration/tsdb_integration_test_suite --gtest_brief=1
+./build/test/integration/tsdb_integration_test_suite --gtest_brief=1
 
 # Disable colored output
-./test/integration/tsdb_integration_test_suite --gtest_color=no
-
-# Run specific test patterns
-./test/unit/tsdb_storage_unit_tests --gtest_filter="*Compression*"
-./test/unit/tsdb_storage_unit_tests --gtest_filter="*Block*"
+./build/test/integration/tsdb_integration_test_suite --gtest_color=no
 ```
 
 ## 📊 Test Results Summary
@@ -566,6 +619,19 @@ sudo apt-get install -y gcc-10 g++-10
 xcode-select --install
 ```
 
+#### **Semantic Vector Components (Optional)**
+```bash
+# By default, semantic vector components are DISABLED for stability
+# The Makefile includes -DTSDB_SEMVEC=OFF to ensure stable builds
+
+# If you want to enable semantic vector components (experimental):
+# Edit the CMAKE_FLAGS in the Makefile and change -DTSDB_SEMVEC=OFF to -DTSDB_SEMVEC=ON
+# Then rebuild: make clean-all && make
+
+# Note: Semantic vector components are experimental and may cause build issues
+# Recommended: Keep TSDB_SEMVEC=OFF for production use
+```
+
 ### Test Issues
 
 #### **Expected Test Failures (Normal)**
@@ -589,11 +655,8 @@ xcode-select --install
 #### **Unexpected Test Failures**
 ```bash
 # If core storage tests fail, try:
-make clean
-cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON
-make -j$(nproc)
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.BasicWriteAndRead"
+make clean-all  # Complete clean and rebuild
+make test-storage-unit
 
 # If build fails completely:
 # 1. Check all dependencies are installed
@@ -639,8 +702,8 @@ pkg-config --list-all | grep -E "(grpc|protobuf|spdlog|fmt|abseil)"
 2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
 3. **Build** and **test** your changes:
    ```bash
-   make clean && make
-   ./test/unit/tsdb_storage_unit_tests
+   make clean-all && make
+   make test-storage-unit
    ```
 4. **Commit** your changes: `git commit -m 'Add amazing feature'`
 5. **Push** to the branch: `git push origin feature/amazing-feature`
@@ -651,6 +714,7 @@ pkg-config --list-all | grep -E "(grpc|protobuf|spdlog|fmt|abseil)"
 - Add unit tests for new features
 - Ensure all tests pass before submitting
 - Update documentation for API changes
+- **All builds and tests must use Makefile targets** (never direct CMake commands)
 
 ## 📄 License
 
@@ -665,4 +729,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Status**: ✅ Production Ready with Comprehensive Integration Testing | **Last Updated**: July 2025 | **Test Coverage**: 93.8% Unit Tests + 100% Integration Tests 
+**Status**: ✅ Production Ready with Makefile Build System | **Last Updated**: September 2025 | **Test Coverage**: 93.8% Unit Tests + 100% Integration Tests 

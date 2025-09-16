@@ -34,13 +34,13 @@ class Phase3CompressionIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
         core::StorageConfig config;
-        config.data_dir = "./test_data_phase3";
+        config.data_dir = "./test/data/storageimpl_phases/phase3";
         config.enable_compression = true;
         config.compression_config = core::CompressionConfig::Default();
         
         storage_ = std::make_unique<storage::StorageImpl>(config);
         auto init_result = storage_->init(config);
-        ASSERT_TRUE(init_result.ok()) << "Failed to initialize storage: " << init_result.error();
+        ASSERT_TRUE(init_result.ok()) << "Failed to initialize storage";
     }
     
     void TearDown() override {
@@ -137,23 +137,23 @@ TEST_F(Phase3CompressionIntegrationTest, BasicCompressionDecompressionAccuracy) 
     
     // Write series to storage
     auto write_result1 = storage_->write(random_series);
-    ASSERT_TRUE(write_result1.ok()) << "Write failed: " << write_result1.error();
+    ASSERT_TRUE(write_result1.ok()) << "Write failed";
     
     auto write_result2 = storage_->write(constant_series);
-    ASSERT_TRUE(write_result2.ok()) << "Write failed: " << write_result2.error();
+    ASSERT_TRUE(write_result2.ok()) << "Write failed";
     
     auto write_result3 = storage_->write(linear_series);
-    ASSERT_TRUE(write_result3.ok()) << "Write failed: " << write_result3.error();
+    ASSERT_TRUE(write_result3.ok()) << "Write failed";
     
     // Read series back and verify data integrity
     auto read_result1 = storage_->read(random_series.labels(), 1000000000, 1000000000 + 999000);
-    ASSERT_TRUE(read_result1.ok()) << "Read failed: " << read_result1.error();
+    ASSERT_TRUE(read_result1.ok()) << "Read failed";
     
     auto read_result2 = storage_->read(constant_series.labels(), 1000000000, 1000000000 + 999000);
-    ASSERT_TRUE(read_result2.ok()) << "Read failed: " << read_result2.error();
+    ASSERT_TRUE(read_result2.ok()) << "Read failed";
     
     auto read_result3 = storage_->read(linear_series.labels(), 1000000000, 1000000000 + 999000);
-    ASSERT_TRUE(read_result3.ok()) << "Read failed: " << read_result3.error();
+    ASSERT_TRUE(read_result3.ok()) << "Read failed";
     
     // Verify sample counts match
     EXPECT_EQ(read_result1.value().samples().size(), random_series.samples().size());
@@ -215,7 +215,7 @@ TEST_F(Phase3CompressionIntegrationTest, AlgorithmSelectionTesting) {
     
     // Test with different compression configurations
     core::StorageConfig config;
-    config.data_dir = "./test_data_phase3_algo";
+    config.data_dir = "./test/data/storageimpl_phases/phase3_algo";
     config.enable_compression = true;
     
     // Test different algorithm combinations
@@ -291,7 +291,7 @@ TEST_F(Phase3CompressionIntegrationTest, AdaptiveCompressionBehavior) {
     
     // Test adaptive compression with different data patterns
     core::StorageConfig config;
-    config.data_dir = "./test_data_phase3_adaptive";
+    config.data_dir = "./test/data/storageimpl_phases/phase3_adaptive";
     config.enable_compression = true;
     config.compression_config.adaptive_compression = true;
     
@@ -338,7 +338,7 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
     auto write_result = storage_->write(empty_series);
     std::cout << "Empty series write result: " << (write_result.ok() ? "OK" : "FAILED") << std::endl;
     if (!write_result.ok()) {
-        std::cout << "Write error: " << write_result.error() << std::endl;
+        std::cout << "Write error (expected behavior for empty series)" << std::endl;
         // Empty series write should fail, which is expected behavior
         EXPECT_FALSE(write_result.ok()) << "Should reject empty series";
     }
@@ -347,7 +347,7 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
     std::cout << "Testing single sample series..." << std::endl;
     core::StorageConfig config_single;
     config_single.enable_compression = false;
-    config_single.data_dir = "./test_data_phase3_single";
+    config_single.data_dir = "./test/data/storageimpl_phases/phase3_single";
     
     auto storage_single = std::make_unique<tsdb::storage::StorageImpl>(config_single);
     auto init_result = storage_single->init(config_single);
@@ -361,14 +361,14 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
     write_result = storage_single->write(single_series);
     std::cout << "Single sample write result: " << (write_result.ok() ? "OK" : "FAILED") << std::endl;
     if (!write_result.ok()) {
-        std::cout << "Write error: " << write_result.error() << std::endl;
+        std::cout << "Write error (single sample test)" << std::endl;
     }
     
     auto read_result = storage_single->read(single_labels, 1000000000, 1000000000);
     std::cout << "Single sample read result: " << (read_result.ok() ? "OK" : "FAILED") << std::endl;
     if (!read_result.ok()) {
-        std::cout << "Read error: " << read_result.error() << std::endl;
-        FAIL() << "Read failed: " << read_result.error();
+        std::cout << "Read error (single sample test)" << std::endl;
+        FAIL() << "Read failed for single sample test";
         return;
     }
     
@@ -381,7 +381,7 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
     std::cout << "Testing large series with compression disabled..." << std::endl;
     core::StorageConfig config_no_compression;
     config_no_compression.enable_compression = false;
-    config_no_compression.data_dir = "./test_data_phase3_no_compression";
+    config_no_compression.data_dir = "./test/data/storageimpl_phases/phase3_no_compression";
     
     auto storage_no_compression = std::make_unique<tsdb::storage::StorageImpl>(config_no_compression);
     auto init_result_no_compression = storage_no_compression->init(config_no_compression);

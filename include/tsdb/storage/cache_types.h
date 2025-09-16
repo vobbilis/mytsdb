@@ -28,8 +28,12 @@ struct CacheHierarchyConfig {
     // Promotion/Demotion policies
     uint64_t l1_promotion_threshold = 5;     // Access count to promote to L1
     uint64_t l2_promotion_threshold = 2;     // Access count to promote to L2
+    uint64_t l1_demotion_threshold = 2;      // Access count threshold for L1 demotion
+    uint64_t l2_demotion_threshold = 1;      // Access count threshold for L2 demotion  
     std::chrono::seconds l1_demotion_timeout{300};  // Time before demotion from L1
     std::chrono::seconds l2_demotion_timeout{3600}; // Time before demotion from L2
+    uint64_t l1_demotion_timeout_seconds = 30;      // Timeout in seconds for L1 demotion
+    uint64_t l2_demotion_timeout_seconds = 60;      // Timeout in seconds for L2 demotion
     
     // Background processing
     bool enable_background_processing = true;

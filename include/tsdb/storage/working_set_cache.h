@@ -2,6 +2,7 @@
 
 #include "tsdb/core/types.h"
 #include "tsdb/core/error.h"
+#include "tsdb/storage/cache_types.h"
 #include <unordered_map>
 #include <list>
 #include <memory>
@@ -136,12 +137,20 @@ public:
      * @return Pair of (series_id, series), or (0, nullptr) if cache is empty
      */
     std::pair<core::SeriesID, std::shared_ptr<core::TimeSeries>> evict_lru_and_get_with_id();
+    
+    /**
+     * @brief Get metadata for a series in the cache
+     * @param series_id The series ID to get metadata for
+     * @return Pointer to metadata if found, nullptr otherwise
+     */
+    const CacheEntryMetadata* get_metadata(core::SeriesID series_id) const;
 
 private:
     // Cache entry structure
     struct CacheEntry {
         core::SeriesID series_id;
         std::shared_ptr<core::TimeSeries> series;
+        CacheEntryMetadata metadata;
         
         CacheEntry(core::SeriesID id, std::shared_ptr<core::TimeSeries> ts)
             : series_id(id), series(std::move(ts)) {}

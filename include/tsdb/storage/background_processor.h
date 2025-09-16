@@ -195,6 +195,25 @@ public:
      */
     const BackgroundProcessorConfig& getConfig() const { return config_; }
     
+    /**
+     * @brief Check if the processor is healthy
+     * @return True if healthy, false otherwise
+     */
+    bool isHealthy() const;
+    
+    /**
+     * @brief Get current queue size
+     * @return Number of tasks in queue
+     */
+    uint32_t getQueueSize() const;
+    
+    /**
+     * @brief Update configuration
+     * @param new_config New configuration
+     * @return Result indicating success or failure
+     */
+    core::Result<void> updateConfig(const BackgroundProcessorConfig& new_config);
+    
 private:
     std::atomic<uint32_t> active_tasks_{0};
     std::condition_variable tasks_finished_cond_;

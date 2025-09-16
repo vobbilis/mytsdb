@@ -481,7 +481,7 @@ core::Result<size_t> GorillaCompressor::compressChunk(
     size_t out_size) {
     auto result = compress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& compressed = result.value();
@@ -500,7 +500,7 @@ core::Result<size_t> GorillaCompressor::decompressChunk(
     size_t out_size) {
     auto result = decompress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& decompressed = result.value();
@@ -602,7 +602,7 @@ core::Result<size_t> RLECompressor::compressChunk(
     size_t out_size) {
     auto result = compress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& compressed = result.value();
@@ -621,7 +621,7 @@ core::Result<size_t> RLECompressor::decompressChunk(
     size_t out_size) {
     auto result = decompress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& decompressed = result.value();
@@ -775,7 +775,7 @@ core::Result<size_t> XORCompressor::compressChunk(
     size_t out_size) {
     auto result = compress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& compressed = result.value();
@@ -794,7 +794,7 @@ core::Result<size_t> XORCompressor::decompressChunk(
     size_t out_size) {
     auto result = decompress(std::vector<uint8_t>(data, data + size));
     if (!result.ok()) {
-        return core::Result<size_t>::error(result.error().what());
+        return core::Result<size_t>::error(result.error());
     }
     
     const auto& decompressed = result.value();
@@ -871,6 +871,388 @@ public:
 
 std::unique_ptr<CompressorFactory> create_compressor_factory() {
     return std::make_unique<CompressorFactoryImpl>();
+}
+
+// Adapter class implementations
+
+// GorillaTimestampCompressor implementation
+std::vector<uint8_t> GorillaTimestampCompressor::compress(const std::vector<int64_t>& timestamps) {
+    if (timestamps.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert timestamps to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(timestamps.size() * sizeof(int64_t));
+    for (const auto& timestamp : timestamps) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&timestamp),
+                   reinterpret_cast<const uint8_t*>(&timestamp) + sizeof(timestamp));
+    }
+    
+    // Compress using Gorilla compressor
+    auto result = gorilla_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<int64_t> GorillaTimestampCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Decompress using Gorilla compressor
+    auto result = gorilla_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Convert byte vector back to timestamps
+    const auto& decompressed = result.value();
+    std::vector<int64_t> timestamps;
+    timestamps.reserve(decompressed.size() / sizeof(int64_t));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(int64_t)) {
+        int64_t timestamp;
+        std::memcpy(&timestamp, &decompressed[i], sizeof(timestamp));
+        timestamps.push_back(timestamp);
+    }
+    
+    return timestamps;
+}
+
+// XORTimestampCompressor implementation
+std::vector<uint8_t> XORTimestampCompressor::compress(const std::vector<int64_t>& timestamps) {
+    if (timestamps.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert timestamps to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(timestamps.size() * sizeof(int64_t));
+    for (const auto& timestamp : timestamps) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&timestamp),
+                   reinterpret_cast<const uint8_t*>(&timestamp) + sizeof(timestamp));
+    }
+    
+    // Compress using XOR compressor
+    auto result = xor_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<int64_t> XORTimestampCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Decompress using XOR compressor
+    auto result = xor_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Convert byte vector back to timestamps
+    const auto& decompressed = result.value();
+    std::vector<int64_t> timestamps;
+    timestamps.reserve(decompressed.size() / sizeof(int64_t));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(int64_t)) {
+        int64_t timestamp;
+        std::memcpy(&timestamp, &decompressed[i], sizeof(timestamp));
+        timestamps.push_back(timestamp);
+    }
+    
+    return timestamps;
+}
+
+// RLETimestampCompressor implementation
+std::vector<uint8_t> RLETimestampCompressor::compress(const std::vector<int64_t>& timestamps) {
+    if (timestamps.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert timestamps to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(timestamps.size() * sizeof(int64_t));
+    for (const auto& timestamp : timestamps) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&timestamp),
+                   reinterpret_cast<const uint8_t*>(&timestamp) + sizeof(timestamp));
+    }
+    
+    // Compress using RLE compressor
+    auto result = rle_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<int64_t> RLETimestampCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Decompress using RLE compressor
+    auto result = rle_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<int64_t>();
+    }
+    
+    // Convert byte vector back to timestamps
+    const auto& decompressed = result.value();
+    std::vector<int64_t> timestamps;
+    timestamps.reserve(decompressed.size() / sizeof(int64_t));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(int64_t)) {
+        int64_t timestamp;
+        std::memcpy(&timestamp, &decompressed[i], sizeof(timestamp));
+        timestamps.push_back(timestamp);
+    }
+    
+    return timestamps;
+}
+
+// GorillaValueCompressor implementation
+std::vector<uint8_t> GorillaValueCompressor::compress(const std::vector<double>& values) {
+    if (values.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert values to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(values.size() * sizeof(double));
+    for (const auto& value : values) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&value),
+                   reinterpret_cast<const uint8_t*>(&value) + sizeof(value));
+    }
+    
+    // Compress using Gorilla compressor
+    auto result = gorilla_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<double> GorillaValueCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<double>();
+    }
+    
+    // Decompress using Gorilla compressor
+    auto result = gorilla_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<double>();
+    }
+    
+    // Convert byte vector back to values
+    const auto& decompressed = result.value();
+    std::vector<double> values;
+    values.reserve(decompressed.size() / sizeof(double));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(double)) {
+        double value;
+        std::memcpy(&value, &decompressed[i], sizeof(value));
+        values.push_back(value);
+    }
+    
+    return values;
+}
+
+// XORValueCompressor implementation
+std::vector<uint8_t> XORValueCompressor::compress(const std::vector<double>& values) {
+    if (values.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert values to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(values.size() * sizeof(double));
+    for (const auto& value : values) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&value),
+                   reinterpret_cast<const uint8_t*>(&value) + sizeof(value));
+    }
+    
+    // Compress using XOR compressor
+    auto result = xor_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<double> XORValueCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<double>();
+    }
+    
+    // Decompress using XOR compressor
+    auto result = xor_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<double>();
+    }
+    
+    // Convert byte vector back to values
+    const auto& decompressed = result.value();
+    std::vector<double> values;
+    values.reserve(decompressed.size() / sizeof(double));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(double)) {
+        double value;
+        std::memcpy(&value, &decompressed[i], sizeof(value));
+        values.push_back(value);
+    }
+    
+    return values;
+}
+
+// RLEValueCompressor implementation
+std::vector<uint8_t> RLEValueCompressor::compress(const std::vector<double>& values) {
+    if (values.empty()) {
+        return std::vector<uint8_t>();
+    }
+    
+    // Convert values to byte vector
+    std::vector<uint8_t> data;
+    data.reserve(values.size() * sizeof(double));
+    for (const auto& value : values) {
+        data.insert(data.end(), 
+                   reinterpret_cast<const uint8_t*>(&value),
+                   reinterpret_cast<const uint8_t*>(&value) + sizeof(value));
+    }
+    
+    // Compress using RLE compressor
+    auto result = rle_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+std::vector<double> RLEValueCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return std::vector<double>();
+    }
+    
+    // Decompress using RLE compressor
+    auto result = rle_compressor_->decompress(data);
+    if (!result.ok()) {
+        return std::vector<double>();
+    }
+    
+    // Convert byte vector back to values
+    const auto& decompressed = result.value();
+    std::vector<double> values;
+    values.reserve(decompressed.size() / sizeof(double));
+    
+    for (size_t i = 0; i < decompressed.size(); i += sizeof(double)) {
+        double value;
+        std::memcpy(&value, &decompressed[i], sizeof(value));
+        values.push_back(value);
+    }
+    
+    return values;
+}
+
+// RLELabelCompressor implementation
+std::vector<uint8_t> RLELabelCompressor::compress(const core::Labels& labels) {
+    // Convert labels to byte vector
+    std::string label_string = labels.to_string();
+    std::vector<uint8_t> data(label_string.begin(), label_string.end());
+    
+    // Compress using RLE compressor
+    auto result = rle_compressor_->compress(data);
+    if (!result.ok()) {
+        return std::vector<uint8_t>();
+    }
+    
+    return result.value();
+}
+
+core::Labels RLELabelCompressor::decompress(const std::vector<uint8_t>& data) {
+    if (data.empty()) {
+        return core::Labels();
+    }
+    
+    // Decompress using RLE compressor
+    auto result = rle_compressor_->decompress(data);
+    if (!result.ok()) {
+        return core::Labels();
+    }
+    
+    // Convert byte vector back to labels
+    const auto& decompressed = result.value();
+    std::string label_string(decompressed.begin(), decompressed.end());
+    
+    // Parse label string back to Labels object
+    // This is a simplified implementation - in practice you'd want proper parsing
+    return core::Labels(); // Placeholder
+}
+
+// DictionaryLabelCompressor implementation
+std::vector<uint8_t> DictionaryLabelCompressor::compress(const core::Labels& labels) {
+    std::vector<uint8_t> result;
+    for (const auto& [name, value] : labels.map()) {
+        uint32_t name_id = add_label(name);
+        uint32_t value_id = add_label(value);
+        result.resize(result.size() + 2 * sizeof(uint32_t));
+        std::memcpy(result.data() + result.size() - 2 * sizeof(uint32_t), &name_id, sizeof(uint32_t));
+        std::memcpy(result.data() + result.size() - sizeof(uint32_t), &value_id, sizeof(uint32_t));
+    }
+    return result;
+}
+
+core::Labels DictionaryLabelCompressor::decompress(const std::vector<uint8_t>& data) {
+    core::Labels::Map result_map;
+    for (size_t i = 0; i < data.size(); i += 2 * sizeof(uint32_t)) {
+        uint32_t name_id, value_id;
+        std::memcpy(&name_id, data.data() + i, sizeof(uint32_t));
+        std::memcpy(&value_id, data.data() + i + sizeof(uint32_t), sizeof(uint32_t));
+        result_map[get_label(name_id)] = get_label(value_id);
+    }
+    return core::Labels(result_map);
+}
+
+uint32_t DictionaryLabelCompressor::add_label(const std::string& label) {
+    auto it = label_to_id_.find(label);
+    if (it != label_to_id_.end()) {
+        return it->second;
+    }
+    uint32_t id = static_cast<uint32_t>(id_to_label_.size());
+    label_to_id_[label] = id;
+    id_to_label_.push_back(label);
+    return id;
+}
+
+std::string DictionaryLabelCompressor::get_label(uint32_t id) const {
+    if (id >= id_to_label_.size()) {
+        return "";
+    }
+    return id_to_label_[id];
+}
+
+size_t DictionaryLabelCompressor::dictionary_size() const {
+    return id_to_label_.size();
+}
+
+void DictionaryLabelCompressor::clear() {
+    label_to_id_.clear();
+    id_to_label_.clear();
 }
 
 } // namespace internal

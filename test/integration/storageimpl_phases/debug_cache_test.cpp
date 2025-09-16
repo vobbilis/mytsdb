@@ -11,7 +11,7 @@ class DebugCacheTest : public ::testing::Test {
 protected:
     void SetUp() override {
         core::StorageConfig config;
-        config.data_dir = "./test_data_debug";
+        config.data_dir = "./test/data/storageimpl_phases/debug";
         
         storage_ = std::make_unique<storage::StorageImpl>(config);
         auto init_result = storage_->init(config);

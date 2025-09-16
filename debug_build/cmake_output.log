@@ -1,9 +1,0 @@
--- Found spdlog, enabling logging support
--- Found RE2 via CMake.
--- Found gRPC and Protobuf, enabling RPC support
--- TSDB_SEMVEC enabled: compiling semantic vector sources for early feedback
--- Google Benchmark not found - Performance benchmarks disabled
--- To enable benchmarks, install Google Benchmark: https://github.com/google/benchmark
--- Configuring done (0.4s)
--- Generating done (0.4s)
--- Build files have been written to: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb

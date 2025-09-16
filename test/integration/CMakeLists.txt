@@ -12,7 +12,6 @@ add_executable(tsdb_integration_test_suite
     error_handling_test.cpp
     recovery_test.cpp
     load_test.cpp
-    stress_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp
@@ -20,9 +19,10 @@ add_executable(tsdb_integration_test_suite
     storageimpl_phases/phase2_cache_hierarchy_integration_test.cpp
     storageimpl_phases/debug_cache_test.cpp
     storageimpl_phases/phase3_compression_integration_test.cpp
-    storageimpl_phases/phase4_block_management_integration_test.cpp
-    storageimpl_phases/phase5_background_processing_integration_test.cpp
-    storageimpl_phases/phase6_predictive_caching_integration_test.cpp
+    storageimpl_phases/phase2_block_management_integration_test.cpp
+    storageimpl_phases/phase2_background_processing_integration_test.cpp
+    storageimpl_phases/phase2_predictive_caching_integration_test.cpp
+    storageimpl_phases/phase3_consolidated_performance_test.cpp
     storageimpl_phases/comprehensive_integration_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )

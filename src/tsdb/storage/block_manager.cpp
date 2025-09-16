@@ -9,6 +9,9 @@
 #include <system_error>
 #include <map>
 #include <limits>
+#include <thread>
+#include <chrono>
+#include <iostream>
 
 namespace tsdb {
 namespace storage {
@@ -140,29 +143,46 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
 
     std::lock_guard<std::mutex> lock(mutex_);
     
-    internal::BlockHeader header;
-    header.magic = internal::BlockHeader::MAGIC;
-    header.version = internal::BlockHeader::VERSION;
-    header.start_time = start_time;
-    header.end_time = end_time;
-    header.flags = 0;
-    header.crc32 = 0;  // Will be set when block is finalized
-    header.reserved = 0;     // Initialize reserved field
-    
-    // Check if we need to demote blocks
-    if (!hot_storage_) {
-        return core::Result<void>::error("Hot storage not initialized");
-    }
+    try {
+        internal::BlockHeader header;
+        header.magic = internal::BlockHeader::MAGIC;
+        header.version = internal::BlockHeader::VERSION;
+        header.start_time = start_time;
+        header.end_time = end_time;
+        header.flags = 0;
+        header.crc32 = 0;  // Will be set when block is finalized
+        header.reserved = 0;     // Initialize reserved field
+        
+        // Check if we need to demote blocks
+        if (!hot_storage_) {
+            return core::Result<void>::error("Hot storage not initialized");
+        }
 
-    // Create empty block in hot tier
-    std::vector<uint8_t> empty_data;
-    auto result = hot_storage_->write(header, empty_data);
-    if (!result.ok()) {
-        return result;
+        // Create empty block in hot tier (with retry logic)
+        std::vector<uint8_t> empty_data;
+        int retry_count = 0;
+        const int max_retries = 3;
+        
+        while (retry_count < max_retries) {
+            auto result = hot_storage_->write(header, empty_data);
+            if (result.ok()) {
+                block_tiers_[header.magic] = internal::BlockTier::Type::HOT;
+                return core::Result<void>();
+            }
+            
+            retry_count++;
+            if (retry_count < max_retries) {
+                // Brief delay before retry
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            } else {
+                return result; // Return the last error
+            }
+        }
+        
+        return core::Result<void>::error("Failed to create block after retries");
+    } catch (const std::exception& e) {
+        return core::Result<void>::error("Block creation exception: " + std::string(e.what()));
     }
-
-    block_tiers_[header.magic] = internal::BlockTier::Type::HOT;
-    return core::Result<void>();
 }
 
 core::Result<void> BlockManager::finalizeBlock(const internal::BlockHeader& header) {
@@ -189,7 +209,7 @@ core::Result<void> BlockManager::finalizeBlock(const internal::BlockHeader& head
     // Read existing data
     auto read_result = storage->read(header);
     if (!read_result.ok()) {
-        return core::Result<void>::error(read_result.error().what());
+        return core::Result<void>::error(read_result.error());
     }
     
     // Write back with new header
@@ -297,8 +317,7 @@ core::Result<void> BlockManager::demoteBlock(const internal::BlockHeader& header
         return core::Result<void>::error("Invalid block header");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    
+    // Note: No lock needed here since this method is called from compact() which already holds the lock
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
@@ -336,7 +355,7 @@ core::Result<void> BlockManager::moveBlock(
     // Read existing data
     auto read_result = from_storage->read(header);
     if (!read_result.ok()) {
-        return core::Result<void>::error(read_result.error().what());
+        return core::Result<void>::error(read_result.error());
     }
     
     // Write back with new header

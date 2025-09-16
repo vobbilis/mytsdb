@@ -14,7 +14,7 @@ class ObjectPoolEducationTest : public ::testing::Test {
 protected:
     void SetUp() override {
         core::StorageConfig config;
-        config.data_dir = "./test_data_education";
+        config.data_dir = "./test/data/storageimpl_phases/education";
         config.object_pool_config.time_series_initial_size = 10;
         config.object_pool_config.time_series_max_size = 100;
         config.object_pool_config.labels_initial_size = 20;

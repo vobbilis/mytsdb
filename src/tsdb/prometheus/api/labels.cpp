@@ -83,7 +83,7 @@ LabelQueryResult LabelsHandler::GetLabels(const LabelQueryParams& params) {
     try {
         auto result = storage_->label_names();
         if (!result.ok()) {
-            return CreateErrorResponse("internal_error", result.error().what());
+            return CreateErrorResponse("internal_error", result.error());
         }
         return CreateSuccessResponse(std::move(result.value()));
     } catch (const std::exception& e) {
@@ -108,7 +108,7 @@ LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
     try {
         auto result = storage_->label_values(label_name);
         if (!result.ok()) {
-            return CreateErrorResponse("internal_error", result.error().what());
+            return CreateErrorResponse("internal_error", result.error());
         }
         return CreateSuccessResponse(std::move(result.value()));
     } catch (const std::exception& e) {
@@ -146,7 +146,7 @@ LabelQueryResult LabelsHandler::GetSeries(const std::vector<std::string>& matche
                                     params.start_time.value_or(0),
                                     params.end_time.value_or(std::numeric_limits<int64_t>::max()));
         if (!result.ok()) {
-            return CreateErrorResponse("internal_error", result.error().what());
+            return CreateErrorResponse("internal_error", result.error());
         }
         
         std::vector<std::string> series_strings;

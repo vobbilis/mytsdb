@@ -161,4 +161,11 @@ if(TARGET tsdb_lib)
         ${CMAKE_CURRENT_BINARY_DIR}/tsdb-config-version.cmake
         DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/tsdb
     )
-endif() 
+endif()
+
+# =============================================================================
+# TOP-LEVEL TEST TARGETS
+# =============================================================================
+
+# Test targets are defined in test/CMakeLists.txt and available at top level
+# when BUILD_TESTS=ON 

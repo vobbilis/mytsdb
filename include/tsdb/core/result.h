@@ -2,7 +2,7 @@
 #define TSDB_CORE_RESULT_H_
 
 #include <string>
-#include <variant>
+#include <optional>
 #include <type_traits>
 #include <memory>
 #include <stdexcept>
@@ -36,10 +36,15 @@ template<typename T>
 class Result {
 public:
     Result(T value) : value_(std::move(value)), error_(nullptr) {}
-    Result(std::unique_ptr<Error> error) : error_(std::move(error)) {}
+    Result(std::unique_ptr<Error> error) : value_(), error_(std::move(error)) {}
     
     bool ok() const { return error_ == nullptr; }
-    const Error& error() const { return *error_; }
+    std::string error() const { 
+        if (!error_) {
+            throw std::runtime_error("Attempting to access error of ok result");
+        }
+        return error_->what();
+    }
     const T& value() const { return value_; }
     T&& take_value() { return std::move(value_); }
     
@@ -62,7 +67,12 @@ public:
     Result(std::unique_ptr<Error> error) : error_(std::move(error)) {}
     
     bool ok() const { return error_ == nullptr; }
-    const Error& error() const { return *error_; }
+    std::string error() const { 
+        if (!error_) {
+            throw std::runtime_error("Attempting to access error of ok result");
+        }
+        return error_->what();
+    }
     
     static Result<void> error(const std::string& message) {
         return Result<void>(std::make_unique<Error>(message));
@@ -73,8 +83,8 @@ private:
 };
 
 // Common template instantiations declarations
-extern template class Result<std::vector<uint8_t>>;
-extern template class Result<std::string>;
+template class Result<std::vector<uint8_t>>;
+template class Result<std::string>;
 
 } // namespace core
 } // namespace tsdb
