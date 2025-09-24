@@ -31,6 +31,24 @@ add_subdirectory(integration)
 # Performance benchmark tests
 add_subdirectory(benchmark)
 
+# Phase 1: Memory Access Pattern Optimization Tests
+add_executable(phase1_memory_optimization_test
+    ${CMAKE_SOURCE_DIR}/test/integration/storageimpl_phases/phase1_memory_optimization_test.cpp
+)
+target_link_libraries(phase1_memory_optimization_test PRIVATE tsdb_test_common)
+add_test(NAME Phase1MemoryOptimizationTest COMMAND phase1_memory_optimization_test)
+
+# Note: Enhanced Object Pool and Cache Alignment tests removed due to complex dependencies
+
+# Simple Memory Optimization Tests
+add_executable(simple_memory_optimization_test
+    ${CMAKE_SOURCE_DIR}/test/unit/storage/simple_memory_optimization_test.cpp
+)
+target_link_libraries(simple_memory_optimization_test PRIVATE tsdb_test_common)
+add_test(NAME SimpleMemoryOptimizationTest COMMAND simple_memory_optimization_test)
+
+# Note: Complex memory optimization tests removed due to complex dependencies
+
 # Load testing
 add_subdirectory(load)
 

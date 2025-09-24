@@ -1,0 +1,19 @@
+{
+    "phase1_benchmarks": {
+        "memory_access_pattern": {
+            "iterations": 1000,
+            "warmup_iterations": 100,
+            "timeout_seconds": 300
+        },
+        "cache_alignment": {
+            "iterations": 500,
+            "warmup_iterations": 50,
+            "timeout_seconds": 180
+        },
+        "allocation_speed": {
+            "iterations": 10000,
+            "warmup_iterations": 1000,
+            "timeout_seconds": 600
+        }
+    }
+}
