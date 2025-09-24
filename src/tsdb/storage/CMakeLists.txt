@@ -26,6 +26,22 @@ target_sources(tsdb_storage_impl
         sharded_storage_manager.cpp
         high_concurrency_storage.cpp
         internal/block_impl.cpp
+        # Phase 1: Memory Access Pattern Optimization (Simplified)
+        memory_optimization/simple_cache_alignment.cpp
+        memory_optimization/simple_sequential_layout.cpp
+        memory_optimization/simple_access_pattern_tracker.cpp
+        # Phase 1: Memory Access Pattern Optimization (Full Implementation) - RE-ENABLED
+        # NOTE: Semantic vector dependencies have been removed
+        memory_optimization/cache_alignment_utils.cpp
+        memory_optimization/sequential_layout_optimizer.cpp
+        memory_optimization/access_pattern_optimizer.cpp
+        memory_optimization/adaptive_memory_integration.cpp
+        memory_optimization/tiered_memory_integration.cpp
+        # Phase 1: Enhanced Object Pools - RE-ENABLED
+        # NOTE: Semantic vector dependencies have been removed
+        enhanced_pools/enhanced_time_series_pool.cpp
+        enhanced_pools/enhanced_labels_pool.cpp
+        enhanced_pools/enhanced_sample_pool.cpp
 )
 
 # Optional: compile semantic vector sources for early feedback when enabled

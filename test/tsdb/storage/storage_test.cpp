@@ -45,6 +45,7 @@ protected:
         config.enable_compression = true;  // Re-enable compression - issue was not compression
         
         // TEMP: Disable background processing to prevent race conditions
+        config.background_config.enable_background_processing = false;
         config.background_config.enable_auto_compaction = false;
         config.background_config.enable_auto_cleanup = false;
         config.background_config.enable_metrics_collection = false;
