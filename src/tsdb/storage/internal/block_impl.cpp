@@ -1,4 +1,5 @@
 #include "tsdb/storage/internal/block_impl.h"
+#include <iostream>
 #include <algorithm>
 #include <sstream>
 #include <cstring>
@@ -16,15 +17,22 @@ BlockImpl::BlockImpl(
     , ts_compressor_(std::move(ts_compressor))
     , val_compressor_(std::move(val_compressor))
     , label_compressor_(std::move(label_compressor))
-    , dirty_(false) {}
+    , dirty_(false)
+    , sealed_(false) {}
 
 size_t BlockImpl::size() const {
     std::lock_guard<std::mutex> lock(mutex_);
     size_t total = sizeof(BlockHeader);
     for (const auto& [labels, data] : series_) {
         total += labels.size() * sizeof(std::string); // Labels
-        total += data.timestamps.size(); // Timestamps
-        total += data.values.size(); // Values
+        if (data.is_compressed) {
+            total += data.timestamps_compressed.size(); // Compressed timestamps
+            total += data.values_compressed.size(); // Compressed values
+        } else {
+            // Uncompressed data
+            total += data.timestamps_uncompressed.size() * sizeof(int64_t);
+            total += data.values_uncompressed.size() * sizeof(double);
+        }
     }
     return total;
 }
@@ -42,19 +50,30 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
     }
 
     const auto& data = it->second;
-    std::vector<core::Sample> samples;
-    samples.reserve(data.timestamps.size());
-
-    // Decompress timestamps and values
-    auto timestamps = ts_compressor_->decompress(data.timestamps);
-    auto values = val_compressor_->decompress(data.values);
-
-    for (size_t i = 0; i < timestamps.size(); i++) {
-        samples.emplace_back(timestamps[i], values[i]);
+    
+    // Check if data is compressed or uncompressed
+    if (!data.is_compressed) {
+        // Read from uncompressed buffers
+        core::TimeSeries ts(labels);
+        size_t min_size = std::min(data.timestamps_uncompressed.size(), data.values_uncompressed.size());
+        for (size_t i = 0; i < min_size; i++) {
+            ts.add_sample(data.timestamps_uncompressed[i], data.values_uncompressed[i]);
+        }
+        return ts;
     }
-
+    
+    // Data is compressed - decompress it
+    // The compressed data is in the new batch format (single compressed block per series)
+    auto all_timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+    auto all_values = val_compressor_->decompress(data.values_compressed);
+    
+    // Match timestamps and values to create samples
     core::TimeSeries ts(labels);
-    for (const auto& s : samples) ts.add_sample(s); // or assign samples if public
+    size_t min_size = std::min(all_timestamps.size(), all_values.size());
+    for (size_t i = 0; i < min_size; i++) {
+        ts.add_sample(all_timestamps[i], all_values[i]);
+    }
+    
     return ts;
 }
 
@@ -81,8 +100,17 @@ std::vector<core::TimeSeries> BlockImpl::query(
         }
 
         // Decompress timestamps and values
-        auto timestamps = ts_compressor_->decompress(data.timestamps);
-        auto values = val_compressor_->decompress(data.values);
+        std::vector<int64_t> timestamps;
+        std::vector<double> values;
+        
+        if (data.is_compressed) {
+            timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+            values = val_compressor_->decompress(data.values_compressed);
+        } else {
+            timestamps = data.timestamps_uncompressed;
+            values = data.values_uncompressed;
+        }
+        
         std::vector<core::Sample> samples;
         for (size_t i = 0; i < timestamps.size(); i++) {
             samples.emplace_back(timestamps[i], values[i]);
@@ -108,14 +136,15 @@ void BlockImpl::write(const core::TimeSeries& series) {
         values.push_back(sample.value());
     }
 
-    // Compress timestamps and values
+    // Compress timestamps and values immediately (write() is used for bulk writes)
     auto compressed_timestamps = ts_compressor_->compress(timestamps);
     auto compressed_values = val_compressor_->compress(values);
 
     // Update or insert series data
     auto& data = series_[series.labels()];
-    data.timestamps = std::move(compressed_timestamps);
-    data.values = std::move(compressed_values);
+    data.timestamps_compressed = std::move(compressed_timestamps);
+    data.values_compressed = std::move(compressed_values);
+    data.is_compressed = true;
 
     // Update block header time range
     if (!timestamps.empty()) {
@@ -167,14 +196,117 @@ uint32_t BlockImpl::calculate_crc() const {
     // TODO: Implement proper CRC32 calculation
     uint32_t crc = 0;
     for (const auto& [labels, data] : series_) {
-        for (uint8_t byte : data.timestamps) {
-            crc = (crc << 8) ^ byte;
-        }
-        for (uint8_t byte : data.values) {
-            crc = (crc << 8) ^ byte;
+        if (data.is_compressed) {
+            for (uint8_t byte : data.timestamps_compressed) {
+                crc = (crc << 8) ^ byte;
+            }
+            for (uint8_t byte : data.values_compressed) {
+                crc = (crc << 8) ^ byte;
+            }
+        } else {
+            // Hash uncompressed data
+            for (int64_t ts : data.timestamps_uncompressed) {
+                crc = (crc << 8) ^ static_cast<uint8_t>(ts & 0xFF);
+            }
+            for (double val : data.values_uncompressed) {
+                uint64_t val_bits;
+                std::memcpy(&val_bits, &val, sizeof(double));
+                crc = (crc << 8) ^ static_cast<uint8_t>(val_bits & 0xFF);
+            }
         }
     }
     return crc;
+}
+
+void BlockImpl::append(const core::Labels& labels, const core::Sample& sample) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    // Find or create series data
+    auto& series_data = series_[labels];
+    
+    // Buffer samples uncompressed for better compression when sealed
+    series_data.timestamps_uncompressed.push_back(sample.timestamp());
+    series_data.values_uncompressed.push_back(sample.value());
+    series_data.is_compressed = false;
+    
+    // Update time range
+    update_time_range(sample.timestamp());
+    dirty_ = true;
+}
+
+void BlockImpl::seal() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    // Compress all buffered data
+    for (auto& [labels, data] : series_) {
+        if (!data.is_compressed && !data.timestamps_uncompressed.empty()) {
+            // Compress timestamps
+            data.timestamps_compressed = ts_compressor_->compress(data.timestamps_uncompressed);
+            
+            // Compress values
+            data.values_compressed = val_compressor_->compress(data.values_uncompressed);
+            
+            // Clear uncompressed buffers to save memory
+            data.timestamps_uncompressed.clear();
+            data.timestamps_uncompressed.shrink_to_fit();
+            data.values_uncompressed.clear();
+            data.values_uncompressed.shrink_to_fit();
+            
+            data.is_compressed = true;
+        }
+    }
+    
+    sealed_ = true;
+}
+
+std::vector<uint8_t> BlockImpl::serialize() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    std::vector<uint8_t> result;
+    
+    // Serialize header
+    const uint8_t* header_ptr = reinterpret_cast<const uint8_t*>(&header_);
+    result.insert(result.end(), header_ptr, header_ptr + sizeof(BlockHeader));
+    
+    // Serialize series data
+    for (const auto& [labels, data] : series_) {
+        // Serialize labels
+        auto labels_str = labels.to_string();
+        result.insert(result.end(), labels_str.begin(), labels_str.end());
+        
+        if (data.is_compressed) {
+            // Serialize compressed data
+            result.insert(result.end(), data.timestamps_compressed.begin(), data.timestamps_compressed.end());
+            result.insert(result.end(), data.values_compressed.begin(), data.values_compressed.end());
+        } else {
+            // Serialize uncompressed data (shouldn't happen for sealed blocks, but handle it)
+            for (int64_t ts : data.timestamps_uncompressed) {
+                result.insert(result.end(), 
+                            reinterpret_cast<const uint8_t*>(&ts),
+                            reinterpret_cast<const uint8_t*>(&ts) + sizeof(ts));
+            }
+            for (double val : data.values_uncompressed) {
+                result.insert(result.end(), 
+                            reinterpret_cast<const uint8_t*>(&val),
+                            reinterpret_cast<const uint8_t*>(&val) + sizeof(val));
+            }
+        }
+    }
+    
+    return result;
+}
+
+void BlockImpl::update_time_range(int64_t timestamp) {
+    // Note: This method assumes the caller already holds the mutex lock
+    // (e.g., called from append() which already has the lock)
+    // Do NOT lock here to avoid deadlock
+    
+    if (header_.start_time == 0 || timestamp < header_.start_time) {
+        header_.start_time = timestamp;
+    }
+    if (timestamp > header_.end_time) {
+        header_.end_time = timestamp;
+    }
 }
 
 } // namespace internal

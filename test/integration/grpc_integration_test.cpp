@@ -296,13 +296,18 @@ TEST_F(GRPCServiceIntegrationTest, MetricRateLimiting) {
     
     const int max_metrics_per_second = 100;
     const int test_duration_ms = 1000; // 1 second
+    const int max_iterations = max_metrics_per_second * (test_duration_ms / 1000) * 2; // 2x safety margin
     
     auto start_time = std::chrono::steady_clock::now();
+    auto end_time = start_time + std::chrono::milliseconds(test_duration_ms);
     int metrics_processed = 0;
+    int iterations = 0;
     
+    // CATEGORY 2 FIX: Add maximum iteration limit to prevent infinite loops
     // Try to process metrics at a high rate
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-           std::chrono::steady_clock::now() - start_time).count() < test_duration_ms) {
+    while (iterations < max_iterations && 
+           std::chrono::steady_clock::now() < end_time) {
+        iterations++;
         
         core::Labels labels;
         labels.add("__name__", "rate_limited_metric");
@@ -331,13 +336,19 @@ TEST_F(GRPCServiceIntegrationTest, ServiceStabilityUnderLoad) {
     
     const int load_test_duration_ms = 2000; // 2 seconds
     const int target_metrics_per_second = 50;
+    const int max_iterations = target_metrics_per_second * (load_test_duration_ms / 1000) * 2; // 2x safety margin
     
     auto start_time = std::chrono::steady_clock::now();
+    auto end_time = start_time + std::chrono::milliseconds(load_test_duration_ms);
     std::vector<core::TimeSeries> processed_metrics;
     
+    // CATEGORY 2 FIX: Add maximum iteration limit to prevent infinite loops
+    int iterations = 0;
+    
     // Generate load for the specified duration
-    while (std::chrono::duration_cast<std::chrono::milliseconds>(
-           std::chrono::steady_clock::now() - start_time).count() < load_test_duration_ms) {
+    while (iterations < max_iterations && 
+           std::chrono::steady_clock::now() < end_time) {
+        iterations++;
         
         // Create metric with random data
         std::random_device rd;
@@ -361,8 +372,8 @@ TEST_F(GRPCServiceIntegrationTest, ServiceStabilityUnderLoad) {
     }
     
     // Verify service remained stable
-    auto end_time = std::chrono::steady_clock::now();
-    auto test_duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
+    auto actual_end_time = std::chrono::steady_clock::now();
+    auto test_duration = std::chrono::duration_cast<std::chrono::milliseconds>(actual_end_time - start_time);
     
     EXPECT_GE(processed_metrics.size(), 0);
     EXPECT_LE(test_duration.count(), load_test_duration_ms + 1000); // Allow some overhead

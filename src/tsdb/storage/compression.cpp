@@ -105,7 +105,12 @@ std::vector<int64_t> SimpleTimestampCompressor::decompress(const std::vector<uin
         result.push_back(timestamp);
         pos += sizeof(int64_t);
         
-        // Decompress remaining timestamps
+        // If count is 1, we're done (no deltas for single timestamp)
+        if (count == 1) {
+            return result;
+        }
+        
+        // Decompress remaining timestamps (only if count > 1)
         while (pos < data.size() && result.size() < count) {
             if (pos >= data.size()) break;
             
@@ -122,14 +127,26 @@ std::vector<int64_t> SimpleTimestampCompressor::decompress(const std::vector<uin
                     break;
                 case 0x02: // 2 byte delta
                     if (pos + 1 >= data.size()) break;
-                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    // Read little-endian 16-bit value byte-by-byte to avoid alignment issues
+                    delta = static_cast<int16_t>(static_cast<uint16_t>(data[pos]) | 
+                                                 (static_cast<uint16_t>(data[pos + 1]) << 8));
                     pos += 2;
                     break;
-                case 0x03: // 8 byte delta
+                case 0x03: { // 8 byte delta
                     if (pos + sizeof(int64_t) > data.size()) break;
-                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    // Read little-endian 64-bit value byte-by-byte to avoid alignment issues
+                    uint64_t delta_u64 = static_cast<uint64_t>(data[pos]) |
+                                        (static_cast<uint64_t>(data[pos + 1]) << 8) |
+                                        (static_cast<uint64_t>(data[pos + 2]) << 16) |
+                                        (static_cast<uint64_t>(data[pos + 3]) << 24) |
+                                        (static_cast<uint64_t>(data[pos + 4]) << 32) |
+                                        (static_cast<uint64_t>(data[pos + 5]) << 40) |
+                                        (static_cast<uint64_t>(data[pos + 6]) << 48) |
+                                        (static_cast<uint64_t>(data[pos + 7]) << 56);
+                    std::memcpy(&delta, &delta_u64, sizeof(delta));
                     pos += sizeof(delta);
                     break;
+                }
                 default:
                     break;
             }
@@ -175,34 +192,33 @@ std::vector<uint8_t> SimpleValueCompressor::compress(const std::vector<double>& 
         uint64_t xor_value = current_value ^ prev_value;
         
         // Encode XOR value using variable-length encoding
+        // Note: We encode the full XOR value without removing trailing zeros
+        // to avoid needing to store/restore the trailing zero count
         if (xor_value == 0) {
             result.push_back(0x00); // 1 byte for zero XOR
+        } else if ((xor_value & 0xFF) == xor_value) {
+            // Value fits in 1 byte
+            result.push_back(0x01); // 1 byte flag
+            result.push_back(static_cast<uint8_t>(xor_value));
+        } else if ((xor_value & 0xFFFF) == xor_value) {
+            // Value fits in 2 bytes
+            result.push_back(0x02); // 2 byte flag
+            uint16_t encoded = static_cast<uint16_t>(xor_value);
+            result.push_back(static_cast<uint8_t>(encoded & 0xFF));
+            result.push_back(static_cast<uint8_t>((encoded >> 8) & 0xFF));
+        } else if ((xor_value & 0xFFFFFFFF) == xor_value) {
+            // Value fits in 4 bytes
+            result.push_back(0x03); // 4 byte flag
+            uint32_t encoded = static_cast<uint32_t>(xor_value);
+            result.insert(result.end(),
+                        reinterpret_cast<uint8_t*>(&encoded),
+                        reinterpret_cast<uint8_t*>(&encoded) + sizeof(encoded));
         } else {
-            // Count leading zeros
-            int leading_zeros = count_leading_zeros(xor_value);
-            int trailing_zeros = count_trailing_zeros(xor_value);
-            int significant_bits = 64 - leading_zeros - trailing_zeros;
-            
-            if (significant_bits <= 8) {
-                result.push_back(0x01); // 1 byte flag
-                result.push_back(static_cast<uint8_t>(xor_value >> trailing_zeros));
-            } else if (significant_bits <= 16) {
-                result.push_back(0x02); // 2 byte flag
-                uint16_t encoded = static_cast<uint16_t>(xor_value >> trailing_zeros);
-                result.push_back(static_cast<uint8_t>(encoded & 0xFF));
-                result.push_back(static_cast<uint8_t>((encoded >> 8) & 0xFF));
-            } else if (significant_bits <= 32) {
-                result.push_back(0x03); // 4 byte flag
-                uint32_t encoded = static_cast<uint32_t>(xor_value >> trailing_zeros);
-                result.insert(result.end(),
-                            reinterpret_cast<uint8_t*>(&encoded),
-                            reinterpret_cast<uint8_t*>(&encoded) + sizeof(encoded));
-            } else {
-                result.push_back(0x04); // 8 byte flag
-                result.insert(result.end(),
-                            reinterpret_cast<uint8_t*>(&xor_value),
-                            reinterpret_cast<uint8_t*>(&xor_value) + sizeof(xor_value));
-            }
+            // Value needs 8 bytes
+            result.push_back(0x04); // 8 byte flag
+            result.insert(result.end(),
+                        reinterpret_cast<uint8_t*>(&xor_value),
+                        reinterpret_cast<uint8_t*>(&xor_value) + sizeof(xor_value));
         }
         
         prev_value = current_value;
@@ -236,41 +252,81 @@ std::vector<double> SimpleValueCompressor::decompress(const std::vector<uint8_t>
         result.push_back(value);
         pos += sizeof(double);
         
+        // If count is 1, we're done (no XOR encoding for single value)
+        if (count == 1) {
+            return result;
+        }
+        
         uint64_t prev_value = 0;
         std::memcpy(&prev_value, &value, sizeof(double));
         
-        // Decompress remaining values
+        // Decompress remaining values (only if count > 1)
         while (pos < data.size() && result.size() < count) {
             if (pos >= data.size()) break;
             
             uint8_t flag = data[pos++];
             
             uint64_t xor_value = 0;
+            bool valid = true;
+            
             switch (flag) {
                 case 0x00: // Zero XOR
                     xor_value = 0;
                     break;
                 case 0x01: // 1 byte XOR
-                    if (pos >= data.size()) break;
+                    if (pos >= data.size()) {
+                        valid = false;
+                        break;
+                    }
                     xor_value = static_cast<uint8_t>(data[pos++]);
                     break;
                 case 0x02: // 2 byte XOR
-                    if (pos + 1 >= data.size()) break;
-                    xor_value = static_cast<uint16_t>(data[pos] | (data[pos + 1] << 8));
+                    if (pos + 1 >= data.size()) {
+                        valid = false;
+                        break;
+                    }
+                    // Read little-endian 16-bit value byte-by-byte to avoid alignment issues
+                    xor_value = static_cast<uint16_t>(data[pos]) | 
+                               (static_cast<uint16_t>(data[pos + 1]) << 8);
                     pos += 2;
                     break;
                 case 0x03: // 4 byte XOR
-                    if (pos + sizeof(uint32_t) > data.size()) break;
-                    std::memcpy(&xor_value, &data[pos], sizeof(uint32_t));
+                    if (pos + sizeof(uint32_t) > data.size()) {
+                        valid = false;
+                        break;
+                    }
+                    // Read little-endian 32-bit value byte-by-byte to avoid alignment issues
+                    xor_value = static_cast<uint32_t>(data[pos]) |
+                               (static_cast<uint32_t>(data[pos + 1]) << 8) |
+                               (static_cast<uint32_t>(data[pos + 2]) << 16) |
+                               (static_cast<uint32_t>(data[pos + 3]) << 24);
                     pos += sizeof(uint32_t);
                     break;
                 case 0x04: // 8 byte XOR
-                    if (pos + sizeof(uint64_t) > data.size()) break;
-                    std::memcpy(&xor_value, &data[pos], sizeof(uint64_t));
+                    if (pos + sizeof(uint64_t) > data.size()) {
+                        valid = false;
+                        break;
+                    }
+                    // Read little-endian 64-bit value byte-by-byte to avoid alignment issues
+                    xor_value = static_cast<uint64_t>(data[pos]) |
+                               (static_cast<uint64_t>(data[pos + 1]) << 8) |
+                               (static_cast<uint64_t>(data[pos + 2]) << 16) |
+                               (static_cast<uint64_t>(data[pos + 3]) << 24) |
+                               (static_cast<uint64_t>(data[pos + 4]) << 32) |
+                               (static_cast<uint64_t>(data[pos + 5]) << 40) |
+                               (static_cast<uint64_t>(data[pos + 6]) << 48) |
+                               (static_cast<uint64_t>(data[pos + 7]) << 56);
                     pos += sizeof(uint64_t);
                     break;
                 default:
+                    // Unknown flag - stop decompression
+                    valid = false;
                     break;
+            }
+            
+            if (!valid) {
+                // Invalid data - stop decompression
+                break;
             }
             
             uint64_t current_value = prev_value ^ xor_value;
@@ -449,16 +505,28 @@ core::Result<std::vector<uint8_t>> GorillaCompressor::decompress(const std::vect
                     if (pos + 1 >= data.size()) {
                         return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
                     }
-                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    // Read little-endian 16-bit value byte-by-byte to avoid alignment issues
+                    delta = static_cast<int16_t>(static_cast<uint16_t>(data[pos]) | 
+                                                 (static_cast<uint16_t>(data[pos + 1]) << 8));
                     pos += 2;
                     break;
-                case 0x03: // 8 byte delta
+                case 0x03: { // 8 byte delta
                     if (pos + sizeof(int64_t) > data.size()) {
                         return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
                     }
-                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    // Read little-endian 64-bit value byte-by-byte to avoid alignment issues
+                    uint64_t delta_u64 = static_cast<uint64_t>(data[pos]) |
+                                        (static_cast<uint64_t>(data[pos + 1]) << 8) |
+                                        (static_cast<uint64_t>(data[pos + 2]) << 16) |
+                                        (static_cast<uint64_t>(data[pos + 3]) << 24) |
+                                        (static_cast<uint64_t>(data[pos + 4]) << 32) |
+                                        (static_cast<uint64_t>(data[pos + 5]) << 40) |
+                                        (static_cast<uint64_t>(data[pos + 6]) << 48) |
+                                        (static_cast<uint64_t>(data[pos + 7]) << 56);
+                    std::memcpy(&delta, &delta_u64, sizeof(delta));
                     pos += sizeof(delta);
                     break;
+                }
                 default:
                     return core::Result<std::vector<uint8_t>>::error("Invalid compression flag");
             }
@@ -743,16 +811,28 @@ core::Result<std::vector<uint8_t>> XORCompressor::decompress(const std::vector<u
                     if (pos + 1 >= data.size()) {
                         return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
                     }
-                    delta = static_cast<int16_t>(data[pos] | (data[pos + 1] << 8));
+                    // Read little-endian 16-bit value byte-by-byte to avoid alignment issues
+                    delta = static_cast<int16_t>(static_cast<uint16_t>(data[pos]) | 
+                                                 (static_cast<uint16_t>(data[pos + 1]) << 8));
                     pos += 2;
                     break;
-                case 0x03: // 8 byte delta
+                case 0x03: { // 8 byte delta
                     if (pos + sizeof(int64_t) > data.size()) {
                         return core::Result<std::vector<uint8_t>>::error("Invalid compressed data: truncated");
                     }
-                    std::memcpy(&delta, &data[pos], sizeof(delta));
+                    // Read little-endian 64-bit value byte-by-byte to avoid alignment issues
+                    uint64_t delta_u64 = static_cast<uint64_t>(data[pos]) |
+                                        (static_cast<uint64_t>(data[pos + 1]) << 8) |
+                                        (static_cast<uint64_t>(data[pos + 2]) << 16) |
+                                        (static_cast<uint64_t>(data[pos + 3]) << 24) |
+                                        (static_cast<uint64_t>(data[pos + 4]) << 32) |
+                                        (static_cast<uint64_t>(data[pos + 5]) << 40) |
+                                        (static_cast<uint64_t>(data[pos + 6]) << 48) |
+                                        (static_cast<uint64_t>(data[pos + 7]) << 56);
+                    std::memcpy(&delta, &delta_u64, sizeof(delta));
                     pos += sizeof(delta);
                     break;
+                }
                 default:
                     return core::Result<std::vector<uint8_t>>::error("Invalid compression flag");
             }

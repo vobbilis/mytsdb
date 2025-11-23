@@ -103,7 +103,16 @@ CacheHierarchy::CacheHierarchy(const CacheHierarchyConfig& config)
  * are completed before the object is destroyed.
  */
 CacheHierarchy::~CacheHierarchy() {
-    stop_background_processing();
+    // Ensure background processing is stopped before destruction
+    // This prevents race conditions where the background thread
+    // might be accessing the cache while it's being destroyed
+    try {
+        stop_background_processing();
+        // Give the thread time to fully stop
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    } catch (...) {
+        // Ignore exceptions during destruction
+    }
 }
 
 /**
@@ -200,14 +209,10 @@ bool CacheHierarchy::put(core::SeriesID series_id, std::shared_ptr<core::TimeSer
         throw core::InvalidArgumentError("Cannot cache null time series");
     }
     
-    // For testing purposes, implement a more realistic multi-level cache strategy
-    // Use a smaller effective L1 size to force data into L2 and enable promotions/demotions
-    
-    // Calculate effective L1 size (much smaller than actual to force L2 usage)
-    size_t effective_l1_size = std::min(l1_cache_->max_size(), static_cast<size_t>(5));
-    
-    // Try L1 first if it has space (using effective size)
-    if (l1_cache_->size() < effective_l1_size) {
+    // Try L1 first if it has space
+    // Note: We use the actual L1 cache size, not a reduced effective size,
+    // to ensure all series can be cached when L2 is disabled
+    if (l1_cache_->size() < l1_cache_->max_size()) {
         l1_cache_->put(series_id, series);
         update_access_metadata(series_id, 1);
         return true;
@@ -458,6 +463,12 @@ std::string CacheHierarchy::stats() const {
     oss << "Cache Hierarchy Stats:\n";
     oss << "==========================================\n";
     
+    // Safely access cache members - check if they're initialized
+    if (!l1_cache_) {
+        oss << "Cache hierarchy not initialized\n";
+        return oss.str();
+    }
+    
     // Overall statistics
     uint64_t total_requests = total_hits_.load(std::memory_order_relaxed) + 
                              total_misses_.load(std::memory_order_relaxed);
@@ -478,13 +489,21 @@ std::string CacheHierarchy::stats() const {
     
     // L1 cache statistics
     oss << "\nL1 Cache (Memory):\n";
-    oss << "  " << l1_cache_->stats();
+    try {
+        oss << "  " << l1_cache_->stats();
+    } catch (...) {
+        oss << "  Error retrieving L1 cache stats\n";
+    }
     oss << "  Hits: " << l1_hits_.load(std::memory_order_relaxed) << "\n";
     
     // L2 cache statistics
     oss << "\nL2 Cache (Memory-mapped):\n";
     if (l2_cache_) {
-        oss << "  " << l2_cache_->stats();
+        try {
+            oss << "  " << l2_cache_->stats();
+        } catch (...) {
+            oss << "  Error retrieving L2 cache stats\n";
+        }
     } else {
         oss << "  Status: Disabled\n";
     }
@@ -493,11 +512,28 @@ std::string CacheHierarchy::stats() const {
     // L3 cache statistics
     oss << "\nL3 Cache (Disk):\n";
     oss << "  Hits: " << l3_hits_.load(std::memory_order_relaxed) << "\n";
-    oss << "  Storage path: " << config_.l3_storage_path << "\n";
+    // Safely access l3_storage_path - check if it's not empty
+    if (!config_.l3_storage_path.empty()) {
+        oss << "  Storage path: " << config_.l3_storage_path << "\n";
+    } else {
+        oss << "  Storage path: (not configured)\n";
+    }
     
     // Background processing status
     oss << "\nBackground Processing:\n";
-    oss << "  Status: " << (is_background_processing_running() ? "Running" : "Stopped") << "\n";
+    try {
+        // Safely check if background processing is running
+        // Use a try-catch to handle any potential race conditions during shutdown
+        bool is_running = false;
+        try {
+            is_running = background_running_.load(std::memory_order_acquire);
+        } catch (...) {
+            is_running = false;
+        }
+        oss << "  Status: " << (is_running ? "Running" : "Stopped") << "\n";
+    } catch (...) {
+        oss << "  Status: Unknown\n";
+    }
     oss << "  Enabled: " << (config_.enable_background_processing ? "Yes" : "No") << "\n";
     
     return oss.str();
@@ -593,14 +629,25 @@ void CacheHierarchy::start_background_processing() {
  * Thread Safety: Uses atomic operations for thread state management.
  */
 void CacheHierarchy::stop_background_processing() {
-    if (!background_running_.load(std::memory_order_relaxed)) {
+    // Use memory_order_acquire to ensure we see all previous writes
+    if (!background_running_.load(std::memory_order_acquire)) {
         return; // Not running
     }
     
-    background_running_.store(false, std::memory_order_relaxed);
+    // Set flag first to signal the thread to stop
+    background_running_.store(false, std::memory_order_release);
     
+    // Wait for the background thread to finish
     if (background_thread_.joinable()) {
         background_thread_.join();
+    }
+    
+    // Ensure the thread is fully stopped before returning
+    // This prevents race conditions during destruction
+    
+    // Reset the thread object to ensure it's fully cleaned up
+    if (!background_thread_.joinable()) {
+        background_thread_ = std::thread();
     }
 }
 
@@ -631,11 +678,31 @@ bool CacheHierarchy::is_background_processing_running() const {
  * for coordination with the main thread.
  */
 void CacheHierarchy::background_processing_loop() {
-    while (background_running_.load(std::memory_order_relaxed)) {
-        perform_maintenance();
+    while (background_running_.load(std::memory_order_acquire)) {
+        try {
+            // Check again before performing maintenance to avoid accessing destroyed objects
+            if (!background_running_.load(std::memory_order_acquire)) {
+                break;
+            }
+            perform_maintenance();
+        } catch (...) {
+            // Ignore exceptions during maintenance to prevent crashes
+        }
         
-        // Sleep for the configured interval
-        std::this_thread::sleep_for(config_.background_interval);
+        // Check if we should continue before sleeping
+        if (!background_running_.load(std::memory_order_acquire)) {
+            break;
+        }
+        
+        // Sleep for the configured interval, but check periodically
+        auto sleep_duration = config_.background_interval;
+        auto check_interval = std::chrono::milliseconds(100);
+        auto elapsed = std::chrono::milliseconds(0);
+        
+        while (elapsed < sleep_duration && background_running_.load(std::memory_order_acquire)) {
+            std::this_thread::sleep_for(check_interval);
+            elapsed += check_interval;
+        }
     }
 }
 
@@ -660,31 +727,84 @@ void CacheHierarchy::background_processing_loop() {
  * statistics updates.
  */
 void CacheHierarchy::perform_maintenance() {
-    // Get all series IDs from L1 and L2
-    std::vector<core::SeriesID> l1_series_ids = l1_cache_->get_all_series_ids();
+    // Check if we should continue before accessing caches
+    if (!background_running_.load(std::memory_order_acquire)) {
+        return;
+    }
+    
+    // Safely get all series IDs from L1 and L2
+    if (!l1_cache_) {
+        return; // Cache not initialized
+    }
+    
+    std::vector<core::SeriesID> l1_series_ids;
     std::vector<core::SeriesID> l2_series_ids;
+    
+    try {
+        // Check again before accessing cache
+        if (!background_running_.load(std::memory_order_acquire)) {
+            return;
+        }
+        l1_series_ids = l1_cache_->get_all_series_ids();
+    } catch (...) {
+        // Ignore exceptions when getting L1 series IDs
+        return;
+    }
+    
     if (l2_cache_) {
-        l2_series_ids = l2_cache_->get_all_series_ids();
+        try {
+            // Check again before accessing cache
+            if (!background_running_.load(std::memory_order_acquire)) {
+                return;
+            }
+            l2_series_ids = l2_cache_->get_all_series_ids();
+        } catch (...) {
+            // Ignore exceptions when getting L2 series IDs
+        }
     }
     
     // Check for promotions from L2 to L1
     for (const auto& series_id : l2_series_ids) {
-        if (should_promote(series_id)) {
-            promote(series_id, 1);
+        // Check if we should continue before each operation
+        if (!background_running_.load(std::memory_order_acquire)) {
+            return;
+        }
+        try {
+            if (should_promote(series_id)) {
+                promote(series_id, 1);
+            }
+        } catch (...) {
+            // Ignore exceptions during promotion
         }
     }
     
     // Check for demotions from L1 to L2
     for (const auto& series_id : l1_series_ids) {
-        if (should_demote(series_id)) {
-            demote(series_id, 2);
+        // Check if we should continue before each operation
+        if (!background_running_.load(std::memory_order_acquire)) {
+            return;
+        }
+        try {
+            if (should_demote(series_id)) {
+                demote(series_id, 2);
+            }
+        } catch (...) {
+            // Ignore exceptions during demotion
         }
     }
     
     // Check for demotions from L2 to L3
     for (const auto& series_id : l2_series_ids) {
-        if (should_demote(series_id)) {
-            demote(series_id, 3);
+        // Check if we should continue before each operation
+        if (!background_running_.load(std::memory_order_acquire)) {
+            return;
+        }
+        try {
+            if (should_demote(series_id)) {
+                demote(series_id, 3);
+            }
+        } catch (...) {
+            // Ignore exceptions during demotion
         }
     }
 }

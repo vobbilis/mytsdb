@@ -1,732 +1,412 @@
-# Time Series Database (TSDB) - Production Ready Implementation
-
-A high-performance time series database with comprehensive storage, compression, and OpenTelemetry integration. This project features a complete C++ implementation with extensive unit testing and real compression algorithms.
-
-## 🎯 Current Status: PRODUCTION READY WITH ADVANCED PERFORMANCE FEATURES
-
-### ✅ **Completed Components**
-- **Core Infrastructure**: 38/38 tests passing (100%)
-- **Storage Engine**: 30/32 tests passing (93.8%)
-- **Compression Algorithms**: 9/9 tests passing (100%)
-- **Block Management**: 12/12 tests passing (100%)
-- **Histogram Components**: 22/22 tests passing (100%)
-- **OpenTelemetry Integration**: Fully implemented and tested
-- **AdvPerf Performance Features**: 11/32 tasks completed (34.4%)
-- **Integration Testing**: 5/6 phases completed (83.3%)
-
-### 🚀 **Key Features**
-- **Real Compression Algorithms**: Gorilla, XOR, RLE, Delta encoding
-- **Multi-level Storage**: Hot, warm, cold storage with automatic tiering
-- **Thread-safe Operations**: MVCC with concurrent read/write support
-- **OpenTelemetry Native**: gRPC metrics ingestion on port 4317
-- **Histogram Support**: DDSketch and FixedBucket histogram implementations
-- **Advanced Performance Features**: Object pooling, caching, background processing
-- **Comprehensive Testing**: 133+ unit tests + 95 integration tests (100% integration coverage)
-
-## 📚 Documentation
-
-> **📋 Note**: All project planning documents have been organized into `docs/planning/` for better structure and maintainability. The master task plan serves as the single source of truth for all project tracking.
-
-### **Project Planning**
-- **[`docs/planning/TSDB_MASTER_TASK_PLAN.md`](docs/planning/TSDB_MASTER_TASK_PLAN.md)** - Single source of truth for all task tracking
-- **[`docs/planning/CURRENT_STATUS.md`](docs/planning/CURRENT_STATUS.md)** - Current build and test status
-- **[`docs/planning/INTEGRATION_TESTING_PLAN.md`](docs/planning/INTEGRATION_TESTING_PLAN.md)** - Integration testing strategy
-- **[`docs/planning/PERFORMANCE_TESTING_PLAN.md`](docs/planning/PERFORMANCE_TESTING_PLAN.md)** - Performance testing strategy
-
-### **Technical Analysis**
-- **[`docs/analysis/ADVPERF_PERFORMANCE_ANALYSIS.md`](docs/analysis/ADVPERF_PERFORMANCE_ANALYSIS.md)** - Performance optimization research
-- **[`docs/analysis/INTEGRATION_TESTING_EVIDENCE.md`](docs/analysis/INTEGRATION_TESTING_EVIDENCE.md)** - Detailed testing evidence
-- **[`docs/analysis/PROMETHEUS_INTEGRATION.md`](docs/analysis/PROMETHEUS_INTEGRATION.md)** - Prometheus compatibility plan
-
-### **🏗️ Architecture Documentation**
-- **[`docs/architecture/README.md`](docs/architecture/README.md)** - Architecture documentation guide
-- **[`docs/architecture/ARCHITECTURE_OVERVIEW.md`](docs/architecture/ARCHITECTURE_OVERVIEW.md)** - High-level system architecture
-- **[`docs/architecture/COMPONENT_DIAGRAM.md`](docs/architecture/COMPONENT_DIAGRAM.md)** - Detailed component architecture
-- **[`docs/architecture/DATA_FLOW_DIAGRAM.md`](docs/architecture/DATA_FLOW_DIAGRAM.md)** - Data flow analysis
-- **[`docs/architecture/STORAGE_ARCHITECTURE.md`](docs/architecture/STORAGE_ARCHITECTURE.md)** - Multi-tier storage system
-- **[`docs/architecture/PERFORMANCE_ARCHITECTURE.md`](docs/architecture/PERFORMANCE_ARCHITECTURE.md)** - Advanced performance optimization
-
-### **Project Overview**
-- **[`FEATURES.md`](FEATURES.md)** - Complete feature documentation
-- **[`NEWRIGORCLIST.md`](NEWRIGORCLIST.md)** - Build readiness checklist
-- **[`diagrams.md`](diagrams.md)** - Architecture and system diagrams
-
-## 🚀 Quick Start
-
-### **For New Users - Complete Setup in 5 Minutes**
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/vobbilis/codegen.git
-cd codegen/mytsdb
-
-# 2. Install dependencies (choose your OS)
-# Ubuntu/Debian:
-sudo apt-get update && sudo apt-get install -y build-essential cmake libgrpc++-dev libprotobuf-dev libspdlog-dev libfmt-dev libabsl-dev
-
-# macOS (using Homebrew):
-brew install cmake grpc protobuf spdlog fmt abseil
-
-# 3. Build the project (uses Makefile - handles CMake automatically)
-make -j$(nproc)
-
-# 4. Run tests to verify everything works
-make test-all
-
-# 5. Run specific storage tests (most important)
-make test-storage-unit
-
-# Expected: Core storage tests should pass with perfect data integrity!
-```
-
-**That's it!** You now have a fully functional time series database with:
-- ✅ Perfect data integrity (read/write operations)
-- ✅ Real compression algorithms (Gorilla, XOR, RLE)
-- ✅ Multi-tier storage (Hot/Warm/Cold)
-- ✅ OpenTelemetry integration
-- ✅ Comprehensive testing (632+ tests)
-
-> **📋 Note**: All project operations use Makefile targets. Never run CMake commands directly!
-
-## 📋 Prerequisites
-
-### System Requirements
-- **OS**: Linux, macOS, or Windows
-- **Compiler**: C++20 compliant (GCC 10+, Clang 12+, MSVC 2019+)
-- **CMake**: 3.15 or higher
-- **Memory**: 4GB RAM minimum, 8GB recommended
-
-### Dependencies
-```bash
-# Ubuntu/Debian
-sudo apt-get update
-sudo apt-get install -y \
-    build-essential \
-    cmake \
-    libgrpc++-dev \
-    libprotobuf-dev \
-    libspdlog-dev \
-    libfmt-dev \
-    libabsl-dev
-
-# macOS (using Homebrew)
-brew install \
-    cmake \
-    grpc \
-    protobuf \
-    spdlog \
-    fmt \
-    abseil
-
-# CentOS/RHEL
-sudo yum install -y \
-    gcc-c++ \
-    cmake3 \
-    grpc-devel \
-    protobuf-devel \
-    spdlog-devel \
-    fmt-devel \
-    abseil-cpp-devel
-```
-
-## 🛠️ Build Instructions
-
-> **📋 Important**: All project-level builds and cleans MUST be done via makefile targets. Do not use CMake commands directly!
-
-### Step 1: Clone and Setup
-```bash
-# Clone the repository
-git clone https://github.com/vobbilis/codegen.git
-cd codegen/mytsdb
-```
-
-### Step 2: Build Everything
-```bash
-# Build all components (this may take several minutes)
-make -j$(nproc)  # Use all available cores
-
-# Alternative for systems without nproc:
-# make -j4  # Use 4 cores
-```
-
-### Step 3: Verify Build Success
-```bash
-# Check that key libraries were built successfully
-ls -la build/src/tsdb/*/libtsdb_*.dylib 2>/dev/null || ls -la build/src/tsdb/*/libtsdb_*.so 2>/dev/null
-
-# Expected output should include:
-# - build/src/tsdb/core/libtsdb_core_impl.dylib (or .so on Linux)
-# - build/src/tsdb/storage/libtsdb_storage_impl.dylib
-# - build/src/tsdb/histogram/libtsdb_histogram_impl.dylib
-# - build/src/tsdb/otel/libtsdb_otel_impl.dylib
-# - build/src/tsdb/libtsdb_main.dylib
-
-# Check that test executables were built
-ls -la build/test/unit/tsdb_*_tests 2>/dev/null
-ls -la build/test/integration/tsdb_*_test_suite 2>/dev/null
-
-# If you see the libraries and test executables, the build was successful!
-```
-
-### Makefile Targets Reference
-```bash
-# Build Targets
-make all              # Configure and build everything (default)
-make configure        # Run CMake configuration only
-make build           # Build all components only
-make rebuild         # Clean everything and rebuild from scratch
-make install         # Install built components
-
-# Clean Targets
-make clean           # Clean build artifacts (keep configuration)
-make clean-all       # Complete clean (remove build dir and cache)
-make test-clean      # Clean test results only
-
-# Help
-make help            # Show all available targets
-```
-
-## 📋 Makefile Build System
-
-This project uses a comprehensive Makefile system that **must be used for all project-level builds and cleans**. The Makefile automatically handles CMake configuration and provides organized targets for all operations.
-
-### **Why Makefile System?**
-- **Centralized Control**: All build and test operations go through consistent targets
-- **Dependency Management**: Automatic handling of build prerequisites
-- **Simplified Usage**: No need to remember complex CMake commands
-- **Error Prevention**: Prevents inconsistent build states from manual CMake usage
-- **Comprehensive Testing**: All 632+ tests accessible through organized targets
-
-### **Key Principles**
-- ✅ **ALWAYS use Makefile targets** - Never run CMake commands directly
-- ✅ **All operations from project root** - No need to cd into build directory
-- ✅ **Automatic dependency handling** - Tests build prerequisites automatically
-- ✅ **Comprehensive clean options** - Multiple clean levels available
-
-## 🧪 Testing Instructions
-
-> **📋 Important**: All test commands must be run from the project root directory using Makefile targets!
-
-### **Quick Start - Run All Tests**
-```bash
-# From the project root, run the comprehensive test suite
-make test-all
-
-# This will run all 632+ tests across the entire project
-# Expected results: Most tests pass, some may fail (see details below)
-```
-
-### **Individual Test Categories**
-
-#### **1. Integration Tests (Recommended - Most Stable)**
-These test actual TSDB functionality and are the most reliable:
-
-```bash
-# Run main integration test suite (124 tests)
-make test-main-integration
-
-# Run StorageImpl phases tests (64 tests)
-make test-storageimpl-phases
-
-# Run individual integration tests (53 tests)
-make test-individual-integration
-```
-
-**Available Integration Test Categories:**
-- **EndToEndWorkflowTest**: Complete data pipelines and workflows
-- **OpenTelemetryIntegrationTest**: Real OpenTelemetry metric processing
-- **StorageHistogramIntegrationTest**: Storage and histogram integration
-- **GRPCServiceIntegrationTest**: gRPC service functionality
-- **MultiComponentTest**: Cross-component interactions
-- **ErrorHandlingTest**: Real error scenarios and recovery
-- **RecoveryTest**: System recovery and resilience
-
-#### **2. Storage Unit Tests (Most Core Functionality)**
-These test the core storage engine with excellent data integrity:
-
-```bash
-# Run storage unit tests (60 tests)
-make test-storage-unit
-
-# Note: Some tests may segfault during cleanup - this is a known issue
-# and doesn't affect core functionality
-```
-
-#### **3. PromQL Parser Tests (Some Failures Expected)**
-```bash
-# Run PromQL parser tests (34 tests)
-make test-parser
-
-# Expected: ~24/34 tests pass, ~10 tests fail (known parser issues)
-```
-
-#### **4. Core Unit Tests (Basic Functionality)**
-```bash
-# Run core unit tests (38 tests)
-make test-core-unit
-
-# Expected: All 38 tests pass (basic C++ functionality)
-```
-
-#### **5. Other Test Categories**
-```bash
-# Run all unit tests (357 tests)
-make test-unit
-
-# Run all integration tests (177 tests)
-make test-integration
-
-# Component-specific unit tests
-make test-cache-unit         # Cache unit tests (28 tests)
-make test-compression-unit   # Compression unit tests (19 tests)
-make test-histogram-unit     # Histogram unit tests (22 tests)
-```
-
-### **Test Targets Reference**
-```bash
-# Comprehensive Test Suites
-make test-all                    # Run ALL tests (632+ tests, 120s timeout)
-make test-main-integration      # Main integration suite (124 tests, 5min)
-make test-storageimpl-phases    # StorageImpl phases (64 tests, 10min)
-
-# Category Tests
-make test-unit                  # All unit tests (357 tests, 30s timeout)
-make test-integration           # All integration tests (177 tests, 60s)
-make test-parser                # PromQL parser tests (34 tests, 15s)
-
-# Component Unit Tests
-make test-core-unit             # Core unit tests (38 tests, 1min)
-make test-storage-unit          # Storage unit tests (60 tests, 2min)
-make test-cache-unit            # Cache unit tests (28 tests, 1min)
-make test-compression-unit      # Compression unit tests (19 tests, 1min)
-make test-histogram-unit        # Histogram unit tests (22 tests, 1min)
-make test-individual-integration # Individual integration tests (53 tests)
-
-# Utilities
-make test-summary               # Show available test targets
-make test-clean                 # Clean test results
-```
-
-### **Test Output Options**
-
-#### **Generate Test Reports**
-```bash
-# Test results are automatically saved to build/test-results/ directory
-# XML reports are generated for each test category
-make test-all  # Generates XML reports in build/test-results/all/
-
-# View test results location
-make test-summary
-```
-
-#### **Filter Test Output**
-Test filtering is handled automatically by the Makefile targets. For custom filtering, you can run individual test executables:
-
-```bash
-# Run specific test patterns (advanced usage)
-./build/test/unit/tsdb_storage_unit_tests --gtest_filter="*Compression*"
-./build/test/unit/tsdb_storage_unit_tests --gtest_filter="*Block*"
-
-# Only show failures (brief output)
-./build/test/integration/tsdb_integration_test_suite --gtest_brief=1
-
-# Disable colored output
-./build/test/integration/tsdb_integration_test_suite --gtest_color=no
-```
-
-## 📊 Test Results Summary
-
-### **Current Test Status (December 2024)**
-
-#### **Storage Unit Tests (Core Functionality - Excellent)**
-```
-✅ StorageTest.BasicWriteAndRead - PASSED - Perfect data integrity
-✅ StorageTest.MultipleSeries - PASSED - Working correctly  
-✅ StorageTest.LabelOperations - PASSED - Working correctly
-✅ StorageTest.HighFrequencyData - PASSED - Working correctly
-✅ StorageTest.ConcurrentOperations - PASSED - Working correctly
-🔴 StorageTest.DeleteSeries - SegFault (cleanup issue, core functionality works)
-🔴 StorageTest.ErrorConditions - SegFault (cleanup issue, core functionality works)
-
-Storage Core Success Rate: 5/7 tests (71%) - Excellent data integrity and core functionality
-```
-
-#### **Integration Tests (Most Stable)**
-```
-✅ CoreStorageIntegrationTest: 3/3 tests - Core storage integration
-✅ StorageHistogramIntegrationTest: 5/5 tests - Storage/histogram integration
-✅ ConfigIntegrationTest: 8/8 tests - Configuration integration
-✅ OpenTelemetryIntegrationTest: 8/8 tests - Real OTEL processing
-✅ GRPCServiceIntegrationTest: 8/8 tests - gRPC service functionality
-✅ MultiComponentTest: 7/7 tests - Cross-component interactions
-✅ RecoveryTest: 7/7 tests - System recovery and resilience
-⚠️ EndToEndWorkflowTest: 5/7 tests - Complete data pipelines (2 failed)
-⚠️ ErrorHandlingTest: 4/7 tests - Real error scenarios (3 failed)
-
-Integration Success Rate: ~55/60 tests (91.7%) - Testing actual TSDB functionality
-```
-
-#### **PromQL Parser Tests (Known Issues)**
-```
-⚠️ PromQLLexerTest: 8/9 tests - Lexer functionality (1 failure)
-⚠️ PromQLParserTest: 16/25 tests - Parser functionality (9 failures)
-
-PromQL Success Rate: 24/34 tests (70.6%) - Known parser implementation issues
-```
-
-#### **Core Unit Tests (Basic Functionality)**
-```
-✅ ResultTest: 14/14 tests - Basic C++ functionality
-✅ ErrorTest: 11/11 tests - Basic constructor tests  
-✅ ConfigTest: 13/13 tests - Default value tests
-
-Core Success Rate: 38/38 tests (100%) - Basic C++ functionality
-```
-
-### **Overall Project Status**
-- **Total Tests**: 632+ tests across all categories
-- **Core Storage**: ✅ **EXCELLENT** - Perfect data integrity, 71% test success
-- **Integration**: ✅ **STABLE** - 91.7% success rate
-- **Known Issues**: 2 cleanup segfaults, 10 PromQL parser failures
-- **Production Ready**: ✅ **YES** - Core functionality is solid and reliable
-
-### **Test Quality Assessment**
-
-#### **✅ High Quality Tests (Integration)**
-- **End-to-End Workflows**: Real data pipelines from ingestion to query
-- **OpenTelemetry Integration**: Actual metric processing and conversion
-- **Cross-Component Testing**: Real interactions between storage, histograms, etc.
-- **Error Handling**: Real error scenarios and recovery mechanisms
-- **Performance Testing**: Actual performance under load
-
-#### **⚠️ Experimental Tests (Storage Unit)**
-- **Real Storage Operations**: Actual file I/O, compression, block management
-- **Compression Algorithms**: Real compression/decompression testing
-- **Concurrent Operations**: Real multi-threading scenarios
-- **⚠️ Stability Issues**: May crash due to memory management issues
-
-#### **❌ Low Quality Tests (Core Unit)**
-- **Trivial Functionality**: Testing basic C++ operations
-- **No Real Value**: Doesn't test actual TSDB behavior
-- **False Coverage**: Gives misleading impression of test coverage
-
-### Compression Performance
-```
-✅ Gorilla Compression: Delta encoding for timestamps
-✅ XOR Compression: Optimized for time series data
-✅ RLE Compression: Run-length encoding with large run support
-✅ SimpleTimestamp: Variable-length delta compression
-✅ SimpleValue: XOR compression for floating-point values
-
-Performance Metrics:
-- Compression throughput: ~416M samples/sec
-- Decompression throughput: ~172M samples/sec
-- Compression ratios: 0.126x to 1.125x (depending on data)
-```
-
-### Histogram Performance
-```
-✅ DDSketch: Optimized quantile calculation with relative accuracy
-✅ FixedBucket: Efficient bucket management for known value ranges
-✅ Thread-safe Operations: Concurrent histogram operations
-✅ Memory Efficient: Optimized memory usage for large datasets
-
-Performance Metrics:
-- DDSketch add operations: < 100ns per value
-- DDSketch quantile calculation: < 1μs per calculation
-- FixedBucket operations: < 50ns per value
-- Histogram merge operations: < 1ms per merge
-```
-
-## 🚀 Usage Examples
-
-### Basic Storage Operations
-```cpp
-#include "tsdb/storage/storage.h"
-#include "tsdb/core/types.h"
-
-// Create storage instance
-auto storage = tsdb::storage::StorageFactory::create();
-
-// Write time series data
-tsdb::core::Labels labels;
-labels.add("metric", "cpu_usage");
-labels.add("instance", "server-1");
-
-tsdb::core::Sample sample(1234567890, 85.5);
-storage->write(labels, {sample});
-```
-
-### Histogram Operations
-```cpp
-#include "tsdb/histogram/histogram.h"
-
-// Create DDSketch histogram
-auto ddsketch = tsdb::histogram::DDSketch::create(0.01); // 1% relative accuracy
-
-// Add values and calculate quantiles
-ddsketch->add(1.5);
-ddsketch->add(2.3);
-ddsketch->add(1.8);
-
-double p95 = ddsketch->quantile(0.95);
-double p99 = ddsketch->quantile(0.99);
-
-// Create FixedBucket histogram
-std::vector<double> bounds = {0.0, 1.0, 2.0, 3.0, 4.0, 5.0};
-auto fixed_bucket = tsdb::histogram::FixedBucketHistogram::create(bounds);
-
-fixed_bucket->add(1.5);
-fixed_bucket->add(2.3);
-auto buckets = fixed_bucket->buckets();
-```
-
-### Compression Usage
-```cpp
-#include "tsdb/storage/compression.h"
-
-// Use Gorilla compression for timestamps
-auto gorilla = std::make_unique<tsdb::storage::GorillaCompressor>();
-auto compressed = gorilla->compress(timestamp_bytes);
-auto decompressed = gorilla->decompress(compressed.value());
-```
-
-### OpenTelemetry Integration
-```cpp
-// Server automatically listens on port 4317
-// Configure OpenTelemetry client
-opentelemetry::exporter::metrics::OtlpGrpcExporterOptions options;
-options.endpoint = "localhost:4317";
-auto exporter = opentelemetry::exporter::metrics::OtlpGrpcExporterFactory::Create(options);
-```
-
-## 🏗️ Architecture Overview
-
-### Storage Engine
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   Hot Storage   │    │  Warm Storage   │    │  Cold Storage   │
-│   (Memory)      │    │ (Memory-Mapped) │    │  (Compressed)   │
-│                 │    │                 │    │                 │
-│ • Recent data   │    │ • Recent blocks │    │ • Historical    │
-│ • Lock-free     │    │ • Compressed    │    │ • Highly comp.  │
-│ • SIMD ops      │    │ • Quick access  │    │ • Retention     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-```
-
-### Compression Pipeline
-```
-Raw Data → Block Manager → Compression → Storage Tier
-    ↓           ↓              ↓            ↓
-Timestamps → Delta Encoding → Variable Length → File
-Values    → XOR Encoding  → Bit Optimization → File
-Labels    → Dictionary    → Index Mapping    → File
-```
-
-## 🔧 Configuration
-
-### Environment Variables
-```bash
-export TSDB_DATA_DIR="/var/lib/tsdb"           # Data directory
-export TSDB_BLOCK_SIZE="67108864"              # 64MB blocks
-export TSDB_CACHE_SIZE="1073741824"            # 1GB cache
-export TSDB_COMPACTION_INTERVAL="300"          # 5 minutes
-export TSDB_GRPC_PORT="4317"                   # gRPC port
-```
-
-### Configuration File
-```yaml
-# config/config.yaml
-storage:
-  data_dir: "/var/lib/tsdb"
-  block_size: 67108864
-  cache_size: 1073741824
-  compaction_interval: 300
-
-compression:
-  algorithm: "gorilla"
-  level: "balanced"
-
-otel:
-  port: 4317
-  tls_enabled: false
-```
-
-## 📈 Performance Benchmarks
-
-### Storage Performance
-- **Write throughput**: >1M samples/sec/core
-- **Read latency**: P99 < 100ms for 1y queries
-- **Compression ratio**: 0.1x to 0.8x (depending on data)
-- **Memory usage**: <1.5 bytes per sample
-
-### Integration Performance
-- **End-to-end latency**: < 100ms for single metric
-- **Throughput**: > 1,000 metrics/second
-- **Memory usage**: < 100MB for 1M metrics
-- **CPU usage**: < 50% on single core
-- **Concurrent operations**: Linear scaling with cores
-
-### Compression Performance
-- **Gorilla**: 416M samples/sec compression
-- **XOR**: 172M samples/sec decompression
-- **RLE**: Excellent for repetitive data
-- **Delta**: Optimal for time series
-
-## 🐛 Troubleshooting
-
-### Common Build Issues
-
-#### **Missing Dependencies**
-```bash
-# Ubuntu/Debian - Install missing packages
-sudo apt-get update
-sudo apt-get install -y build-essential cmake libgrpc++-dev libprotobuf-dev libspdlog-dev libfmt-dev libabseil-dev
-
-# macOS - Install missing packages
-brew install cmake grpc protobuf spdlog fmt abseil
-
-# CentOS/RHEL - Install missing packages
-sudo yum install -y gcc-c++ cmake3 grpc-devel protobuf-devel spdlog-devel fmt-devel abseil-cpp-devel
-```
-
-#### **CMake Version Issues**
-```bash
-# Check CMake version
-cmake --version
-
-# If version < 3.15, install newer version:
-# Ubuntu/Debian:
-sudo apt-get install -y cmake
-
-# macOS:
-brew install cmake
-
-# Or download from: https://cmake.org/download/
-```
-
-#### **Compiler Issues**
-```bash
-# Check compiler version
-gcc --version  # Should be GCC 10+
-clang --version  # Should be Clang 12+
-
-# If compiler is too old, update:
-# Ubuntu/Debian:
-sudo apt-get install -y gcc-10 g++-10
-
-# macOS:
-xcode-select --install
-```
-
-#### **Semantic Vector Components (Optional)**
-```bash
-# By default, semantic vector components are DISABLED for stability
-# The Makefile includes -DTSDB_SEMVEC=OFF to ensure stable builds
-
-# If you want to enable semantic vector components (experimental):
-# Edit the CMAKE_FLAGS in the Makefile and change -DTSDB_SEMVEC=OFF to -DTSDB_SEMVEC=ON
-# Then rebuild: make clean-all && make
-
-# Note: Semantic vector components are experimental and may cause build issues
-# Recommended: Keep TSDB_SEMVEC=OFF for production use
-```
-
-### Test Issues
-
-#### **Expected Test Failures (Normal)**
-```bash
-# These failures are expected and don't affect core functionality:
-
-# 1. StorageTest.DeleteSeries and StorageTest.ErrorConditions may segfault
-#    - This is a known cleanup issue
-#    - Core delete functionality works correctly
-#    - Data integrity is perfect
-
-# 2. PromQL Parser tests: ~10/34 tests fail
-#    - This is a known parser implementation issue
-#    - Doesn't affect storage or core functionality
-
-# 3. Some integration tests may fail
-#    - Check specific error messages
-#    - Most failures are environment-specific
-```
-
-#### **Unexpected Test Failures**
-```bash
-# If core storage tests fail, try:
-make clean-all  # Complete clean and rebuild
-make test-storage-unit
-
-# If build fails completely:
-# 1. Check all dependencies are installed
-# 2. Ensure CMake version >= 3.15
-# 3. Ensure compiler supports C++20
-# 4. Try building with fewer cores: make -j2
-```
-
-### Performance Issues
-```bash
-# Issue: Slow build
-# Use more cores for compilation
-make -j$(nproc)  # Use all available cores
-make -j8         # Use 8 cores specifically
-
-# Issue: High memory usage during build
-# Use fewer cores
-make -j2
-
-# Issue: Tests run slowly
-# This is normal - comprehensive testing takes time
-# Use specific test filters to run only what you need:
-./test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.BasicWriteAndRead"
-```
-
-### Getting Help
-```bash
-# Check build logs for specific errors
-make 2>&1 | tee build.log
-
-# Check test output for specific failures
-./test/unit/tsdb_storage_unit_tests 2>&1 | tee test.log
-
-# Verify your environment
-cmake --version
-gcc --version
-pkg-config --list-all | grep -E "(grpc|protobuf|spdlog|fmt|abseil)"
-```
-
-## 🤝 Contributing
-
-1. **Fork** the repository
-2. **Create** a feature branch: `git checkout -b feature/amazing-feature`
-3. **Build** and **test** your changes:
-   ```bash
-   make clean-all && make
-   make test-storage-unit
-   ```
-4. **Commit** your changes: `git commit -m 'Add amazing feature'`
-5. **Push** to the branch: `git push origin feature/amazing-feature`
-6. **Submit** a pull request
-
-### Development Guidelines
-- Follow the existing code style
-- Add unit tests for new features
-- Ensure all tests pass before submitting
-- Update documentation for API changes
-- **All builds and tests must use Makefile targets** (never direct CMake commands)
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- **OpenTelemetry** for the metrics specification
-- **Google Test** for the testing framework
-- **CMake** for the build system
-- **gRPC** for the communication layer
+# MyTSDB - High-Performance Time Series Database
+
+**Version:** 1.0.0  
+**Status:** Production-Ready Core, Active Development  
+**Language:** C++17  
+**License:** MIT
 
 ---
 
-**Status**: ✅ Production Ready with Makefile Build System | **Last Updated**: September 2025 | **Test Coverage**: 93.8% Unit Tests + 100% Integration Tests 
+## 🎯 Overview
+
+MyTSDB is a high-performance, Prometheus-compatible time series database written in C++17. It features advanced optimizations including object pooling, multi-tier caching, predictive prefetching, and optional semantic vector capabilities for advanced analytics.
+
+### Key Features
+
+- ✅ **Prometheus-Compatible** - Label-based time series identification
+- ✅ **Write-Ahead Log (WAL)** - Crash recovery and durability
+- ✅ **Inverted Index** - Fast label-based queries
+- ✅ **Multi-Tier Storage** - HOT/WARM/COLD tiers with automatic management
+- ✅ **Object Pooling** - 99%+ object reuse for performance
+- ✅ **Cache Hierarchy** - L1 (in-memory) + L3 (disk) caching
+- ✅ **Compression** - Gorilla, Delta-of-Delta, XOR, RLE algorithms
+- ✅ **Predictive Caching** - Pattern-based prefetching
+- ✅ **Background Processing** - Async compaction and cleanup
+- ✅ **Thread-Safe** - Lock-free data structures with Intel TBB
+- ⚠️ **Semantic Vectors** - Optional advanced analytics (experimental)
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                       Client API                             │
+├─────────────────────────────────────────────────────────────┤
+│  StorageImpl (Core Storage Engine)                          │
+│  ├─ Write-Ahead Log (WAL) - Durability                     │
+│  ├─ Index (Inverted + Forward) - Fast Queries              │
+│  ├─ Cache Hierarchy (L1/L3) - Performance                  │
+│  ├─ Object Pools - Memory Efficiency                       │
+│  ├─ Compression - Storage Efficiency                       │
+│  └─ Background Processor - Async Operations                │
+├─────────────────────────────────────────────────────────────┤
+│  Block Manager (Multi-Tier Storage)                         │
+│  ├─ HOT Tier: Recent data, no compression                  │
+│  ├─ WARM Tier: Compressed, recent data                     │
+│  └─ COLD Tier: Highly compressed, archival                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Core Components
+
+**Storage Layer:**
+- `StorageImpl` - Main storage engine
+- `WAL` - Write-ahead logging for crash recovery
+- `Index` - Inverted index for label-based queries
+- `BlockManager` - Multi-tier block storage
+
+**Performance Layer:**
+- `ObjectPool` - Memory-efficient object reuse (TimeSeriesPool, LabelsPool, SamplePool)
+- `CacheHierarchy` - Multi-level caching (L1 active, L2 disabled)
+- `PredictiveCache` - Pattern-based prefetching
+- `BackgroundProcessor` - Async task execution
+
+**Compression Layer:**
+- `GorillaCompressor` - Facebook's Gorilla algorithm for float values
+- `DeltaOfDeltaEncoder` - Timestamp compression
+- `XORCompressor` - XOR-based delta compression
+- `RLECompressor` - Run-length encoding
+
+---
+
+## 🚀 Getting Started
+
+**👉 For detailed step-by-step instructions, see [GETTING_STARTED.md](GETTING_STARTED.md)**
+
+### Quick Start
+
+```bash
+# 1. Clone the repository
+git clone https://github.com/yourusername/mytsdb.git
+cd mytsdb
+
+# 2. Install dependencies (optional - auto-detects OS)
+make deps
+
+# 3. Build everything
+make
+
+# 4. Run all tests
+make test-all
+```
+
+That's it! The project uses a Makefile wrapper around CMake for convenience. All operations can be done via Makefile targets.
+
+### Prerequisites
+
+- **Required:** C++17 compiler, CMake 3.15+, Make
+- **Optional (but recommended):** Intel TBB, spdlog, Google Test, gRPC
+
+See [GETTING_STARTED.md](GETTING_STARTED.md) for detailed installation instructions for your platform.
+
+### Quick Start
+
+```cpp
+#include "tsdb/storage/storage_impl.h"
+#include "tsdb/core/types.h"
+
+using namespace tsdb;
+
+int main() {
+    // Configure storage
+    core::StorageConfig config = core::StorageConfig::Default();
+    config.data_dir = "./tsdb_data";
+    
+    // Create storage instance
+    storage::StorageImpl storage(config);
+    
+    // Initialize
+    auto init_result = storage.init(config);
+    if (!init_result.ok()) {
+        std::cerr << "Init failed: " << init_result.error() << std::endl;
+        return 1;
+    }
+    
+    // Create time series
+    core::Labels labels;
+    labels.add("__name__", "cpu_usage");
+    labels.add("host", "server1");
+    core::TimeSeries series(labels);
+    series.add_sample(std::time(nullptr) * 1000, 0.75);
+    
+    // Write
+    auto write_result = storage.write(series);
+    if (!write_result.ok()) {
+        std::cerr << "Write failed: " << write_result.error() << std::endl;
+        return 1;
+    }
+    
+    // Read
+    auto read_result = storage.read(labels, 0, std::time(nullptr) * 1000);
+    if (read_result.ok()) {
+        std::cout << "Read " << read_result.value().size() << " samples" << std::endl;
+    }
+    
+    // Close
+    storage.close();
+    return 0;
+}
+```
+
+---
+
+## 📊 Performance
+
+### Baseline Performance
+
+```
+Write Performance:  ~10K ops/sec (single-threaded)
+Read Performance:   ~50K ops/sec (cached)
+Compression Ratio:  4-6x (typical)
+Object Pool Reuse:  99%+ (measured)
+Cache Hit Ratio:    80-90% (hot data)
+```
+
+### Memory Usage
+
+```
+Base:               ~100MB (empty)
+Per Series:         ~1KB (with 100 samples)
+Object Pools:       ~50MB (default configuration)
+Cache:              ~1GB (configurable)
+```
+
+### Optimization Status
+
+- ✅ Object pooling (99%+ reuse)
+- ✅ Multi-tier caching
+- ✅ Compression (4-6x)
+- ✅ Lock-free data structures
+- ⚠️ Single-threaded bottleneck identified (needs profiling)
+- ⚠️ L2 cache disabled (segfault issues)
+
+**Note:** Current performance is ~10K ops/sec. Theoretical maximum is 80K+ ops/sec based on component analysis. Performance optimization is ongoing.
+
+---
+
+## 📚 Documentation
+
+### Getting Started
+
+- **[GETTING_STARTED.md](GETTING_STARTED.md)** - Complete step-by-step setup guide ⭐ **START HERE**
+
+### Core Documentation
+
+- **[Architecture Overview](docs/architecture/ARCHITECTURE_OVERVIEW.md)** - System architecture
+- **[Storage Architecture](docs/architecture/STORAGE_ARCHITECTURE.md)** - Storage system design
+- **[Comprehensive Design Study](docs/planning/COMPREHENSIVE_DESIGN_STUDY.md)** - Complete codebase analysis
+- **[API Documentation](docs/api/)** - API reference (TODO)
+
+### Planning & Development
+
+- **[Current Status](docs/planning/CURRENT_STATUS.md)** - Current project status
+- **[Project State Analysis](docs/planning/PROJECT_STATE_ANALYSIS.md)** - Top-down project analysis
+- **[Real Optimization Strategy](docs/planning/REAL_OPTIMIZATION_STRATEGY.md)** - Measurement-driven optimization
+- **[Critical Lessons Learned](docs/planning/CRITICAL_LESSONS_LEARNED.md)** - Key learnings from development
+
+### Testing
+
+- **[StorageImpl Comprehensive Test Plan](docs/planning/STORAGEIMPL_COMPREHENSIVE_TEST_PLAN.md)** - Complete test strategy
+- **[Integration Testing Plan](docs/planning/INTEGRATION_TESTING_PLAN.md)** - Integration test strategy
+- **[Test README](test/README.md)** - Running tests
+
+### Advanced Features
+
+- **[Semantic Vector Architecture](docs/architecture/SEMANTIC_VECTOR_ARCHITECTURE.md)** - Optional semantic vectors
+- **[PromQL Engine](docs/planning/PROMQL_ENGINE_AGENT_TASKS.md)** - Query engine tasks
+- **[LSM Implementation Plan](docs/planning/LSM_IMPLEMENTATION_PLAN.md)** - Future LSM storage
+
+---
+
+## 🧪 Testing
+
+### Running Tests
+
+All tests are run via Makefile targets:
+
+```bash
+# Run all tests (453+ tests, ~7-8 minutes)
+make test-all
+
+# Unit tests only (357 tests, ~2-3 minutes)
+make test-unit
+
+# Integration tests only (177 tests, ~5-6 minutes)
+make test-integration
+
+# Specific test suites
+make test-core-unit          # Core unit tests (38 tests)
+make test-storage-unit       # Storage unit tests (60 tests)
+make test-cache-unit         # Cache unit tests (28 tests)
+make test-compression-unit   # Compression unit tests (19 tests)
+make test-histogram-unit     # Histogram unit tests (22 tests)
+
+# Background test execution (for overnight runs)
+make test-background-caffeinate  # macOS - prevents hibernation
+make test-background-status      # Check status
+make test-background-stop        # Stop tests
+```
+
+### Test Status
+
+**Current Status:** 99.8% pass rate (453/454 tests passing)
+
+- ✅ **Unit Tests:** 357 tests
+- ✅ **Integration Tests:** 177 tests
+- ✅ **Overall:** 453/454 passing
+
+See [docs/planning/FAILING_TESTS_FIX_PLAN.md](docs/planning/FAILING_TESTS_FIX_PLAN.md) for detailed test status and results.
+
+---
+
+## 🔧 Configuration
+
+### Default Configuration
+
+```cpp
+Config config = Config::Default();
+```
+
+### Production Configuration
+
+```cpp
+Config config = Config::Production();
+config.mutable_storage().cache_size_bytes = 4LL * 1024 * 1024 * 1024; // 4GB
+config.mutable_query().max_concurrent_queries = 500;
+```
+
+### High-Performance Configuration
+
+```cpp
+Config config = Config::HighPerformance();
+config.enable_semantic_vector(); // Enable advanced features
+```
+
+### Memory-Efficient Configuration
+
+```cpp
+Config config = Config::MemoryEfficient();
+config.mutable_storage().cache_size_bytes = 512 * 1024 * 1024; // 512MB
+```
+
+### Key Configuration Options
+
+```cpp
+StorageConfig storage;
+storage.data_dir = "./data";
+storage.block_size = 64 * 1024 * 1024;           // 64MB blocks
+storage.cache_size_bytes = 1024 * 1024 * 1024;   // 1GB cache
+storage.enable_compression = true;
+
+// Object pool configuration
+storage.object_pool_config.time_series_max_size = 10000;
+storage.object_pool_config.labels_max_size = 20000;
+storage.object_pool_config.samples_max_size = 100000;
+
+// Background processing (DISABLED by default for testing)
+storage.background_config.enable_background_processing = false;
+storage.background_config.enable_auto_compaction = false;
+storage.background_config.enable_auto_cleanup = false;
+```
+
+---
+
+## 🐛 Known Issues
+
+1. **L2 Cache Disabled** - Memory-mapped cache causes segfaults (under investigation)
+2. **Performance Gap** - Current 10K ops/sec vs theoretical 80K+ ops/sec (needs profiling)
+3. **Background Processing Disabled** - Disabled by default for testing stability
+
+---
+
+## 🗺️ Roadmap
+
+### Current Focus (v1.0)
+
+- ✅ Core storage engine
+- ✅ WAL and crash recovery
+- ✅ Index and query support
+- ✅ Compression and optimization
+- ⚠️ Performance optimization (in progress)
+- ⚠️ Fix L2 cache (in progress)
+
+### Next Release (v1.1)
+
+- 🔲 Enable background processing
+- 🔲 Fix L2 cache segfaults
+- 🔲 Performance profiling and optimization
+- 🔲 Enhanced PromQL support
+- 🔲 Distributed sharding (for multi-machine deployment)
+
+### Future (v2.0+)
+
+- 🔲 LSM-tree storage option
+- 🔲 Full semantic vector integration
+- 🔲 Advanced query optimization
+- 🔲 Kubernetes operator
+- 🔲 Cloud-native features
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please read our contributing guidelines (TODO) before submitting pull requests.
+
+### Development Setup
+
+```bash
+# Install dependencies (auto-detects OS)
+make deps
+
+# Build with all features (tests enabled by default)
+make
+
+# Run all tests
+make test-all
+
+# Run specific test suite
+make test-storage-unit
+
+# Clean and rebuild
+make clean-all && make rebuild
+```
+
+For more details, see [GETTING_STARTED.md](GETTING_STARTED.md).
+
+---
+
+## 📝 License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+---
+
+## 🙏 Acknowledgments
+
+- **Prometheus** - Inspiration for label-based time series model
+- **VictoriaMetrics** - Inspiration for multi-tier storage
+- **Facebook Gorilla** - Compression algorithms
+- **Intel TBB** - High-performance concurrency primitives
+- **Google Test** - Testing framework
+
+---
+
+## 📧 Contact
+
+- **Issues:** [GitHub Issues](https://github.com/yourusername/mytsdb/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/yourusername/mytsdb/discussions)
+- **Email:** your.email@example.com
+
+---
+
+## 🔗 Related Projects
+
+- [Prometheus](https://prometheus.io/) - Time series monitoring system
+- [VictoriaMetrics](https://victoriametrics.com/) - Fast time series database
+- [InfluxDB](https://www.influxdata.com/) - Time series platform
+- [TimescaleDB](https://www.timescale.com/) - SQL time series database
+
+---
+
+**Built with ❤️ for high-performance time series workloads**

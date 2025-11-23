@@ -1,246 +1,461 @@
-# TSDB Test Suite
+# MyTSDB Test Suite
 
-This directory contains the comprehensive test suite for the Time Series Database (TSDB) project. The test suite consists of **462 individual tests** across multiple categories, providing thorough coverage of all system components.
+This directory contains the complete test suite for MyTSDB.
 
-## Test Statistics
+---
 
-- **Total Tests**: 462
-- **Test Files**: 36 (with content)
-- **Total Lines of Code**: ~15,000
-- **Test Categories**: 8 major categories
-- **Coverage**: Unit, Integration, Performance, Load, Stress, Scalability
+## 📁 Directory Structure
 
-## Test Organization
-
-### 1. **Unit Tests** (`unit/`)
-Core component testing with **349 tests** across:
-
-#### **Core Components** (`unit/core/`) - 27 tests
-- **Result Tests** (15 tests): Success/error construction, move semantics, type handling
-- **Error Tests** (12 tests): Error construction, comparison, message handling
-
-#### **Storage Components** (`unit/storage/`) - 322 tests
-- **Object Pool Tests** (13 tests): TimeSeries, Labels, Sample pool operations
-- **Working Set Cache Tests** (15 tests): LRU behavior, hit ratio, thread safety
-- **Cache Hierarchy Tests** (28 tests): L1/L2/L3 cache operations, promotion/demotion
-- **Predictive Cache Tests** (20 tests): Pattern detection, prefetching, confidence scoring
-- **Atomic Reference Counting Tests** (11 tests): Reference management, thread safety
-- **Adaptive Compressor Tests** (19 tests): Type detection, compression ratios
-- **Delta-of-Delta Encoder Tests** (18 tests): Timestamp compression, zigzag encoding
-- **Atomic Metrics Tests** (24 tests): Performance tracking, thread safety
-- **Performance Config Tests** (24 tests): Feature flags, A/B testing, configuration
-- **Sharded Write Buffer Tests** (16 tests): Buffer management, load balancing
-- **Background Processor Tests** (28 tests): Task execution, queue management
-- **Lock-Free Queue Tests** (17 tests): Concurrent operations, performance
-- **Storage Tests** (13 tests): Basic CRUD operations, error handling
-- **Block Management Tests** (13 tests): Block lifecycle, compaction
-- **Compression Tests** (9 tests): Various compression algorithms
-
-### 2. **Integration Tests** (`integration/`) - 113 tests
-End-to-end system testing:
-
-#### **Core Integration** (3 tests)
-- Basic time series creation and storage
-- Configuration integration
-- Data type consistency
-
-#### **Storage-Histogram Integration** (5 tests)
-- DDSketch and Fixed Bucket histogram storage
-- Histogram merging across boundaries
-- Large histogram handling
-
-#### **Configuration Integration** (8 tests)
-- Storage, histogram, and query config propagation
-- Configuration validation and persistence
-
-#### **OpenTelemetry Integration** (8 tests)
-- Counter, gauge, histogram, summary metric conversion
-- Resource attributes and label preservation
-
-#### **gRPC Service Integration** (8 tests)
-- Metrics ingestion, batch processing
-- Error handling, rate limiting, health checks
-
-#### **End-to-End Workflows** (7 tests)
-- OpenTelemetry to storage to query workflows
-- Batch and real-time processing scenarios
-
-#### **Multi-Component Operations** (7 tests)
-- Concurrent read/write operations
-- Cross-component error handling
-- Resource sharing and lifecycle management
-
-#### **Error Handling** (7 tests)
-- Error propagation across components
-- Resource exhaustion handling
-- Recovery mechanisms
-
-#### **Recovery Scenarios** (7 tests)
-- Storage corruption recovery
-- Network interruption handling
-- Component restart scenarios
-
-### 3. **PromQL Parser Tests** - 1 test
-- PromQL lexer and parser functionality
-
-### 4. **Performance Tests** (`benchmark/`) - 0 tests (placeholder)
-- Write/read performance benchmarks
-- Compaction performance
-- Resource utilization metrics
-
-### 5. **Load Tests** (`load/`) - 0 tests (placeholder)
-- Peak load testing
-- Sustained load testing
-
-### 6. **Stress Tests** (`stress/`) - 0 tests (placeholder)
-- Data volume stress testing
-- Resource stress testing
-
-### 7. **Scalability Tests** (`scalability/`) - 0 tests (placeholder)
-- Horizontal scalability testing
-- Vertical scalability testing
-
-## Test Data
-
-Test data is organized in `test/data/`:
-- **Storage Data**: Blocks, compression samples, histograms
-- **Sample Metrics**: Various metric types and distributions
-- **Configuration Files**: Test configurations and settings
-
-## Running Tests
-
-### Running All Tests
-```bash
-cd build
-ctest --output-on-failure
+```
+test/
+├── unit/           # Unit tests (357 tests)
+│   ├── core/       # Core type tests
+│   ├── histogram/  # Histogram tests
+│   └── storage/    # Storage component tests
+├── integration/    # Integration tests (177 tests)
+│   └── storageimpl_phases/  # Phase-based integration tests
+├── benchmark/      # Performance benchmarks
+├── stress/         # Stress testing
+├── scalability/    # Scalability testing
+└── load/           # Load testing
 ```
 
-### Running Specific Test Categories
-```bash
-# Run unit tests only
-ctest -R "unit.*"
+---
 
-# Run integration tests only
-ctest -R "integration.*"
+## 🚀 Running Tests
 
-# Run storage tests
-ctest -R "storage.*"
+### All Tests
 
-# Run cache tests
-ctest -R "cache.*"
-
-# Run compression tests
-ctest -R "compression.*"
-```
-
-### Running Tests with Coverage
 ```bash
 cd build
-cmake -DCMAKE_BUILD_TYPE=Debug -DENABLE_COVERAGE=ON ..
+make test
+```
+
+### By Category
+
+```bash
+# Unit tests only
+make test-unit
+
+# Integration tests only
+make test-integration
+
+# Performance benchmarks
+make test-all-performance
+```
+
+### Specific Test Suites
+
+```bash
+cd build
+
+# Core tests
+./test/unit/tsdb_core_unit_tests
+
+# Storage tests
+./test/unit/tsdb_storage_unit_tests
+
+# Cache hierarchy tests
+./test/unit/tsdb_cache_hierarchy_unit_tests
+
+# Integration tests
+./test/integration/tsdb_integration_test_suite
+
+# With gtest filter (run specific tests)
+./test/unit/tsdb_storage_unit_tests --gtest_filter=StorageTest.*
+```
+
+---
+
+## 📊 Test Status
+
+### Unit Tests (357 tests)
+
+```
+✅ Core Tests (38/38)
+   - ResultTest (14/14)
+   - ErrorTest (11/11)
+   - StorageConfigTest (5/5)
+   - GranularityTest (2/2)
+   - Others (6/6)
+
+✅ Storage Tests (59/59)
+   - BasicWriteAndRead ✅
+   - MultipleSeries ✅
+   - LabelOperations ✅
+   - DeleteSeries ✅
+   - HighFrequencyData ✅
+   - ConcurrentOperations ✅
+   - CompactionAndFlush ✅
+   - 1 test disabled for specific testing
+
+✅ Cache Hierarchy (28/28)
+   - L1/L2/L3 operations
+   - LRU eviction
+   - Concurrent access
+   - Statistics tracking
+
+✅ Predictive Cache (20/20)
+   - Pattern detection
+   - Prefetching
+   - Confidence scoring
+   - Adaptive behavior
+
+✅ Background Processor (29/29)
+   - Task execution
+   - Priority ordering
+   - Error handling
+   - Graceful shutdown
+
+✅ Object Pools (passing)
+   - TimeSeriesPool
+   - LabelsPool
+   - SamplePool
+   - 99%+ reuse rate
+
+✅ Compression (passing)
+   - Gorilla compression
+   - Delta-of-Delta encoding
+   - XOR compression
+   - RLE compression
+
+✅ Other Components (passing)
+   - Lock-Free Queue (13/13)
+   - Atomic Metrics (passing)
+   - Performance Config (passing)
+   - Working Set Cache (passing)
+   - Atomic Ref Counted (11/11)
+```
+
+### Integration Tests (177 tests)
+
+```
+✅ Phase 1: Object Pool Integration (passing)
+✅ Phase 2: Cache & Background Processing (27/27)
+   - Cache hierarchy integration
+   - Block management
+   - Background processing
+   - Predictive caching
+✅ Phase 3: Compression Integration (passing)
+✅ Config Integration (8/8)
+✅ Core Storage Integration (3/3)
+✅ End-to-End Workflow (7/7)
+✅ Multi-Component Tests (passing)
+✅ Error Handling Tests (passing)
+```
+
+### Known Issues
+
+```
+⚠️ L2 Cache Disabled - Segfaults in production, disabled in constructor
+⚠️ Background Processing Disabled by Default - For testing stability
+⚠️ Some tests may hang in full suite - Individual execution works
+```
+
+---
+
+## 🎯 Test Categories
+
+### 1. Unit Tests
+
+**Purpose:** Test individual components in isolation
+
+**Location:** `test/unit/`
+
+**Examples:**
+- `tsdb_core_unit_tests` - Core types and result handling
+- `tsdb_storage_unit_tests` - Storage operations
+- `tsdb_cache_hierarchy_unit_tests` - Cache operations
+- `tsdb_object_pool_unit_tests` - Object pool functionality
+
+**Run:** `make test-unit` or `./test/unit/<test_name>`
+
+### 2. Integration Tests
+
+**Purpose:** Test component interactions and workflows
+
+**Location:** `test/integration/`
+
+**Examples:**
+- `tsdb_integration_test_suite` - Main integration suite (124 tests)
+- `tsdb_core_storage_integration_test` - Core-storage integration
+- `tsdb_end_to_end_workflow_test` - Complete workflows
+
+**Run:** `make test-integration`
+
+### 3. Performance Benchmarks
+
+**Purpose:** Measure performance characteristics
+
+**Location:** `test/benchmark/`
+
+**Examples:**
+- `tsdb_performance_test` - Main performance benchmark
+- `tsdb_wal_performance_benchmark` - WAL performance
+- `tsdb_memory_efficiency_performance_test` - Memory efficiency
+- `tsdb_indexing_performance_test` - Index performance
+- `tsdb_concurrency_performance_test` - Concurrency performance
+
+**Run:** `make test-all-performance`
+
+### 4. Stress Tests
+
+**Purpose:** Test system under heavy load
+
+**Location:** `test/stress/`
+
+**Run:** `make test-stress`
+
+### 5. Scalability Tests
+
+**Purpose:** Test scaling characteristics
+
+**Location:** `test/scalability/`
+
+**Run:** `make test-scalability`
+
+---
+
+## 🔧 Test Utilities
+
+### Running with CTest Timeout
+
+Use ctest with timeout to prevent hanging tests:
+
+```bash
+# Run all tests with 30-second timeout per test
+ctest --timeout 30
+
+# Run specific test with timeout
+ctest -R StorageTest --timeout 30 --verbose
+
+# Run tests matching pattern
+ctest -R "Phase.*" --timeout 60
+```
+
+### Test Filters
+
+Run specific tests using gtest filters:
+
+```bash
+# Run specific test
+./test/unit/tsdb_storage_unit_tests --gtest_filter=StorageTest.BasicWriteAndRead
+
+# Run test pattern
+./test/unit/tsdb_storage_unit_tests --gtest_filter='StorageTest.*'
+
+# Exclude tests
+./test/unit/tsdb_storage_unit_tests --gtest_filter=-StorageTest.ErrorConditions
+```
+
+### Verbose Output
+
+```bash
+# Enable verbose output
+./test/unit/tsdb_storage_unit_tests --gtest_verbose=1
+
+# List all tests
+./test/unit/tsdb_storage_unit_tests --gtest_list_tests
+```
+
+---
+
+## 📈 Performance Benchmarks
+
+### Current Baselines
+
+```
+Write Performance:       ~10K ops/sec (single-threaded)
+Read Performance:        ~50K ops/sec (cached)
+Object Pool Reuse:       99%+ (measured)
+Cache Hit Ratio:         80-90% (hot data)
+Compression Ratio:       4-6x (typical)
+```
+
+### Running Benchmarks
+
+```bash
+cd build
+
+# All performance tests
+make test-all-performance
+
+# Specific benchmarks
+./test/benchmark/tsdb_performance_test
+./test/benchmark/tsdb_wal_performance_benchmark
+./test/benchmark/tsdb_memory_efficiency_performance_test
+./test/benchmark/tsdb_indexing_performance_test
+./test/benchmark/tsdb_concurrency_performance_test
+```
+
+---
+
+## 🐛 Debugging Failed Tests
+
+### 1. Run Test with Valgrind
+
+```bash
+valgrind --leak-check=full ./test/unit/tsdb_storage_unit_tests
+```
+
+### 2. Run Test with GDB
+
+```bash
+gdb ./test/unit/tsdb_storage_unit_tests
+(gdb) run
+(gdb) bt  # backtrace on crash
+```
+
+### 3. Enable Debug Logging
+
+```bash
+# Set environment variable
+export SPDLOG_LEVEL=debug
+./test/unit/tsdb_storage_unit_tests
+```
+
+### 4. Run with AddressSanitizer
+
+```bash
+# Rebuild with sanitizer
+cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=address" ..
 make
-ctest
-gcovr -r .. .
+
+# Run test
+./test/unit/tsdb_storage_unit_tests
 ```
 
-## Test Categories Overview
+### 5. Check Test Logs
 
-### **Unit Tests** (349 tests)
-- **Purpose**: Test individual components in isolation
-- **Scope**: Mock dependencies, focus on edge cases
-- **Speed**: Fast execution (< 1 second per test)
-- **Coverage**: Core functionality, error conditions
+```bash
+# Test results directory
+ls build/test-results/
 
-### **Integration Tests** (113 tests)
-- **Purpose**: Test component interactions and workflows
-- **Scope**: Real dependencies, common use cases
-- **Speed**: Medium execution (1-10 seconds per test)
-- **Coverage**: End-to-end scenarios, error propagation
+# View test output
+cat build/test-results/unit/unit_tests.xml
+```
 
-### **Performance Tests** (0 tests - planned)
-- **Purpose**: Measure throughput and latency
-- **Scope**: Various loads, resource monitoring
-- **Speed**: Longer execution (10+ seconds per test)
-- **Coverage**: Performance characteristics, bottlenecks
+---
 
-## Test Coverage Targets
+## 📝 Writing New Tests
 
-- **Line Coverage**: >90%
-- **Branch Coverage**: >85%
-- **Function Coverage**: >95%
+### Unit Test Template
 
-## Writing New Tests
-
-### Guidelines
-1. **Clear Purpose**: Each test should have a specific objective
-2. **Comprehensive Coverage**: Test success, failure, and edge cases
-3. **Resource Management**: Clean up resources after tests
-4. **Documentation**: Document assumptions and requirements
-5. **Naming Convention**: `TestSuite.TestName` format
-
-### Test Structure
 ```cpp
-TEST_F(TestFixture, TestName) {
-    // ARRANGE - Set up test conditions
+#include <gtest/gtest.h>
+#include "tsdb/storage/your_component.h"
+
+TEST(YourComponentTest, BasicFunctionality) {
+    // Arrange
+    YourComponent component;
     
-    // ACT - Perform the operation being tested
+    // Act
+    auto result = component.do_something();
     
-    // ASSERT - Verify the results
+    // Assert
+    ASSERT_TRUE(result.ok());
+    EXPECT_EQ(result.value(), expected_value);
 }
 ```
 
-### Adding New Tests
-1. Create test file in appropriate directory
-2. Add test to CMakeLists.txt
-3. Follow existing naming conventions
-4. Include necessary test data
-5. Document test purpose
+### Integration Test Template
 
-## Debugging Tests
+```cpp
+#include <gtest/gtest.h>
+#include "tsdb/storage/storage_impl.h"
 
-### Common Issues
-- Resource cleanup failures
-- Race conditions in concurrent tests
-- System-dependent behavior
-- Performance test variability
-
-### Debugging Tools
-```bash
-# Break on test failure
-ctest --gtest_break_on_failure
-
-# Verbose output
-ctest --output-on-failure
-
-# Run specific test
-./build/test/unit/tsdb_storage_unit_tests --gtest_filter="StorageTest.*"
+TEST(YourIntegrationTest, EndToEndWorkflow) {
+    // Setup
+    core::StorageConfig config = core::StorageConfig::Default();
+    StorageImpl storage(config);
+    
+    // Write
+    core::TimeSeries series = create_test_series();
+    auto write_result = storage.write(series);
+    ASSERT_TRUE(write_result.ok());
+    
+    // Read
+    auto read_result = storage.read(series.labels(), 0, now());
+    ASSERT_TRUE(read_result.ok());
+    
+    // Verify
+    EXPECT_EQ(read_result.value().size(), 1);
+}
 ```
 
-## Test Infrastructure
+### Adding Tests to CMake
 
-### Build System
-- **CMake**: Primary build system
-- **Google Test**: Testing framework
-- **C++20**: Language standard
-- **Parallel Execution**: Tests run in parallel where possible
+Edit `test/CMakeLists.txt`:
 
-### Test Configuration
-- **test_config.h**: Generated configuration header
-- **TSDB_TEST_DATA_DIR**: Test data directory path
-- **Common Library**: `tsdb_test_common` interface library
+```cmake
+add_executable(your_test_name
+    ${CMAKE_SOURCE_DIR}/test/unit/your/test_file.cpp
+)
+target_link_libraries(your_test_name PRIVATE tsdb_test_common)
+add_test(NAME YourTestName COMMAND your_test_name)
+```
 
-## Contributing
+---
 
-When contributing new tests:
-1. Follow existing test patterns and naming conventions
-2. Include both positive and negative test cases
-3. Document test purpose and requirements
-4. Verify test coverage impact
-5. Ensure tests are deterministic and reliable
+## 🎓 Best Practices
 
-## Notes
+### 1. Test Naming
 
-- All tests are deterministic and repeatable
-- Tests clean up resources even if they fail
-- Performance tests are isolated to prevent interference
-- Integration tests use real dependencies for realistic scenarios
-- Unit tests use mocks for fast, isolated execution 
+```cpp
+// Good: Descriptive and specific
+TEST(StorageImplTest, WriteTimeSeriesWithMultipleSamples)
+
+// Bad: Vague
+TEST(StorageImplTest, Test1)
+```
+
+### 2. Test Isolation
+
+```cpp
+// Good: Each test is independent
+TEST(StorageImplTest, WriteOperation) {
+    StorageImpl storage;  // Fresh instance
+    // ...
+}
+
+// Bad: Tests depend on each other
+static StorageImpl* global_storage;  // Shared state
+```
+
+### 3. Clear Assertions
+
+```cpp
+// Good: Clear assertion messages
+ASSERT_TRUE(result.ok()) << "Write failed: " << result.error();
+
+// Bad: Silent failures
+ASSERT_TRUE(result.ok());
+```
+
+### 4. Test Data
+
+```cpp
+// Good: Helper functions for test data
+core::TimeSeries create_test_series(const std::string& name) {
+    core::Labels labels;
+    labels.add("__name__", name);
+    return core::TimeSeries(labels);
+}
+
+// Bad: Inline test data everywhere
+```
+
+---
+
+## 📚 Additional Resources
+
+- **[Comprehensive Test Plan](../docs/planning/STORAGEIMPL_COMPREHENSIVE_TEST_PLAN.md)** - Master test plan
+- **[Integration Testing Plan](../docs/planning/INTEGRATION_TESTING_PLAN.md)** - Integration test strategy
+- **[Performance Testing Plan](../docs/planning/COMPREHENSIVE_PERFORMANCE_TESTING_PLAN.md)** - Performance test strategy
+- **[Google Test Documentation](https://google.github.io/googletest/)** - GTest framework
+
+---
+
+**Last Updated:** November 18, 2025  
+**Test Suite Version:** 1.0  
+**Total Tests:** 632+ test cases

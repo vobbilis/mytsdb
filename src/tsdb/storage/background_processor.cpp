@@ -34,8 +34,26 @@ core::Result<void> BackgroundProcessor::initialize() {
     // Reset statistics
     stats_.reset();
     
+    // Reset active_workers_ before starting
+    active_workers_.store(0);
+    
     // Start worker threads
     startWorkers();
+    
+    // Wait for all workers to actually start (increment active_workers_)
+    // This prevents race condition where isHealthy() is called before workers start
+    auto start_time = std::chrono::steady_clock::now();
+    auto timeout = std::chrono::milliseconds(5000); // 5 second timeout
+    
+    while (active_workers_.load() < config_.num_workers) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        auto elapsed = std::chrono::steady_clock::now() - start_time;
+        if (elapsed > timeout) {
+            // If workers don't start within timeout, something is wrong
+            stopWorkers();
+            return core::Result<void>::error("Workers failed to start within timeout");
+        }
+    }
     
     initialized_.store(true);
     return core::Result<void>();

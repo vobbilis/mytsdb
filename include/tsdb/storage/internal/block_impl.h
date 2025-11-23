@@ -27,7 +27,15 @@ public:
     size_t num_samples() const override {
         size_t total = 0;
         for (const auto& [_, data] : series_) {
-            total += data.timestamps.size();
+            if (data.is_compressed) {
+                // For compressed data, decompress to count samples
+                // This is expensive but accurate
+                auto timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+                total += timestamps.size();
+            } else {
+                // For uncompressed data, just count
+                total += data.timestamps_uncompressed.size();
+            }
         }
         return total;
     }
@@ -41,14 +49,26 @@ public:
     
     // BlockInternal interface
     void write(const core::TimeSeries& series) override;
+    const BlockHeader& get_header() const { return header_; }
+    void update_time_range(int64_t ts);
+    void append(const core::Labels& labels, const core::Sample& sample);
+    void seal();  // Compress buffered data
+    std::vector<uint8_t> serialize() const;  // Serialize block data for persistence
     const BlockHeader& header() const override;
     void flush() override;
     void close() override;
     
 private:
     struct SeriesData {
-        std::vector<uint8_t> timestamps;
-        std::vector<uint8_t> values;
+        // Uncompressed buffers (used during accumulation)
+        std::vector<int64_t> timestamps_uncompressed;
+        std::vector<double> values_uncompressed;
+        // Compressed data (used after sealing)
+        std::vector<uint8_t> timestamps_compressed;
+        std::vector<uint8_t> values_compressed;
+        bool is_compressed;
+        
+        SeriesData() : is_compressed(false) {}
     };
     
     BlockHeader header_;
@@ -58,6 +78,7 @@ private:
     std::unique_ptr<LabelCompressor> label_compressor_;
     mutable std::mutex mutex_;
     bool dirty_;
+    bool sealed_;
     
     // Helper functions
     void update_header();
@@ -98,4 +119,4 @@ private:
 } // namespace storage
 } // namespace tsdb
 
-#endif // TSDB_STORAGE_INTERNAL_BLOCK_IMPL_H_ 
+#endif // TSDB_STORAGE_INTERNAL_BLOCK_IMPL_H_

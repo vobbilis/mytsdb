@@ -1,107 +1,42 @@
-# TSDB Project Planning Documents
+# Planning Documents
 
-This directory contains all high-level project planning and task tracking documents for the TSDB project.
+This directory contains planning and status documents for the TSDB project.
 
-## 📋 Document Organization
+## Current Status Documents
 
-### **Core Planning Documents**
+### Active Documents (2025-11-23)
 
-#### **`TSDB_MASTER_TASK_PLAN.md`** - **Single Source of Truth**
-- **Purpose**: Consolidated task tracking for all implementation and testing tasks
-- **Content**: AdvPerf implementation tasks, integration testing tasks, priority roadmap
-- **Status**: Active task tracking with current progress (16/38 tasks completed)
-- **Use**: Primary reference for project management and task prioritization
+- **[FAILING_TESTS_FIX_PLAN.md](FAILING_TESTS_FIX_PLAN.md)** - Test suite status and fix plan (current test results, progress tracking, and fix history)
 
-#### **`CURRENT_STATUS.md`** - **Project Status Snapshot**
-- **Purpose**: Current build and test status of the TSDB project
-- **Content**: Build results, test outcomes, identified issues, performance metrics
-- **Status**: Updated after each build/test cycle
-- **Use**: Quick reference for current project health
+## Historical Documents
 
-### **Implementation Planning Documents**
+The following documents are kept for historical reference but are no longer actively maintained:
 
-#### **`STORAGEIMPL_COMPREHENSIVE_PLAN.md`** - **StorageImpl Complete Implementation Report**
-- **Purpose**: Comprehensive progress report and status of completed StorageImpl integration
-- **Content**: All 6 phases completed, detailed progress tracking, build success, next steps
-- **Status**: Implementation complete - 100% integration success
-- **Use**: Reference for completed StorageImpl transformation and validation planning
+- **TEST_FAILURE_FIX_PLAN.md** - Outdated (2024-12-19) - See FAILING_TESTS_FIX_PLAN.md for current plan
 
-### **Testing Strategy Documents**
+## Other Planning Documents
 
-#### **`INTEGRATION_TESTING_PLAN.md`** - **Integration Testing Strategy**
-- **Purpose**: Comprehensive plan for integration testing across all components
-- **Content**: Test scenarios, implementation phases, success criteria
-- **Status**: Phases 1-5 completed (95/95 tests passing)
-- **Use**: Reference for integration testing implementation and validation
+- **COMPREHENSIVE_DESIGN_STUDY.md** - Design study documentation
+- **COMPREHENSIVE_PERFORMANCE_TESTING_PLAN.md** - Performance testing strategy
+- **CRITICAL_LESSONS_LEARNED.md** - Lessons learned from development
+- **CURRENT_STATUS.md** - General project status
+- **INTEGRATION_TESTING_PLAN.md** - Integration testing strategy
+- **LSM_IMPLEMENTATION_PLAN.md** - LSM tree implementation plan
+- **PROJECT_STATE_ANALYSIS.md** - Project state analysis
+- **STORAGEIMPL_COMPREHENSIVE_PLAN.md** - StorageImpl comprehensive plan
+- **STORAGEIMPL_COMPREHENSIVE_TEST_PLAN.md** - StorageImpl test plan
+- **STORAGEIMPL_PROFILING_STRATEGY.md** - Profiling strategy
 
-#### **`PERFORMANCE_TESTING_PLAN.md`** - **Performance Testing Strategy**
-- **Purpose**: Plan for comprehensive performance benchmarking and validation
-- **Content**: Performance targets, benchmarking strategies, validation criteria
-- **Status**: Foundation established, comprehensive testing pending
-- **Use**: Reference for performance testing implementation
+## Quick Reference
 
-#### **`TESTPLAN.md`** - **General Testing Strategy**
-- **Purpose**: Overall testing approach and methodology
-- **Content**: Testing philosophy, coverage requirements, quality gates
-- **Status**: General testing framework established
-- **Use**: Reference for testing methodology and standards
+**Current Test Status:**
+- Pass rate: 98.7% (448/454 passing)
+- Execution time: ~7.3 minutes
+- Remaining failures: 6 tests
 
-### **Project History Documents**
+**Recent Achievements:**
+- ✅ Fixed all Category 1 assertion failures (3 tests)
+- ✅ Fixed all Category 2 timeout tests (8 tests)
+- ⏳ Category 3 bus error still in progress (1 test)
 
-#### **`PHASE1_COMPLETION_SUMMARY.md`** - **Phase 1 Summary**
-- **Purpose**: Summary of Phase 1 completion and achievements
-- **Content**: Completed tasks, performance improvements, lessons learned
-- **Status**: Historical record of Phase 1 completion
-- **Use**: Reference for Phase 1 achievements and project history
-
-## 🎯 Usage Guidelines
-
-### **For Project Management:**
-1. **Start with**: `TSDB_MASTER_TASK_PLAN.md` for current task status
-2. **Check status**: `CURRENT_STATUS.md` for build/test health
-3. **Plan implementation**: `STORAGEIMPL_INTEGRATION_PLAN.md` for StorageImpl upgrades
-4. **Plan testing**: `INTEGRATION_TESTING_PLAN.md` for integration testing
-5. **Plan performance**: `PERFORMANCE_TESTING_PLAN.md` for benchmarking
-
-### **For Development:**
-1. **Task selection**: Use master plan to identify next priorities
-2. **Implementation guidance**: Reference StorageImpl integration plan for feature integration
-3. **Testing guidance**: Reference testing plans for implementation
-4. **Status tracking**: Update master plan as tasks are completed
-5. **Progress monitoring**: Regular updates to current status
-
-### **For Documentation:**
-1. **Historical reference**: Phase completion summaries
-2. **Testing evidence**: Detailed evidence in `docs/analysis/`
-3. **Performance analysis**: Technical analysis in `docs/analysis/`
-
-## 📊 Document Relationships
-
-```
-TSDB_MASTER_TASK_PLAN.md (Primary Task Tracking)
-├── CURRENT_STATUS.md (Current Health)
-├── STORAGEIMPL_INTEGRATION_PLAN.md (Implementation Strategy)
-├── INTEGRATION_TESTING_PLAN.md (Testing Strategy)
-├── PERFORMANCE_TESTING_PLAN.md (Performance Strategy)
-└── TESTPLAN.md (General Testing)
-
-PHASE1_COMPLETION_SUMMARY.md (Historical Record)
-```
-
-## 🔄 Maintenance
-
-### **Regular Updates:**
-- **Master Plan**: Update task status as work progresses
-- **Current Status**: Update after each build/test cycle
-- **StorageImpl Integration**: Update as integration phases are completed
-- **Testing Plans**: Update as testing strategies evolve
-
-### **Version Control:**
-- All planning documents are version controlled
-- Major changes should be documented in commit messages
-- Historical versions preserved for reference
-
----
-
-*Last Updated: July 2025*
-*Status: ✅ ORGANIZED - PLANNING DOCUMENTS CONSOLIDATED* 
+For detailed information, see [FAILING_TESTS_FIX_PLAN.md](FAILING_TESTS_FIX_PLAN.md).

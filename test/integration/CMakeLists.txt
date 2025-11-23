@@ -22,8 +22,8 @@ add_executable(tsdb_integration_test_suite
     storageimpl_phases/phase2_block_management_integration_test.cpp
     storageimpl_phases/phase2_background_processing_integration_test.cpp
     storageimpl_phases/phase2_predictive_caching_integration_test.cpp
-    storageimpl_phases/phase3_consolidated_performance_test.cpp
     storageimpl_phases/comprehensive_integration_test.cpp
+    storageimpl_phases/write_path_refactoring_integration_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )
 

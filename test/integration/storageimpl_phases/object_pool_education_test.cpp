@@ -75,7 +75,10 @@ TEST_F(ObjectPoolEducationTest, DemonstrateObjectPoolReuse) {
         query_labels.add("test", "education");
         
         auto read_result = storage_->read(query_labels, 1000, 1010);
-        ASSERT_TRUE(read_result.ok()) << "Read failed for series " << i;
+        if (!read_result.ok()) {
+            std::cout << "Read failed for series " << i << ": " << read_result.error() << std::endl;
+        }
+        ASSERT_TRUE(read_result.ok()) << "Read failed for series " << i << ": " << (read_result.ok() ? "" : read_result.error());
         
         std::cout << "  Read series " << i << std::endl;
     }

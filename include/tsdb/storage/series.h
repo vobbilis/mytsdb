@@ -24,9 +24,13 @@ public:
         core::MetricType type,
         const struct Granularity& granularity);
 
-    core::Result<void> Write(const std::vector<core::Sample>& samples);
+    // core::Result<void> Write(const std::vector<core::Sample>& samples);
     core::Result<std::vector<core::Sample>> Read(
         core::Timestamp start, core::Timestamp end) const;
+
+    // New methods for Phase 2 of write path refactoring
+    bool append(const core::Sample& sample);
+    std::shared_ptr<internal::BlockImpl> seal_block();
 
     const core::Labels& Labels() const;
     core::MetricType Type() const;
@@ -47,4 +51,4 @@ private:
 };
 
 } // namespace storage
-} // namespace tsdb 
+} // namespace tsdb

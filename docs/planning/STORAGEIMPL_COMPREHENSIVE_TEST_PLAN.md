@@ -5,6 +5,8 @@
 **Purpose**: Comprehensive testing strategy for fully integrated StorageImpl (All 6 Phases)  
 **Status**: Active Testing Plan
 
+**⚠️ NOTE**: This document contains historical references to "Sharded Storage" and "High-Concurrency Architecture" components that have been removed from the codebase. These references are kept for historical context. For current test status, see [FAILING_TESTS_FIX_PLAN.md](FAILING_TESTS_FIX_PLAN.md).
+
 ## 🎉 **MAJOR MILESTONE: PHASE 2 & 3 COMPLETE - COMPREHENSIVE TESTING ACHIEVED**
 
 **✅ PHASE 2 COMPLETED**: All 6 integration test suites implemented and passing (27/27 tests)

@@ -10,11 +10,9 @@ target_sources(tsdb_storage_impl
         histogram_ops.cpp
         object_pool.cpp
         working_set_cache.cpp
-        adaptive_compressor.cpp
         delta_of_delta_encoder.cpp
         atomic_metrics.cpp
         performance_config.cpp
-        sharded_write_buffer.cpp
         background_processor.cpp
         lock_free_queue.cpp
         cache_hierarchy.cpp
@@ -23,25 +21,9 @@ target_sources(tsdb_storage_impl
         atomic_ref_counted.cpp
         storage_impl.cpp
         storage_factory.cpp
-        sharded_storage_manager.cpp
-        high_concurrency_storage.cpp
+        wal.cpp
+        index.cpp
         internal/block_impl.cpp
-        # Phase 1: Memory Access Pattern Optimization (Simplified)
-        memory_optimization/simple_cache_alignment.cpp
-        memory_optimization/simple_sequential_layout.cpp
-        memory_optimization/simple_access_pattern_tracker.cpp
-        # Phase 1: Memory Access Pattern Optimization (Full Implementation) - RE-ENABLED
-        # NOTE: Semantic vector dependencies have been removed
-        memory_optimization/cache_alignment_utils.cpp
-        memory_optimization/sequential_layout_optimizer.cpp
-        memory_optimization/access_pattern_optimizer.cpp
-        memory_optimization/adaptive_memory_integration.cpp
-        memory_optimization/tiered_memory_integration.cpp
-        # Phase 1: Enhanced Object Pools - RE-ENABLED
-        # NOTE: Semantic vector dependencies have been removed
-        enhanced_pools/enhanced_time_series_pool.cpp
-        enhanced_pools/enhanced_labels_pool.cpp
-        enhanced_pools/enhanced_sample_pool.cpp
 )
 
 # Optional: compile semantic vector sources for early feedback when enabled
@@ -88,6 +70,11 @@ target_link_libraries(tsdb_storage_impl
         Threads::Threads
 )
 
+# Link TBB if available
+if(HAVE_TBB)
+    target_link_libraries(tsdb_storage_impl PUBLIC TBB::tbb)
+endif()
+
 # Install headers
 install(FILES
     block_types.h
@@ -96,11 +83,9 @@ install(FILES
     histogram_ops.h
     object_pool.h
     working_set_cache.h
-    adaptive_compressor.h
     delta_of_delta_encoder.h
     atomic_metrics.h
     performance_config.h
-    sharded_write_buffer.h
     background_processor.h
     lock_free_queue.h
     cache_types.h
@@ -133,4 +118,4 @@ install(TARGETS tsdb_storage_impl
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-) 
+)

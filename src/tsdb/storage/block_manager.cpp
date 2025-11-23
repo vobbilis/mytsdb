@@ -2,6 +2,21 @@
 #include "tsdb/storage/internal/block_types.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
+#include "tsdb/storage/internal/block_impl.h"
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <shared_mutex>
+#include <system_error>
+#include <map>
+#include <limits>
+#include <thread>
+#include <chrono>
+#include "tsdb/storage/block_manager.h"
+#include "tsdb/storage/internal/block_types.h"
+#include "tsdb/core/result.h"
+#include "tsdb/core/types.h"
+#include "tsdb/storage/internal/block_impl.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -141,7 +156,7 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
         return core::Result<void>::error("Invalid time range: start_time > end_time");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     try {
         internal::BlockHeader header;
@@ -190,7 +205,7 @@ core::Result<void> BlockManager::finalizeBlock(const internal::BlockHeader& head
         return core::Result<void>::error("Invalid block header");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
@@ -221,7 +236,7 @@ core::Result<void> BlockManager::deleteBlock(const internal::BlockHeader& header
         return core::Result<void>::error("Invalid block header");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
@@ -250,7 +265,7 @@ core::Result<void> BlockManager::writeData(
         return core::Result<void>::error("Empty data provided");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
@@ -271,7 +286,7 @@ core::Result<std::vector<uint8_t>> BlockManager::readData(
         return core::Result<std::vector<uint8_t>>::error("Invalid block header");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);  // Read operation uses shared lock
     
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
@@ -291,7 +306,7 @@ core::Result<void> BlockManager::promoteBlock(const internal::BlockHeader& heade
         return core::Result<void>::error("Invalid block header");
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     auto it = block_tiers_.find(header.magic);
     if (it == block_tiers_.end()) {
@@ -377,7 +392,7 @@ core::Result<void> BlockManager::moveBlock(
 }
 
 core::Result<void> BlockManager::compact() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     // For now, just demote all blocks in hot tier to warm tier
     std::vector<internal::BlockHeader> to_demote;
@@ -409,7 +424,7 @@ core::Result<void> BlockManager::compact() {
 }
 
 core::Result<void> BlockManager::flush() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);  // Read operation uses shared lock
     // No flush needed since FileBlockStorage writes directly to disk
     return core::Result<void>();
 }
@@ -427,5 +442,29 @@ BlockStorage* BlockManager::getStorageForTier(internal::BlockTier::Type tier) {
     }
 }
 
+core::Result<void> BlockManager::seal_and_persist_block(std::shared_ptr<internal::BlockImpl> block) {
+    if (!block) {
+        return core::Result<void>::error("Invalid block provided");
+    }
+
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+
+    try {
+        internal::BlockHeader header = block->get_header();
+        
+        // Serialize the block's data using the new serialize method
+        std::vector<uint8_t> block_data = block->serialize();
+
+        auto result = hot_storage_->write(header, block_data);
+        if (result.ok()) {
+            block_tiers_[header.magic] = internal::BlockTier::Type::HOT;
+        }
+        return result;
+
+    } catch (const std::exception& e) {
+        return core::Result<void>::error("Seal and persist failed: " + std::string(e.what()));
+    }
+}
+
 }  // namespace storage
-}  // namespace tsdb 
+}  // namespace tsdb
