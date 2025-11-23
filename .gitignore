@@ -50,4 +50,4 @@ install_manifest.txt
 .LSOverride
 
 # IDE and Editor files
-.cursor/ 
+.cursor/ GETTING_STARTED.pdf
