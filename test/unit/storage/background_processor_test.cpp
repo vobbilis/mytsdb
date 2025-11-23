@@ -428,8 +428,12 @@ TEST_F(BackgroundProcessorTest, StatisticsTracking) {
     EXPECT_TRUE(processor_->submitCleanupTask(createSimpleTask(4)).ok());
     EXPECT_TRUE(processor_->submitTask(BackgroundTask(BackgroundTaskType::COMPRESSION, createSimpleTask(5, false))).ok());  // Failed task
     
-    // Wait for all tasks to complete
-    EXPECT_TRUE(waitForCondition([this] { return task_counter_.load() == 5; }));
+    // Wait for all tasks to complete - wait for both task_counter (started) and tasks_processed (completed)
+    // This ensures all tasks have actually finished processing before checking statistics
+    EXPECT_TRUE(waitForCondition([this] { 
+        auto stats = processor_->getStats();
+        return task_counter_.load() == 5 && stats.tasks_processed == 5;
+    }));
     
     auto stats = processor_->getStats();
     EXPECT_EQ(stats.tasks_submitted, 5);

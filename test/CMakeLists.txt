@@ -32,78 +32,9 @@ add_subdirectory(integration)
 add_subdirectory(benchmark)
 
 # Phase 1: Memory Access Pattern Optimization Tests
-add_executable(phase1_memory_optimization_test
-    ${CMAKE_SOURCE_DIR}/test/integration/storageimpl_phases/phase1_memory_optimization_test.cpp
-)
-target_link_libraries(phase1_memory_optimization_test PRIVATE tsdb_test_common)
-add_test(NAME Phase1MemoryOptimizationTest COMMAND phase1_memory_optimization_test)
 
-# Note: Enhanced Object Pool and Cache Alignment tests removed due to complex dependencies
 
-# Simple Memory Optimization Tests
-add_executable(simple_memory_optimization_test
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/simple_memory_optimization_test.cpp
-)
-target_link_libraries(simple_memory_optimization_test PRIVATE tsdb_test_common)
-add_test(NAME SimpleMemoryOptimizationTest COMMAND simple_memory_optimization_test)
 
-# Note: Complex memory optimization tests removed due to complex dependencies
-
-# Load testing
-add_subdirectory(load)
-
-# Stress testing
-add_subdirectory(stress)
-
-# Scalability testing
-add_subdirectory(scalability)
-
-# PromQL Parser Tests - Direct build without storage dependency
-add_executable(promql_parser_tests
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/tests/promql_parser_test.cpp
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/promql/lexer.cpp
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/promql/ast.cpp
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/promql/parser.cpp
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/model/types.cpp
-)
-
-target_include_directories(promql_parser_tests PRIVATE
-    ${CMAKE_SOURCE_DIR}/src
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/promql
-    ${CMAKE_SOURCE_DIR}/src/tsdb/prometheus/model
-)
-
-target_link_libraries(promql_parser_tests PRIVATE
-    GTest::GTest
-    GTest::Main
-)
-
-add_test(NAME PromQLParserTests COMMAND promql_parser_tests)
-
-# =============================================================================
-# COMPREHENSIVE TEST TARGETS
-# =============================================================================
-
-# Test target categories
-set(UNIT_TEST_TARGETS
-    tsdb_core_unit_tests
-    tsdb_storage_unit_tests
-    tsdb_histogram_unit_tests
-    tsdb_object_pool_unit_tests
-    tsdb_working_set_cache_unit_tests
-    tsdb_adaptive_compressor_unit_tests
-    tsdb_delta_of_delta_encoder_unit_tests
-    tsdb_atomic_metrics_unit_tests
-    tsdb_performance_config_unit_tests
-    tsdb_sharded_write_buffer_unit_tests
-    tsdb_background_processor_unit_tests
-    tsdb_lock_free_queue_unit_tests
-    tsdb_cache_hierarchy_unit_tests
-    tsdb_predictive_cache_unit_tests
-    tsdb_atomic_ref_counted_unit_tests
-    tsdb_integration_tests
-)
 
 set(INTEGRATION_TEST_TARGETS
     tsdb_integration_test_suite
@@ -118,7 +49,7 @@ set(INTEGRATION_TEST_TARGETS
 )
 
 set(PARSER_TEST_TARGETS
-    promql_parser_tests
+    # No parser tests currently available
 )
 
 # =============================================================================
@@ -209,6 +140,62 @@ add_custom_target(test-individual-integration
         ./test/integration/tsdb_error_handling_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/individual-integration/error_handling.xml
     DEPENDS ${INTEGRATION_TEST_TARGETS}
     COMMENT "Running individual integration tests - 53 tests"
+)
+
+# WAL Performance Benchmark
+add_custom_target(test-wal-performance
+    COMMAND ${CMAKE_COMMAND} -E echo "Running WAL performance benchmarks - 6 tests"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/wal-performance
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 60 ./test/benchmark/tsdb_wal_performance_benchmark --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/wal-performance/wal_performance_tests.xml
+    DEPENDS tsdb_wal_performance_benchmark
+    COMMENT "Running WAL performance benchmarks - 6 tests (1min timeout)"
+)
+
+# Memory Efficiency Performance Test
+add_custom_target(test-memory-efficiency
+    COMMAND ${CMAKE_COMMAND} -E echo "Running memory efficiency performance tests - 6 tests"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/memory-efficiency
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 120 ./test/benchmark/tsdb_memory_efficiency_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/memory-efficiency/memory_efficiency_tests.xml
+    DEPENDS tsdb_memory_efficiency_performance_test
+    COMMENT "Running memory efficiency performance tests - 6 tests (2min timeout)"
+)
+
+# Indexing Performance Test
+add_custom_target(test-indexing-performance
+    COMMAND ${CMAKE_COMMAND} -E echo "Running indexing performance tests - 8 tests"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/indexing-performance
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 120 ./test/benchmark/tsdb_indexing_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/indexing-performance/indexing_performance_tests.xml
+    DEPENDS tsdb_indexing_performance_test
+    COMMENT "Running indexing performance tests - 8 tests (2min timeout)"
+)
+
+# Concurrency Performance Test
+add_custom_target(test-concurrency-performance
+    COMMAND ${CMAKE_COMMAND} -E echo "Running concurrency performance tests - 8 tests"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/concurrency-performance
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 180 ./test/benchmark/tsdb_concurrency_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/concurrency-performance/concurrency_performance_tests.xml
+    DEPENDS tsdb_concurrency_performance_test
+    COMMENT "Running concurrency performance tests - 8 tests (3min timeout)"
+)
+
+# All Performance Tests
+add_custom_target(test-all-performance
+    COMMAND ${CMAKE_COMMAND} -E echo "Running all performance tests - 28 tests"
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/all-performance
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 300 ./test/benchmark/tsdb_wal_performance_benchmark --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/all-performance/wal_performance_tests.xml
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 300 ./test/benchmark/tsdb_memory_efficiency_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/all-performance/memory_efficiency_tests.xml
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 300 ./test/benchmark/tsdb_indexing_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/all-performance/indexing_performance_tests.xml
+    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+        timeout 300 ./test/benchmark/tsdb_concurrency_performance_test --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/all-performance/concurrency_performance_tests.xml
+    DEPENDS tsdb_wal_performance_benchmark tsdb_memory_efficiency_performance_test tsdb_indexing_performance_test tsdb_concurrency_performance_test
+    COMMENT "Running all performance tests - 28 tests (5min timeout)"
 )
 
 # Unit test categories

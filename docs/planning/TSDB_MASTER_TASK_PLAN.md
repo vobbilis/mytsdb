@@ -1,5 +1,7 @@
 # TSDB Master Task Plan - Consolidated Implementation & Testing
 
+**⚠️ HISTORICAL DOCUMENT**: This document contains references to components that have been removed from the codebase (e.g., Sharded Storage). It is kept for historical reference only. For current project status, see `CURRENT_STATUS.md` and `PROJECT_STATE_ANALYSIS.md`.
+
 ## 🎯 Overview
 This document serves as the **single source of truth** for all TSDB implementation and testing tasks. It consolidates the AdvPerf implementation tasks and integration testing tasks into one comprehensive plan with clear status tracking, dependencies, and completion criteria.
 

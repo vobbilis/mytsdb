@@ -27,6 +27,9 @@
 #include "tsdb/storage/predictive_cache.h"
 #include "tsdb/storage/internal/block_internal.h"
 #include "tsdb/storage/internal/block_impl.h"
+#include "tsdb/storage/index.h"
+#include "tsdb/storage/wal.h"
+#include <tbb/concurrent_hash_map.h>
 
 namespace tsdb {
 namespace storage {
@@ -76,6 +79,11 @@ public:
         const core::Labels& labels,
         int64_t start_time,
         int64_t end_time) override;
+    // No-lock version for use when mutex is already held (prevents nested lock acquisition)
+    core::Result<core::TimeSeries> read_nolock(
+        const core::Labels& labels,
+        int64_t start_time,
+        int64_t end_time);
 
     /**
      * @brief Queries time series data based on label matchers
@@ -137,16 +145,12 @@ public:
 
 private:
     core::Result<void> flush_nolock();
-    // Thread safety
-    mutable std::shared_mutex mutex_;  // Main mutex for concurrent access
+    // REMOVED: Thread safety
+    // mutable std::shared_mutex mutex_;
     std::shared_ptr<BlockManager> block_manager_;
     std::atomic<bool> initialized_;
     core::StorageConfig config_;
 
-    // In-memory storage for backward compatibility
-    std::vector<core::TimeSeries> stored_series_;
-    std::vector<std::vector<uint8_t>> compressed_data_;
-    
     // Object pools for reducing memory allocations
     std::unique_ptr<TimeSeriesPool> time_series_pool_;
     std::unique_ptr<LabelsPool> labels_pool_;
@@ -154,6 +158,15 @@ private:
     
     // Working set cache for frequently accessed data
     std::unique_ptr<WorkingSetCache> working_set_cache_;
+
+    // New Core Components
+    std::unique_ptr<Index> index_;
+    std::unique_ptr<WriteAheadLog> wal_;
+    using SeriesMap = tbb::concurrent_hash_map<core::SeriesID, std::shared_ptr<Series>>;
+    SeriesMap active_series_;
+    
+    // Thread synchronization
+    mutable std::shared_mutex mutex_;
     
     // Cache hierarchy for multi-level caching
     std::unique_ptr<CacheHierarchy> cache_hierarchy_;
@@ -191,6 +204,9 @@ private:
     core::Result<void> write_to_block(const core::TimeSeries& series);
     core::Result<core::TimeSeries> read_from_blocks(const core::Labels& labels, 
                                                    int64_t start_time, int64_t end_time);
+    // No-lock version for use when mutex is already held (prevents nested lock acquisition)
+    core::Result<core::TimeSeries> read_from_blocks_nolock(const core::Labels& labels, 
+                                                          int64_t start_time, int64_t end_time);
     
     // Block compaction and indexing
     core::Result<void> check_and_trigger_compaction();

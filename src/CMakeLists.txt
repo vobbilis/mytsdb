@@ -40,6 +40,10 @@ if(HAVE_SPDLOG)
     target_link_libraries(tsdb_lib PUBLIC spdlog::spdlog)
 endif()
 
+if(HAVE_TBB)
+    target_link_libraries(tsdb_lib PUBLIC TBB::tbb)
+endif()
+
 if(HAVE_GRPC)
     target_link_libraries(tsdb_lib PUBLIC gRPC::grpc++ protobuf::libprotobuf)
 endif()

@@ -5,12 +5,13 @@
 #include <memory>
 #include <string>
 #include <vector>
-#include <mutex>
+#include <shared_mutex>
 #include <map>
 
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
 #include "tsdb/storage/internal/block_types.h"
+#include "tsdb/storage/internal/block_impl.h"
 
 namespace tsdb {
 namespace storage {
@@ -106,12 +107,20 @@ public:
         BlockStorage* source,
         BlockStorage* target);
 
+    /**
+     * @brief Seals and persists a block from memory to storage.
+     *
+     * @param block The in-memory block implementation to persist.
+     * @return Result indicating success or failure.
+     */
+    core::Result<void> seal_and_persist_block(std::shared_ptr<internal::BlockImpl> block);
+
 private:
     std::string data_dir_;
     std::unique_ptr<BlockStorage> hot_storage_;
     std::unique_ptr<BlockStorage> warm_storage_;
     std::unique_ptr<BlockStorage> cold_storage_;
-    std::mutex mutex_;
+    std::shared_mutex mutex_;
     std::map<uint64_t, internal::BlockTier::Type> block_tiers_;
 
     BlockStorage* getStorageForTier(internal::BlockTier::Type tier);
@@ -124,4 +133,4 @@ private:
 } // namespace storage
 } // namespace tsdb
 
-#endif // TSDB_STORAGE_INTERNAL_BLOCK_MANAGER_H_ 
+#endif // TSDB_STORAGE_INTERNAL_BLOCK_MANAGER_H_

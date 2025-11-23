@@ -26,6 +26,7 @@
 #include <thread>
 #include <random>
 #include <iostream>
+#include <filesystem>
 
 namespace tsdb {
 namespace integration {
@@ -33,6 +34,9 @@ namespace integration {
 class Phase3CompressionIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
+        // Clean up any existing test data to prevent WAL replay issues
+        std::filesystem::remove_all("./test/data/storageimpl_phases/phase3");
+        
         core::StorageConfig config;
         config.data_dir = "./test/data/storageimpl_phases/phase3";
         config.enable_compression = true;
@@ -226,6 +230,9 @@ TEST_F(Phase3CompressionIntegrationTest, AlgorithmSelectionTesting) {
     };
     
     for (const auto& [algo, name] : algorithms) {
+        // Clean up old test data for this algorithm
+        std::filesystem::remove_all("./test/data/storageimpl_phases/phase3_algo");
+        
         config.compression_config.timestamp_compression = algo;
         config.compression_config.value_compression = algo;
         config.compression_config.label_compression = core::CompressionConfig::Algorithm::DICTIONARY;
@@ -295,6 +302,9 @@ TEST_F(Phase3CompressionIntegrationTest, AdaptiveCompressionBehavior) {
     config.enable_compression = true;
     config.compression_config.adaptive_compression = true;
     
+    // Clean up old test data
+    std::filesystem::remove_all("./test/data/storageimpl_phases/phase3_adaptive");
+    
     auto adaptive_storage = std::make_unique<storage::StorageImpl>(config);
     ASSERT_TRUE(adaptive_storage->init(config).ok());
     
@@ -343,39 +353,19 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
         EXPECT_FALSE(write_result.ok()) << "Should reject empty series";
     }
     
-    // Test 2: Single sample series (with compression disabled to avoid bus error)
+    // Test 2: Single sample series
     std::cout << "Testing single sample series..." << std::endl;
-    core::StorageConfig config_single;
-    config_single.enable_compression = false;
-    config_single.data_dir = "./test/data/storageimpl_phases/phase3_single";
-    
-    auto storage_single = std::make_unique<tsdb::storage::StorageImpl>(config_single);
-    auto init_result = storage_single->init(config_single);
-    std::cout << "Single sample storage init result: " << (init_result.ok() ? "OK" : "FAILED") << std::endl;
-    
     core::Labels single_labels;
     single_labels.add("test", "single");
     core::TimeSeries single_series(single_labels);
     single_series.add_sample(1000000000, 42.0);
     
-    write_result = storage_single->write(single_series);
-    std::cout << "Single sample write result: " << (write_result.ok() ? "OK" : "FAILED") << std::endl;
-    if (!write_result.ok()) {
-        std::cout << "Write error (single sample test)" << std::endl;
-    }
+    write_result = storage_->write(single_series);
+    ASSERT_TRUE(write_result.ok()) << "Single sample write should succeed";
     
-    auto read_result = storage_single->read(single_labels, 1000000000, 1000000000);
-    std::cout << "Single sample read result: " << (read_result.ok() ? "OK" : "FAILED") << std::endl;
-    if (!read_result.ok()) {
-        std::cout << "Read error (single sample test)" << std::endl;
-        FAIL() << "Read failed for single sample test";
-        return;
-    }
-    
-    std::cout << "Single sample series samples: " << read_result.value().samples().size() << std::endl;
-    EXPECT_EQ(read_result.value().samples().size(), 1);
-    
-    storage_single->close();
+    auto read_result = storage_->read(single_labels, 1000000000, 1000000000);
+    ASSERT_TRUE(read_result.ok()) << "Single sample read should succeed";
+    EXPECT_EQ(read_result.value().samples().size(), 1) << "Should read back 1 sample";
     
     // Test 3: Large series with compression disabled
     std::cout << "Testing large series with compression disabled..." << std::endl;
@@ -383,18 +373,20 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
     config_no_compression.enable_compression = false;
     config_no_compression.data_dir = "./test/data/storageimpl_phases/phase3_no_compression";
     
+    // Clean up old test data
+    std::filesystem::remove_all("./test/data/storageimpl_phases/phase3_no_compression");
+    
     auto storage_no_compression = std::make_unique<tsdb::storage::StorageImpl>(config_no_compression);
     auto init_result_no_compression = storage_no_compression->init(config_no_compression);
     std::cout << "No compression storage init result: " << (init_result_no_compression.ok() ? "OK" : "FAILED") << std::endl;
     
-    core::Labels large_labels;
-    large_labels.add("test", "large_no_compression");
     auto large_series = createTestSeries("large_no_compression", 1000);
     
     write_result = storage_no_compression->write(large_series);
     std::cout << "Large series no compression write result: " << (write_result.ok() ? "OK" : "FAILED") << std::endl;
     
-    read_result = storage_no_compression->read(large_labels, 1000000000, 1000999000);
+    // Use the same labels as the series
+    read_result = storage_no_compression->read(large_series.labels(), 1000000000, 1000999000);
     std::cout << "Large series no compression read result: " << (read_result.ok() ? "OK" : "FAILED") << std::endl;
     if (read_result.ok()) {
         std::cout << "Large series no compression samples: " << read_result.value().samples().size() << std::endl;

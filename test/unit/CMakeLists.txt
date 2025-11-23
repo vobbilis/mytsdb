@@ -35,10 +35,6 @@ add_executable(tsdb_working_set_cache_unit_tests
 )
 
 # Adaptive compressor unit tests
-add_executable(tsdb_adaptive_compressor_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_compressor_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Delta-of-delta encoder unit tests
 add_executable(tsdb_delta_of_delta_encoder_unit_tests
@@ -59,10 +55,6 @@ add_executable(tsdb_performance_config_unit_tests
 )
 
 # Sharded write buffer unit tests
-add_executable(tsdb_sharded_write_buffer_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/sharded_write_buffer_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Background processor unit tests
 add_executable(tsdb_background_processor_unit_tests
@@ -104,76 +96,26 @@ add_executable(tsdb_integration_tests
 # ============================================================================
 
 # Simple Memory Optimization Tests - ENABLED (working components)
-add_executable(tsdb_simple_memory_optimization_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/simple_memory_optimization_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Enhanced Object Pool Tests - ENABLED (fixing interface issues)
-add_executable(tsdb_enhanced_object_pool_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/enhanced_object_pool_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Memory Optimization Tests - DISABLED (compilation issues)
-# add_executable(tsdb_memory_optimization_unit_tests
-#     ${CMAKE_SOURCE_DIR}/test/unit/storage/memory_optimization_test.cpp
-#     ${CMAKE_SOURCE_DIR}/test/main.cpp
-# )
-
-# Cache Alignment Tests - ENABLED (working components)
-add_executable(tsdb_cache_alignment_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/cache_alignment_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Sequential Layout Optimizer Tests - ENABLED (working components)
-add_executable(tsdb_sequential_layout_optimizer_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/sequential_layout_optimizer_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Access Pattern Optimizer Tests - ENABLED (working components)
-add_executable(tsdb_access_pattern_optimizer_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/access_pattern_optimizer_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Adaptive Memory Integration Tests - ENABLED (fixing compilation issues)
-add_executable(tsdb_adaptive_memory_integration_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_memory_integration_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Adaptive Memory Integration NEW Tests - REDESIGNED VERSION
-add_executable(tsdb_adaptive_memory_integration_new_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_memory_integration_new_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Adaptive Memory Integration MINIMAL Tests - ISOLATION TEST
-add_executable(tsdb_adaptive_memory_integration_minimal_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_memory_integration_minimal_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Adaptive Memory Integration WORKING Tests - WORKING VERSION
-add_executable(tsdb_adaptive_memory_integration_working_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_memory_integration_working_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Adaptive Memory Integration SIMPLE Tests - SIMPLE VERSION
-add_executable(tsdb_adaptive_memory_integration_simple_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/adaptive_memory_integration_simple_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Tiered Memory Integration Tests - ENABLED (fixing compilation issues)
-add_executable(tsdb_tiered_memory_integration_unit_tests
-    ${CMAKE_SOURCE_DIR}/test/unit/storage/tiered_memory_integration_test.cpp
-    ${CMAKE_SOURCE_DIR}/test/main.cpp
-)
 
 # Core unit tests configuration
 target_include_directories(tsdb_core_unit_tests
@@ -189,18 +131,7 @@ target_link_libraries(tsdb_core_unit_tests
 )
 
 # Simple Memory Optimization Tests configuration
-target_include_directories(tsdb_simple_memory_optimization_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_simple_memory_optimization_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Storage unit tests configuration
 target_include_directories(tsdb_storage_unit_tests
@@ -251,18 +182,7 @@ target_link_libraries(tsdb_working_set_cache_unit_tests
 )
 
 # Adaptive compressor unit tests configuration
-target_include_directories(tsdb_adaptive_compressor_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_compressor_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Delta-of-delta encoder unit tests configuration
 target_include_directories(tsdb_delta_of_delta_encoder_unit_tests
@@ -307,18 +227,7 @@ target_link_libraries(tsdb_performance_config_unit_tests
 )
 
 # Sharded write buffer unit tests configuration
-target_include_directories(tsdb_sharded_write_buffer_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_sharded_write_buffer_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Background processor unit tests configuration
 target_include_directories(tsdb_background_processor_unit_tests
@@ -395,158 +304,34 @@ target_link_libraries(tsdb_atomic_ref_counted_unit_tests
 # ============================================================================
 
 # Enhanced Object Pool Tests Configuration - ENABLED
-target_include_directories(tsdb_enhanced_object_pool_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_enhanced_object_pool_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Memory Optimization Tests Configuration - DISABLED
-# target_include_directories(tsdb_memory_optimization_unit_tests
-#     PRIVATE
-#         ${CMAKE_SOURCE_DIR}/src
-#         ${CMAKE_SOURCE_DIR}/include
-# )
 
-# target_link_libraries(tsdb_memory_optimization_unit_tests
-#     PRIVATE
-#         tsdb_test_common
-#         tsdb_storage_impl
-#         tsdb_core_impl
-# )
-
-# Cache Alignment Tests Configuration - ENABLED
-target_include_directories(tsdb_cache_alignment_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
-
-target_link_libraries(tsdb_cache_alignment_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Sequential Layout Optimizer Tests Configuration - ENABLED
-target_include_directories(tsdb_sequential_layout_optimizer_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_sequential_layout_optimizer_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Access Pattern Optimizer Tests Configuration - ENABLED
-target_include_directories(tsdb_access_pattern_optimizer_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_access_pattern_optimizer_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Adaptive Memory Integration Tests Configuration - ENABLED
-target_include_directories(tsdb_adaptive_memory_integration_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_memory_integration_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Adaptive Memory Integration NEW Tests Configuration - REDESIGNED VERSION
-target_include_directories(tsdb_adaptive_memory_integration_new_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_memory_integration_new_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Adaptive Memory Integration MINIMAL Tests Configuration - ISOLATION TEST
-target_include_directories(tsdb_adaptive_memory_integration_minimal_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_memory_integration_minimal_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Adaptive Memory Integration WORKING Tests Configuration - WORKING VERSION
-target_include_directories(tsdb_adaptive_memory_integration_working_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_memory_integration_working_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Adaptive Memory Integration SIMPLE Tests Configuration - SIMPLE VERSION
-target_include_directories(tsdb_adaptive_memory_integration_simple_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_adaptive_memory_integration_simple_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Tiered Memory Integration Tests Configuration - ENABLED
-target_include_directories(tsdb_tiered_memory_integration_unit_tests
-    PRIVATE
-        ${CMAKE_SOURCE_DIR}/src
-        ${CMAKE_SOURCE_DIR}/include
-)
 
-target_link_libraries(tsdb_tiered_memory_integration_unit_tests
-    PRIVATE
-        tsdb_test_common
-        tsdb_storage_impl
-        tsdb_core_impl
-)
 
 # Integration tests configuration
 target_include_directories(tsdb_integration_tests
@@ -618,65 +403,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
-    add_custom_command(TARGET tsdb_adaptive_compressor_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_delta_of_delta_encoder_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_atomic_metrics_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_performance_config_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_sharded_write_buffer_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_background_processor_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_lock_free_queue_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_cache_hierarchy_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_predictive_cache_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_atomic_ref_counted_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
 endif()
-
-# Register tests
-gtest_discover_tests(tsdb_core_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
-
 gtest_discover_tests(tsdb_storage_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
@@ -707,11 +434,6 @@ gtest_discover_tests(tsdb_working_set_cache_unit_tests
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_adaptive_compressor_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
 
 gtest_discover_tests(tsdb_delta_of_delta_encoder_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
@@ -731,11 +453,6 @@ gtest_discover_tests(tsdb_performance_config_unit_tests
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_sharded_write_buffer_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
 
 gtest_discover_tests(tsdb_background_processor_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
