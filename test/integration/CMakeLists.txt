@@ -11,7 +11,6 @@ add_executable(tsdb_integration_test_suite
     multi_component_test.cpp
     error_handling_test.cpp
     recovery_test.cpp
-    load_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp

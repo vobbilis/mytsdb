@@ -48,6 +48,7 @@
 #include "tsdb/storage/internal/block_impl.h"
 #include "tsdb/storage/compression.h"
 #include "tsdb/storage/histogram_ops.h"
+#include "tsdb/storage/write_performance_instrumentation.h"
 #include "tsdb/storage/object_pool.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
@@ -546,86 +547,126 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
     
     // The global lock is removed. Concurrency is now handled by the concurrent_hash_map.
     
+    // Performance instrumentation
+    auto& perf = WritePerformanceInstrumentation::instance();
+    bool perf_enabled = perf.is_enabled();
+    WritePerformanceInstrumentation::WriteMetrics metrics;
+    metrics.num_samples = series.samples().size();
+    
+    auto start_total = std::chrono::high_resolution_clock::now();
+    
     try {
         // 1. Log the entire series to the WAL first for durability.
         // In a more granular implementation, we would log individual samples.
-        auto wal_result = wal_->log(series);
-        if (!wal_result.ok()) {
-            return wal_result; // Fail fast if we can't guarantee durability.
-        }
-
-        auto series_id = calculate_series_id(series.labels());
-
-        // 2. Find or create the series object in the concurrent map.
-        SeriesMap::accessor accessor;
-        bool is_new_series = !active_series_.find(accessor, series_id);
-        if (is_new_series) {
-            // This is the first time we see this series. Create it.
-            index_->add_series(series_id, series.labels());
-            auto new_series = std::make_shared<Series>(series_id, series.labels(), core::MetricType::GAUGE, Granularity());
-            
-            active_series_.insert(accessor, series_id);
-            accessor->second = new_series;
-        }
-
-        // 3. Append samples to the series' active head block.
-        bool block_is_full = false;
-        for (const auto& sample : series.samples()) {
-            if (accessor->second->append(sample)) {
-                block_is_full = true;
+        {
+            ScopedTimer timer(metrics.wal_write_us, perf_enabled);
+            auto wal_result = wal_->log(series);
+            if (!wal_result.ok()) {
+                return wal_result; // Fail fast if we can't guarantee durability.
             }
         }
 
-        // 4. Populate cache hierarchy with the written series for fast subsequent reads
+        // 2. Calculate series ID
+        core::SeriesID series_id;
+        {
+            ScopedTimer timer(metrics.series_id_calc_us, perf_enabled);
+            series_id = calculate_series_id(series.labels());
+        }
+
+        // 3. Find or create the series object in the concurrent map.
+        SeriesMap::accessor accessor;
+        {
+            ScopedTimer timer(metrics.index_lookup_us, perf_enabled);
+            metrics.is_new_series = !active_series_.find(accessor, series_id);
+        }
+        
+        if (metrics.is_new_series) {
+            // This is the first time we see this series. Create it.
+            {
+                ScopedTimer timer(metrics.index_insert_us, perf_enabled);
+                index_->add_series(series_id, series.labels());
+            }
+            
+            std::shared_ptr<Series> new_series;
+            {
+                ScopedTimer timer(metrics.series_creation_us, perf_enabled);
+                new_series = std::make_shared<Series>(series_id, series.labels(), core::MetricType::GAUGE, Granularity());
+            }
+            
+            {
+                ScopedTimer timer(metrics.map_insert_us, perf_enabled);
+                active_series_.insert(accessor, series_id);
+                accessor->second = new_series;
+            }
+        }
+
+        // 4. Append samples to the series' active head block.
+        bool block_is_full = false;
+        {
+            ScopedTimer timer(metrics.sample_append_us, perf_enabled);
+            for (const auto& sample : series.samples()) {
+                if (accessor->second->append(sample)) {
+                    block_is_full = true;
+                }
+            }
+        }
+
+        // 5. Populate cache hierarchy with the written series for fast subsequent reads
         if (cache_hierarchy_) {
+            ScopedTimer timer(metrics.cache_update_us, perf_enabled);
             auto shared_series = std::make_shared<core::TimeSeries>(series);
             cache_hierarchy_->put(series_id, shared_series);
         }
 
-        // 5. If the block is full, seal it and hand it to the BlockManager for persistence.
-        // Also, for the first write to a new series, persist the block even if not full
-        // to ensure block files are created for testing and provide better durability.
+        // 6. If the block is full, seal it and hand it to the BlockManager for persistence.
+        // PERFORMANCE OPTIMIZATION: Defer block persistence for new series until blocks are full.
+        // This eliminates the 90-260 μs synchronous I/O overhead for new series writes.
+        // Durability is still guaranteed by the WAL, and blocks will be persisted when full.
         // DEADLOCK FIX #2 & #4: Complete BlockManager operations BEFORE acquiring StorageImpl mutex
         // This prevents deadlock: BlockManager mutex is released before StorageImpl mutex is acquired
         std::shared_ptr<internal::BlockImpl> persisted_block = nullptr;
         bool block_persisted = false;
         
         if (block_is_full) {
-            auto full_block = accessor->second->seal_block();
-            if (full_block) {
-                auto persist_result = block_manager_->seal_and_persist_block(full_block);
-                if (!persist_result.ok()) {
-                    spdlog_warn("Failed to persist block for series " + std::to_string(series_id) + 
-                               ": " + persist_result.error());
-                    // Don't fail the entire write - the data is still in the WAL
-                } else {
-                    spdlog_info("Block sealed and persisted for series " + std::to_string(series_id));
-                    persisted_block = full_block;
-                    block_persisted = true;
-                }
+            {
+                ScopedTimer timer(metrics.block_seal_us, perf_enabled);
+                persisted_block = accessor->second->seal_block();
             }
-        } else if (is_new_series && block_manager_ && !series.samples().empty()) {
-            // For new series, persist the block even if not full to ensure block files exist
-            // This provides better durability and allows tests to verify block creation
-            auto initial_block = accessor->second->seal_block();
-            if (initial_block) {
-                auto persist_result = block_manager_->seal_and_persist_block(initial_block);
-                if (!persist_result.ok()) {
-                    spdlog_warn("Failed to persist initial block for series " + std::to_string(series_id) + 
-                               ": " + persist_result.error());
-                } else {
-                    spdlog_info("Initial block persisted for series " + std::to_string(series_id));
-                    persisted_block = initial_block;
-                    block_persisted = true;
+            if (persisted_block) {
+                {
+                    ScopedTimer timer(metrics.block_persist_us, perf_enabled);
+                    auto persist_result = block_manager_->seal_and_persist_block(persisted_block);
+                    if (!persist_result.ok()) {
+                        spdlog_warn("Failed to persist block for series " + std::to_string(series_id) + 
+                                   ": " + persist_result.error());
+                        // Don't fail the entire write - the data is still in the WAL
+                        persisted_block = nullptr;
+                    } else {
+                        spdlog_info("Block sealed and persisted for series " + std::to_string(series_id));
+                        block_persisted = true;
+                    }
                 }
             }
         }
+        // NOTE: Removed immediate persistence for new series to improve write performance.
+        // Blocks will be persisted when they're full, and WAL provides durability in the meantime.
         
         // Now that BlockManager operations are complete (mutex released), acquire StorageImpl mutex
         // to update series_blocks_ mapping
         if (block_persisted && persisted_block) {
-            std::unique_lock<std::shared_mutex> lock(mutex_);
-            series_blocks_[series_id].push_back(persisted_block);
+            {
+                ScopedTimer timer(metrics.mutex_lock_us, perf_enabled);
+                std::unique_lock<std::shared_mutex> lock(mutex_);
+                series_blocks_[series_id].push_back(persisted_block);
+            }
+        }
+        
+        // Calculate total time and record metrics
+        if (perf_enabled) {
+            auto end_total = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end_total - start_total);
+            metrics.total_us = duration.count() / 1000.0;
+            perf.record_write(metrics);
         }
         
         return core::Result<void>();
@@ -1463,6 +1504,21 @@ std::string StorageImpl::stats() const {
  * @param labels The labels to hash
  * @return SeriesID A unique identifier for the series
  */
+void StorageImpl::enable_write_instrumentation(bool enable) {
+    auto& perf = WritePerformanceInstrumentation::instance();
+    if (enable) {
+        perf.enable();
+        perf.reset_stats();
+        // Debug output removed for production
+    } else {
+        perf.disable();
+    }
+}
+
+void StorageImpl::print_write_performance_summary() {
+    WritePerformanceInstrumentation::instance().print_summary();
+}
+
 core::SeriesID StorageImpl::calculate_series_id(const core::Labels& labels) const {
     // Simple hash-based approach for now
     // In production, this would use a more sophisticated hashing algorithm
