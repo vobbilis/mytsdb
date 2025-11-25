@@ -4,13 +4,8 @@
 namespace tsdb {
 namespace otel {
 
-std::shared_ptr<Bridge> CreateOTELMetricsBridge(
-    std::shared_ptr<storage::Storage> storage,
-    const OTELMetricsBridgeOptions& options) {
-    auto bridge = std::make_shared<BridgeImpl>(storage);
-    bridge->init(options);
-    return bridge;
-}
+// Factory function moved to bridge.cpp to avoid duplicate symbols
+// This file kept for potential future use with BridgeImpl
 
 }  // namespace otel
 }  // namespace tsdb 

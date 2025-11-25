@@ -11,7 +11,8 @@ namespace prometheus {
 namespace {
     const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_]*");
     const std::regex kMatcherRegex(R"(\{([^{}]+)\})");
-    const int64_t kMaxTimeRange = 86400000;  // 24 hours in milliseconds
+    // Removed time range limit - allow queries over any range
+    // const int64_t kMaxTimeRange = 86400000;  // 24 hours in milliseconds
 }
 
 bool LabelQueryParams::Validate() const {
@@ -20,9 +21,10 @@ bool LabelQueryParams::Validate() const {
         if (*start_time > *end_time) {
             return false;
         }
-        if (*end_time - *start_time > kMaxTimeRange) {
-            return false;
-        }
+        // Removed time range limit check - allow queries over any range
+        // if (*end_time - *start_time > kMaxTimeRange) {
+        //     return false;
+        // }
     }
     
     // Validate matchers
@@ -135,7 +137,8 @@ LabelQueryResult LabelsHandler::GetSeries(const std::vector<std::string>& matche
         std::vector<std::pair<std::string, std::string>> storage_matchers;
         for (const auto& matcher : matchers) {
             // Simple parser for {key="value"} format
-            std::regex matcher_regex(R"(\{([^=]+)="([^"]+)"\})");
+            // Use a custom delimiter for raw string to avoid quote issues
+            std::regex matcher_regex(R"xxx(\{([^=]+)="([^"]+)"\})xxx");
             std::smatch match;
             if (std::regex_match(matcher, match, matcher_regex)) {
                 storage_matchers.emplace_back(match[1].str(), match[2].str());
@@ -165,8 +168,9 @@ bool LabelsHandler::ValidateLabelName(const std::string& name) const {
 
 bool LabelsHandler::ValidateTimeRange(const LabelQueryParams& params) const {
     if (params.start_time && params.end_time) {
-        return *params.start_time <= *params.end_time &&
-               *params.end_time - *params.start_time <= kMaxTimeRange;
+        // Removed time range limit check - allow queries over any range
+        return *params.start_time <= *params.end_time;
+        // && *params.end_time - *params.start_time <= kMaxTimeRange;
     }
     return true;
 }

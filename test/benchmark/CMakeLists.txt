@@ -57,6 +57,51 @@ add_executable(new_vs_update_perf_bench write_new_vs_update_benchmark.cpp)
 target_include_directories(new_vs_update_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(new_vs_update_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
 
+# OTEL gRPC Write Performance Benchmark (only if gRPC is available)
+if(HAVE_GRPC)
+    add_executable(otel_write_perf_bench otel_write_performance_benchmark.cpp)
+    target_include_directories(otel_write_perf_bench PRIVATE 
+        ${CMAKE_SOURCE_DIR}/src 
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src/tsdb/proto/gen
+    )
+    
+    # Don't add proto source files directly - they're already linked via tsdb_otel_impl
+    # Adding them again causes protobuf descriptor database conflicts
+    # Find httplib and RapidJSON for HTTP query verification
+    find_package(httplib QUIET)
+    find_package(RapidJSON QUIET)
+    
+    if(NOT httplib_FOUND)
+        message(STATUS "httplib not found, HTTP verification will be disabled")
+    endif()
+    
+    if(NOT RapidJSON_FOUND)
+        message(STATUS "RapidJSON not found, HTTP verification will be disabled")
+    endif()
+    
+    target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_GRPC=1)
+    target_link_libraries(otel_write_perf_bench PRIVATE 
+        tsdb_test_common 
+        tsdb_lib 
+        benchmark::benchmark 
+        benchmark::benchmark_main 
+        gRPC::grpc++ 
+        protobuf::libprotobuf
+    )
+    
+    if(httplib_FOUND)
+        target_link_libraries(otel_write_perf_bench PRIVATE httplib::httplib)
+        target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_HTTPLIB=1)
+    endif()
+    
+    if(RapidJSON_FOUND)
+        target_include_directories(otel_write_perf_bench PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
+        target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_RAPIDJSON=1)
+    endif()
+    add_test(NAME benchmark_otel_write COMMAND otel_write_perf_bench)
+endif()
+
 # Register tests
 add_test(NAME benchmark_write COMMAND write_perf_bench)
 add_test(NAME benchmark_read COMMAND read_perf_bench)

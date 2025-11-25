@@ -59,6 +59,15 @@ else()
     set(HAVE_GRPC FALSE)
 endif()
 
+find_package(RapidJSON QUIET)
+if(RapidJSON_FOUND)
+    message(STATUS "RapidJSON found. Headers: ${RAPIDJSON_INCLUDE_DIRS}")
+    set(HAVE_RAPIDJSON TRUE)
+else()
+    message(STATUS "RapidJSON not found, building without Prometheus HTTP server")
+    set(HAVE_RAPIDJSON FALSE)
+endif()
+
 ## Test dependencies
 if(BUILD_TESTS)
     find_package(GTest 1.11.0 QUIET)

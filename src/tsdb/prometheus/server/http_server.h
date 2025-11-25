@@ -29,6 +29,11 @@ struct ServerConfig {
 using RequestHandler = std::function<void(const std::string& request, std::string& response)>;
 
 /**
+ * @brief Query handler function type that receives full request path with query parameters
+ */
+using QueryHandlerFunc = std::function<std::string(const std::string& path_with_query)>;
+
+/**
  * @brief HTTP server for Prometheus API endpoints
  */
 class HttpServer {
@@ -62,6 +67,13 @@ public:
      * @param handler The handler function
      */
     void RegisterHandler(const std::string& path, RequestHandler handler);
+    
+    /**
+     * @brief Register a query handler that receives full request path with query parameters
+     * @param path The endpoint path (e.g., "/api/v1/query")
+     * @param handler The query handler function that returns JSON response
+     */
+    void RegisterQueryHandler(const std::string& path, QueryHandlerFunc handler);
 
     /**
      * @brief Get server metrics
