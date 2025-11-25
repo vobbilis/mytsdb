@@ -142,6 +142,17 @@ public:
      * @return A string containing storage statistics
      */
     std::string stats() const override;
+    
+    /**
+     * @brief Enable/disable write performance instrumentation
+     * @param enable If true, enables detailed timing measurements for write operations
+     */
+    static void enable_write_instrumentation(bool enable);
+    
+    /**
+     * @brief Print write performance summary statistics
+     */
+    static void print_write_performance_summary();
 
 private:
     core::Result<void> flush_nolock();

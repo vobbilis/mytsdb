@@ -202,6 +202,10 @@ std::vector<uint8_t> WriteAheadLog::serialize_series(const core::TimeSeries& ser
     // 1. Serialize labels (using same pattern as BlockImpl)
     const auto& labels = series.labels();
     uint32_t label_count = static_cast<uint32_t>(labels.map().size());
+    
+    // DEBUG: Log label count being serialized (log all cases for debugging)
+    std::cerr << "WAL Serialize: Writing series with " << label_count << " labels to WAL" << std::endl;
+    
     const uint8_t* label_count_bytes = reinterpret_cast<const uint8_t*>(&label_count);
     result.insert(result.end(), label_count_bytes, label_count_bytes + sizeof(uint32_t));
     
@@ -406,6 +410,9 @@ std::optional<core::TimeSeries> WriteAheadLog::deserialize_series(const std::vec
         uint32_t label_count;
         std::memcpy(&label_count, data.data() + offset, sizeof(label_count));
         offset += sizeof(label_count);
+        
+        // DEBUG: Log label count being deserialized (log all cases for debugging)
+        std::cerr << "WAL Deserialize: Reading series with " << label_count << " labels from WAL" << std::endl;
         
         // Sanity check: prevent excessive label count
         if (label_count > 1000) {

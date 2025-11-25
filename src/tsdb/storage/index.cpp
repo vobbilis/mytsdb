@@ -1,6 +1,5 @@
 #include "tsdb/storage/index.h"
 #include <algorithm>
-#include <iostream>
 
 namespace tsdb {
 namespace storage {
@@ -17,7 +16,6 @@ core::Result<void> Index::add_series(core::SeriesID id, const core::Labels& labe
         postings_[label_pair].push_back(id);
     }
     
-    std::cout << "Index: Added series " << id << " with " << labels.map().size() << " labels" << std::endl;
     return core::Result<void>();
 }
 
@@ -55,7 +53,6 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<s
         }
     }
     
-    std::cout << "Index: Found " << result.size() << " series matching " << matchers.size() << " matchers" << std::endl;
     return core::Result<std::vector<core::SeriesID>>(result);
 }
 
