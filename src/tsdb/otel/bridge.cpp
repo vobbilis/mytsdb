@@ -152,47 +152,103 @@ private:
         const opentelemetry::proto::metrics::v1::Metric& metric,
         const core::Labels& resource_labels,
         const core::Labels& scope_labels) {
-        // Combine all labels
-        core::Labels::Map labels;
+        // Base labels: resource + scope + metric name
+        core::Labels::Map base_labels;
+        base_labels.insert(resource_labels.map().begin(), resource_labels.map().end());
+        base_labels.insert(scope_labels.map().begin(), scope_labels.map().end());
+        base_labels["__name__"] = metric.name();
         
-        // Add resource labels
-        labels.insert(resource_labels.map().begin(), resource_labels.map().end());
-        
-        // Add scope labels
-        labels.insert(scope_labels.map().begin(), scope_labels.map().end());
-        
-        // Add metric name
-        labels["__name__"] = metric.name();
-        
-        // Create series if it doesn't exist
-        auto series = core::TimeSeries(core::Labels(std::move(labels)));
-        
-        // Convert data points
-        std::vector<core::Sample> samples;
-        
+        // Convert data points - each data point may have different attributes,
+        // so we need to create separate series for each unique set of attributes
         switch (metric.data_case()) {
             case opentelemetry::proto::metrics::v1::Metric::kGauge:
-                ConvertGauge(metric.gauge(), samples);
-                break;
+                return ConvertGaugeWithAttributes(metric.gauge(), base_labels);
             case opentelemetry::proto::metrics::v1::Metric::kSum:
-                ConvertSum(metric.sum(), samples);
-                break;
+                return ConvertSumWithAttributes(metric.sum(), base_labels);
             case opentelemetry::proto::metrics::v1::Metric::kHistogram:
-                ConvertHistogram(metric.histogram(), samples);
-                break;
+                return ConvertHistogramWithAttributes(metric.histogram(), base_labels);
             default:
                 return core::Result<void>(std::make_unique<core::Error>(
                     "Unsupported metric type"));
         }
-        
-        for (const auto& sample : samples) {
-            series.add_sample(sample);
+    }
+    
+    // Convert gauge with data point attributes
+    core::Result<void> ConvertGaugeWithAttributes(
+        const opentelemetry::proto::metrics::v1::Gauge& gauge,
+        const core::Labels::Map& base_labels) {
+        for (const auto& point : gauge.data_points()) {
+            // Combine base labels with data point attributes
+            core::Labels::Map labels = base_labels;
+            auto point_labels = ConvertAttributes(point.attributes());
+            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            
+            // Create series with combined labels
+            auto series = core::TimeSeries(core::Labels(std::move(labels)));
+            series.add_sample(core::Sample(
+                point.time_unix_nano() / 1000000,  // Convert to milliseconds
+                point.as_double()));
+            
+            auto result = storage_->write(series);
+            if (!result.ok()) {
+                return result;
+            }
         }
-        
-        if (!samples.empty()) {
-            return storage_->write(series);
+        return core::Result<void>();
+    }
+    
+    // Convert sum with data point attributes
+    core::Result<void> ConvertSumWithAttributes(
+        const opentelemetry::proto::metrics::v1::Sum& sum,
+        const core::Labels::Map& base_labels) {
+        for (const auto& point : sum.data_points()) {
+            // Combine base labels with data point attributes
+            core::Labels::Map labels = base_labels;
+            auto point_labels = ConvertAttributes(point.attributes());
+            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            
+            // Create series with combined labels
+            auto series = core::TimeSeries(core::Labels(std::move(labels)));
+            series.add_sample(core::Sample(
+                point.time_unix_nano() / 1000000,  // Convert to milliseconds
+                point.as_double()));
+            
+            auto result = storage_->write(series);
+            if (!result.ok()) {
+                return result;
+            }
         }
-        
+        return core::Result<void>();
+    }
+    
+    // Convert histogram with data point attributes
+    core::Result<void> ConvertHistogramWithAttributes(
+        const opentelemetry::proto::metrics::v1::Histogram& histogram,
+        const core::Labels::Map& base_labels) {
+        for (const auto& point : histogram.data_points()) {
+            // Combine base labels with data point attributes
+            core::Labels::Map labels = base_labels;
+            auto point_labels = ConvertAttributes(point.attributes());
+            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            
+            // Create series with combined labels
+            auto series = core::TimeSeries(core::Labels(std::move(labels)));
+            
+            // Store count and sum
+            core::Timestamp ts = point.time_unix_nano() / 1000000;
+            series.add_sample(core::Sample(ts, point.count()));
+            series.add_sample(core::Sample(ts + 1, point.sum()));  // Offset by 1ms
+            
+            // Store bucket counts
+            for (size_t i = 0; i < static_cast<size_t>(point.bucket_counts_size()); i++) {
+                series.add_sample(core::Sample(ts + 2 + i, point.bucket_counts(i)));
+            }
+            
+            auto result = storage_->write(series);
+            if (!result.ok()) {
+                return result;
+            }
+        }
         return core::Result<void>();
     }
     
@@ -219,68 +275,8 @@ private:
         }
     }
     
-    /**
-     * @brief Converts OpenTelemetry gauge to TSDB samples.
-     * 
-     * Handles both integer and double gauge values.
-     * Timestamps are converted from nanoseconds to milliseconds.
-     */
-    void ConvertGauge(
-        const opentelemetry::proto::metrics::v1::Gauge& gauge,
-        std::vector<core::Sample>& samples) {
-        for (const auto& point : gauge.data_points()) {
-            samples.emplace_back(
-                point.time_unix_nano() / 1000000,  // Convert to milliseconds
-                point.as_double());
-        }
-    }
-    
-    /**
-     * @brief Converts OpenTelemetry sum to TSDB samples.
-     * 
-     * Handles both monotonic and non-monotonic sums.
-     * Timestamps are converted from nanoseconds to milliseconds.
-     */
-    void ConvertSum(
-        const opentelemetry::proto::metrics::v1::Sum& sum,
-        std::vector<core::Sample>& samples) {
-        for (const auto& point : sum.data_points()) {
-            samples.emplace_back(
-                point.time_unix_nano() / 1000000,
-                point.as_double());
-        }
-    }
-    
-    /**
-     * @brief Converts OpenTelemetry histogram to TSDB samples.
-     * 
-     * Conversion process:
-     * 1. Store count and sum as separate samples
-     * 2. Store each bucket count
-     * 3. Preserve bucket boundaries in metadata
-     * 
-     * Sample timestamps are offset to maintain ordering:
-     * - Base timestamp: Count
-     * - Base + 1ms: Sum
-     * - Base + 2ms+: Bucket counts
-     */
-    void ConvertHistogram(
-        const opentelemetry::proto::metrics::v1::Histogram& histogram,
-        std::vector<core::Sample>& samples) {
-        for (const auto& point : histogram.data_points()) {
-            // Store count and sum
-            core::Timestamp ts = point.time_unix_nano() / 1000000;
-            samples.emplace_back(ts, point.count());
-            samples.emplace_back(ts + 1, point.sum());  // Offset by 1ms
-            
-            // Store bucket counts
-            for (size_t i = 0; i < static_cast<size_t>(point.bucket_counts_size()); i++) {
-                samples.emplace_back(
-                    ts + 2 + i,  // Offset each bucket
-                    point.bucket_counts(i));
-            }
-        }
-    }
+    // Old ConvertGauge, ConvertSum, ConvertHistogram methods removed
+    // They are now replaced by ConvertGaugeWithAttributes, ConvertSumWithAttributes, ConvertHistogramWithAttributes
     
     std::shared_ptr<storage::Storage> storage_;
     OTELMetricsBridgeOptions options_;
@@ -291,6 +287,7 @@ private:
 
 } // namespace
 
+// Factory function for creating OTEL metrics bridge
 std::shared_ptr<Bridge> CreateOTELMetricsBridge(
     std::shared_ptr<storage::Storage> storage,
     const OTELMetricsBridgeOptions& options) {
@@ -302,7 +299,7 @@ std::shared_ptr<Bridge> CreateOTELMetricsBridge(
 MetricsService::MetricsService(std::shared_ptr<storage::Storage> storage)
     : Service()
     , storage_(std::move(storage))
-    , bridge_(CreateOTELMetricsBridge(storage_, OTELMetricsBridgeOptions{})) {
+    , bridge_(std::make_shared<OTELMetricsBridgeImpl>(storage_, OTELMetricsBridgeOptions{})) {
     spdlog::info("MetricsService initialized");
 }
 
@@ -311,21 +308,19 @@ grpc::Status MetricsService::Export(
     const opentelemetry::proto::collector::metrics::v1::ExportMetricsServiceRequest* request,
     opentelemetry::proto::collector::metrics::v1::ExportMetricsServiceResponse* /*response*/) {
     try {
-        spdlog::debug("Received metrics export request");
-        
-    for (const auto& resource_metrics : request->resource_metrics()) {
+        for (const auto& resource_metrics : request->resource_metrics()) {
             opentelemetry::proto::metrics::v1::MetricsData metrics_data;
             *metrics_data.add_resource_metrics() = resource_metrics;
             
             auto result = bridge_->ConvertMetrics(metrics_data);
-        if (!result.ok()) {
+            if (!result.ok()) {
                 spdlog::error("Failed to convert metrics: {}", result.error());
                 return grpc::Status(grpc::StatusCode::INTERNAL, result.error());
+            }
         }
-    }
     
         bridge_->flush();
-    return grpc::Status::OK;
+        return grpc::Status::OK;
     } catch (const std::exception& e) {
         spdlog::error("Error in Export: {}", e.what());
         return grpc::Status(grpc::StatusCode::INTERNAL, e.what());

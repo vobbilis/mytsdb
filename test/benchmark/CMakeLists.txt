@@ -1,229 +1,111 @@
 # Performance Benchmark Configuration
 
-# Try to find benchmark package, but make it optional
+include(FetchContent)
+
+# Try to find benchmark package
 find_package(benchmark QUIET)
 
-if(benchmark_FOUND)
-    # Main benchmark executable
-    add_executable(tsdb_benchmarks
-        core_benchmark.cpp
-        storage_benchmark.cpp
-        histogram_benchmark.cpp
-        storage_histogram_benchmark.cpp
-        otel_benchmark.cpp
-        end_to_end_benchmark.cpp
-        concurrent_benchmark.cpp
-        wal_performance_benchmark.cpp
-        memory_efficiency_performance_test.cpp
-        indexing_performance_test.cpp
-        concurrency_performance_test.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
+if(NOT benchmark_FOUND)
+    message(STATUS "Google Benchmark not found locally, fetching from GitHub...")
+    
+    FetchContent_Declare(
+        benchmark
+        GIT_REPOSITORY https://github.com/google/benchmark.git
+        GIT_TAG v1.8.3
     )
+    
+    # Suppress benchmark's tests and install targets
+    set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_ENABLE_INSTALL OFF CACHE BOOL "" FORCE)
+    set(BENCHMARK_DOWNLOAD_DEPENDENCIES ON CACHE BOOL "" FORCE)
+    
+    FetchContent_MakeAvailable(benchmark)
+    message(STATUS "Google Benchmark fetched and configured")
+endif()
 
-    target_include_directories(tsdb_benchmarks
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
+message(STATUS "Performance benchmarks enabled")
+
+# Individual executables for targeted benchmarking
+
+# Write Performance
+add_executable(write_perf_bench write_performance_benchmark.cpp)
+target_include_directories(write_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(write_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# Read Performance
+add_executable(read_perf_bench read_performance_benchmark.cpp)
+target_include_directories(read_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(read_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# Mixed Workload
+add_executable(mixed_perf_bench mixed_workload_benchmark.cpp)
+target_include_directories(mixed_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(mixed_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# Latency
+add_executable(latency_perf_bench latency_benchmark.cpp)
+target_include_directories(latency_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(latency_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# Concurrency
+add_executable(concurrency_perf_bench concurrency_benchmark.cpp)
+target_include_directories(concurrency_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(concurrency_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# New vs Update Comparison
+add_executable(new_vs_update_perf_bench write_new_vs_update_benchmark.cpp)
+target_include_directories(new_vs_update_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(new_vs_update_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+
+# OTEL gRPC Write Performance Benchmark (only if gRPC is available)
+if(HAVE_GRPC)
+    add_executable(otel_write_perf_bench otel_write_performance_benchmark.cpp)
+    target_include_directories(otel_write_perf_bench PRIVATE 
+        ${CMAKE_SOURCE_DIR}/src 
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src/tsdb/proto/gen
     )
-
-    target_link_libraries(tsdb_benchmarks
-        PRIVATE
-            tsdb_test_common
-            tsdb_lib
-            benchmark::benchmark
-            benchmark::benchmark_main
-            GTest::gtest
-            GTest::gtest_main
-    )
-
-    # Individual benchmark executables for specific testing
-    add_executable(tsdb_core_benchmark
-        core_benchmark.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_core_benchmark
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_core_benchmark
-        PRIVATE
-            tsdb_test_common
-            tsdb_core_impl
-            benchmark::benchmark
-            benchmark::benchmark_main
-    )
-
-    add_executable(tsdb_storage_benchmark
-        storage_benchmark.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_storage_benchmark
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_storage_benchmark
-        PRIVATE
-            tsdb_test_common
-            tsdb_storage_impl
-            tsdb_core_impl
-            benchmark::benchmark
-            benchmark::benchmark_main
-    )
-
-    add_executable(tsdb_histogram_benchmark
-        histogram_benchmark.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_histogram_benchmark
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_histogram_benchmark
-        PRIVATE
-            tsdb_test_common
-            tsdb_histogram_impl
-            benchmark::benchmark
-            benchmark::benchmark_main
-    )
-
-    # WAL Performance Benchmark
-    add_executable(tsdb_wal_performance_benchmark
-        wal_performance_benchmark.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_wal_performance_benchmark
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_wal_performance_benchmark
-        PRIVATE
-            tsdb_test_common
-            tsdb_lib
-            benchmark::benchmark
-            benchmark::benchmark_main
-            GTest::gtest
-            GTest::gtest_main
-    )
-
-    # Memory Efficiency Performance Test
-    add_executable(tsdb_memory_efficiency_performance_test
-        memory_efficiency_performance_test.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_memory_efficiency_performance_test
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_memory_efficiency_performance_test
-        PRIVATE
-            tsdb_test_common
-            tsdb_lib
-            benchmark::benchmark
-            benchmark::benchmark_main
-            GTest::gtest
-            GTest::gtest_main
-    )
-
-    # Indexing Performance Test
-    add_executable(tsdb_indexing_performance_test
-        indexing_performance_test.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_indexing_performance_test
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_indexing_performance_test
-        PRIVATE
-            tsdb_test_common
-            tsdb_lib
-            benchmark::benchmark
-            benchmark::benchmark_main
-            GTest::gtest
-            GTest::gtest_main
-    )
-
-    # Concurrency Performance Test
-    add_executable(tsdb_concurrency_performance_test
-        concurrency_performance_test.cpp
-        ${CMAKE_SOURCE_DIR}/test/main.cpp
-    )
-
-    target_include_directories(tsdb_concurrency_performance_test
-        PRIVATE
-            ${CMAKE_SOURCE_DIR}/src
-            ${CMAKE_SOURCE_DIR}/include
-    )
-
-    target_link_libraries(tsdb_concurrency_performance_test
-        PRIVATE
-            tsdb_test_common
-            tsdb_lib
-            benchmark::benchmark
-            benchmark::benchmark_main
-            GTest::gtest
-            GTest::gtest_main
-    )
-
-    # Test fixtures
-    if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
-        add_custom_command(TARGET tsdb_benchmarks POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/../data
-                ${CMAKE_CURRENT_BINARY_DIR}/data
-        )
-        add_custom_command(TARGET tsdb_core_benchmark POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/../data
-                ${CMAKE_CURRENT_BINARY_DIR}/data
-        )
-        add_custom_command(TARGET tsdb_storage_benchmark POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/../data
-                ${CMAKE_CURRENT_BINARY_DIR}/data
-        )
-        add_custom_command(TARGET tsdb_histogram_benchmark POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/../data
-                ${CMAKE_CURRENT_BINARY_DIR}/data
-        )
-        add_custom_command(TARGET tsdb_wal_performance_benchmark POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${CMAKE_CURRENT_SOURCE_DIR}/../data
-                ${CMAKE_CURRENT_BINARY_DIR}/data
-        )
+    
+    # Don't add proto source files directly - they're already linked via tsdb_otel_impl
+    # Adding them again causes protobuf descriptor database conflicts
+    # Find httplib and RapidJSON for HTTP query verification
+    find_package(httplib QUIET)
+    find_package(RapidJSON QUIET)
+    
+    if(NOT httplib_FOUND)
+        message(STATUS "httplib not found, HTTP verification will be disabled")
     endif()
+    
+    if(NOT RapidJSON_FOUND)
+        message(STATUS "RapidJSON not found, HTTP verification will be disabled")
+    endif()
+    
+    target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_GRPC=1)
+    target_link_libraries(otel_write_perf_bench PRIVATE 
+        tsdb_test_common 
+        tsdb_lib 
+        benchmark::benchmark 
+        benchmark::benchmark_main 
+        gRPC::grpc++ 
+        protobuf::libprotobuf
+    )
+    
+    if(httplib_FOUND)
+        target_link_libraries(otel_write_perf_bench PRIVATE httplib::httplib)
+        target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_HTTPLIB=1)
+    endif()
+    
+    if(RapidJSON_FOUND)
+        target_include_directories(otel_write_perf_bench PRIVATE ${RAPIDJSON_INCLUDE_DIRS})
+        target_compile_definitions(otel_write_perf_bench PRIVATE HAVE_RAPIDJSON=1)
+    endif()
+    add_test(NAME benchmark_otel_write COMMAND otel_write_perf_bench)
+endif()
 
-    # Register benchmark tests
-    add_test(NAME tsdb_benchmarks COMMAND tsdb_benchmarks --benchmark_min_time=1)
-    add_test(NAME tsdb_core_benchmark COMMAND tsdb_core_benchmark --benchmark_min_time=1)
-    add_test(NAME tsdb_storage_benchmark COMMAND tsdb_storage_benchmark --benchmark_min_time=1)
-    add_test(NAME tsdb_histogram_benchmark COMMAND tsdb_histogram_benchmark --benchmark_min_time=1)
-    add_test(NAME tsdb_wal_performance_benchmark COMMAND tsdb_wal_performance_benchmark --benchmark_min_time=1)
-    add_test(NAME tsdb_memory_efficiency_performance_test COMMAND tsdb_memory_efficiency_performance_test --benchmark_min_time=1)
-    add_test(NAME tsdb_indexing_performance_test COMMAND tsdb_indexing_performance_test --benchmark_min_time=1)
-    add_test(NAME tsdb_concurrency_performance_test COMMAND tsdb_concurrency_performance_test --benchmark_min_time=1)
-
-    message(STATUS "Google Benchmark found - Performance benchmarks enabled")
-else()
-    message(STATUS "Google Benchmark not found - Performance benchmarks disabled")
-    message(STATUS "To enable benchmarks, install Google Benchmark: https://github.com/google/benchmark")
-endif() 
+# Register tests
+add_test(NAME benchmark_write COMMAND write_perf_bench)
+add_test(NAME benchmark_read COMMAND read_perf_bench)
+add_test(NAME benchmark_mixed COMMAND mixed_perf_bench)
+add_test(NAME benchmark_latency COMMAND latency_perf_bench)
+add_test(NAME benchmark_concurrency COMMAND concurrency_perf_bench)
+add_test(NAME benchmark_new_vs_update COMMAND new_vs_update_perf_bench)
