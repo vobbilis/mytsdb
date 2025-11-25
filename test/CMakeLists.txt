@@ -31,6 +31,11 @@ add_subdirectory(integration)
 # Performance benchmark tests
 add_subdirectory(benchmark)
 
+# OTEL/gRPC tests (only if gRPC is available)
+if(HAVE_GRPC)
+    add_subdirectory(otel_grpc)
+endif()
+
 # Phase 1: Memory Access Pattern Optimization Tests
 
 
@@ -244,6 +249,28 @@ add_custom_target(test-histogram-unit
     COMMENT "Running histogram unit tests - 22 tests (1min timeout)"
 )
 
+# OTEL/gRPC E2E Tests
+if(HAVE_GRPC)
+    add_custom_target(test-otel-grpc-e2e
+        COMMAND ${CMAKE_COMMAND} -E echo "Running OTEL/gRPC E2E tests"
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/otel-grpc-e2e
+        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+            ${CMAKE_COMMAND} -E env CTEST_OUTPUT_ON_FAILURE=1 
+            ctest --test-dir test/otel_grpc/e2e --output-junit ${CMAKE_BINARY_DIR}/test-results/otel-grpc-e2e/e2e_tests.xml --timeout 60
+        DEPENDS tsdb_grpc_server_e2e_test
+        COMMENT "Running OTEL/gRPC E2E tests (60s timeout per test)"
+    )
+    
+    add_custom_target(test-otel-grpc
+        COMMAND ${CMAKE_COMMAND} -E echo "Running all OTEL/gRPC tests"
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/otel-grpc
+        COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
+            ${CMAKE_COMMAND} -E env CTEST_OUTPUT_ON_FAILURE=1 
+            ctest --test-dir test/otel_grpc --output-junit ${CMAKE_BINARY_DIR}/test-results/otel-grpc/all_tests.xml --timeout 60
+        COMMENT "Running all OTEL/gRPC tests (60s timeout per test)"
+    )
+endif()
+
 # Test result summary
 add_custom_target(test-summary
     COMMAND ${CMAKE_COMMAND} -E echo "=== TEST RESULTS SUMMARY ==="
@@ -264,6 +291,10 @@ add_custom_target(test-summary
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-compression-unit      - Run compression unit tests - 19 tests - 1min timeout"
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-histogram-unit        - Run histogram unit tests - 22 tests - 1min timeout"
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-individual-integration - Run individual integration tests - 53 tests"
+    if(HAVE_GRPC)
+        COMMAND ${CMAKE_COMMAND} -E echo "  make test-otel-grpc-e2e         - Run OTEL/gRPC E2E tests - 60s timeout per test"
+        COMMAND ${CMAKE_COMMAND} -E echo "  make test-otel-grpc             - Run all OTEL/gRPC tests - 60s timeout per test"
+    endif()
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-clean                 - Clean test results"
     COMMENT "Displaying test results summary"
 )

@@ -98,6 +98,24 @@ public:
         });
     }
     
+    void RegisterQueryHandler(const std::string& path, QueryHandlerFunc handler) {
+        std::lock_guard<std::mutex> lock(query_handlers_mutex_);
+        query_handlers_[path] = handler;
+        
+        server_->Get(path.c_str(), [this, path](const httplib::Request& req, 
+                                               httplib::Response& res) {
+            try {
+                // Use req.target which contains the original path + query string
+                std::string path_with_query = req.target;
+                std::string response = query_handlers_[path](path_with_query);
+                res.set_content(response, "application/json");
+            } catch (const std::exception& e) {
+                res.status = 500;
+                res.set_content(CreateErrorJson(e.what()), "application/json");
+            }
+        });
+    }
+    
     std::string GetMetricsJson() const {
         rapidjson::Document doc;
         doc.SetObject();
@@ -124,6 +142,8 @@ private:
     std::thread server_thread_;
     std::unordered_map<std::string, RequestHandler> handlers_;
     mutable std::mutex handlers_mutex_;
+    std::unordered_map<std::string, QueryHandlerFunc> query_handlers_;
+    mutable std::mutex query_handlers_mutex_;
     std::atomic<uint64_t> request_count_;
     std::atomic<uint64_t> active_connections_;
     
@@ -172,6 +192,10 @@ bool HttpServer::IsRunning() const {
 
 void HttpServer::RegisterHandler(const std::string& path, RequestHandler handler) {
     impl_->RegisterHandler(path, handler);
+}
+
+void HttpServer::RegisterQueryHandler(const std::string& path, QueryHandlerFunc handler) {
+    impl_->RegisterQueryHandler(path, handler);
 }
 
 std::string HttpServer::GetMetrics() const {
