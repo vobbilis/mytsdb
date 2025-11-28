@@ -25,6 +25,8 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 - ✅ **Background Processing** - Async compaction and cleanup
 - ✅ **Thread-Safe** - Lock-free data structures with Intel TBB
 - ✅ **Aggregation Pushdown** - ~785x speedup for aggregations
+- ✅ **OpenTelemetry Support** - Native OTEL metric ingestion bridge
+- ✅ **gRPC API** - High-performance query service
 - ⚠️ **Semantic Vectors** - Optional advanced analytics (experimental)
 
 ---
@@ -34,6 +36,7 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                       Client API                             │
+│  (C++ Library / gRPC Service / OTEL Bridge)                 │
 ├─────────────────────────────────────────────────────────────┤
 │  StorageImpl (Core Storage Engine)                          │
 │  ├─ Write-Ahead Log (WAL) - Durability                     │
@@ -65,6 +68,10 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 - `PredictiveCache` - Pattern-based prefetching
 - `BackgroundProcessor` - Async task execution
 - `AggregationPushdown` - Storage-side aggregation execution
+
+**Integration Layer:**
+- `OTELBridge` - OpenTelemetry metric conversion and ingestion
+- `QueryService` - gRPC-based query interface
 
 **Compression Layer:**
 - `GorillaCompressor` - Facebook's Gorilla algorithm for float values
@@ -100,7 +107,7 @@ That's it! The project uses a Makefile wrapper around CMake for convenience. All
 ### Prerequisites
 
 - **Required:** C++17 compiler, CMake 3.15+, Make
-- **Optional (but recommended):** Intel TBB, spdlog, Google Test, gRPC
+- **Optional (but recommended):** Intel TBB, spdlog, Google Test, gRPC (required for OTEL support)
 
 See [GETTING_STARTED.md](GETTING_STARTED.md) for detailed installation instructions for your platform.
 
@@ -184,6 +191,7 @@ Cache:              ~1GB (configurable)
 - ✅ Compression (4-6x)
 - ✅ Lock-free data structures
 - ✅ Aggregation Pushdown (STDDEV, QUANTILE, etc.)
+- ✅ gRPC/OTEL Integration
 - ⚠️ L2 cache disabled (segfault issues)
 
 **Note:** Current performance is ~10K ops/sec. Theoretical maximum is 80K+ ops/sec based on component analysis. Performance optimization is ongoing.
@@ -215,6 +223,7 @@ Cache:              ~1GB (configurable)
 - **[StorageImpl Comprehensive Test Plan](docs/planning/STORAGEIMPL_COMPREHENSIVE_TEST_PLAN.md)** - Complete test strategy
 - **[Integration Testing Plan](docs/planning/INTEGRATION_TESTING_PLAN.md)** - Integration test strategy
 - **[Test README](test/README.md)** - Running tests
+- **[OTEL/gRPC Tests](test/otel_grpc/README.md)** - OTEL integration tests
 
 ### Advanced Features
 
@@ -250,6 +259,9 @@ make test-histogram-unit     # Histogram unit tests (22 tests)
 # PromQL Comprehensive Tests (with data generation)
 make test-promql-full        # Runs full PromQL suite (900+ tests)
 
+# OTEL/gRPC Tests
+make test-otel-grpc          # Runs all OTEL/gRPC tests
+
 # Background test execution (for overnight runs)
 make test-background-caffeinate  # macOS - prevents hibernation
 make test-background-status      # Check status
@@ -263,6 +275,7 @@ make test-background-stop        # Stop tests
 - ✅ **Unit Tests:** 350+ tests
 - ✅ **Integration Tests:** 170+ tests
 - ✅ **PromQL Tests:** 50+ comprehensive scenarios
+- ✅ **OTEL/gRPC Tests:** Verified
 - ✅ **Overall:** All passing
 
 See [docs/planning/FAILING_TESTS_FIX_PLAN.md](docs/planning/FAILING_TESTS_FIX_PLAN.md) for detailed test status and results.
