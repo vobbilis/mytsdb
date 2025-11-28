@@ -1,0 +1,94 @@
+{
+  "context": {
+    "date": "2025-11-23T19:45:26-08:00",
+    "host_name": "HPE-QN2039W45W",
+    "executable": "./build/test/benchmark/write_perf_bench",
+    "num_cpus": 12,
+    "mhz_per_cpu": 24,
+    "cpu_scaling_enabled": false,
+    "caches": [
+      {
+        "type": "Data",
+        "level": 1,
+        "size": 65536,
+        "num_sharing": 0
+      },
+      {
+        "type": "Instruction",
+        "level": 1,
+        "size": 131072,
+        "num_sharing": 0
+      },
+      {
+        "type": "Unified",
+        "level": 2,
+        "size": 4194304,
+        "num_sharing": 1
+      }
+    ],
+    "load_avg": [4.73145,4.32861,4.09961],
+    "library_build_type": "debug"
+  },
+  "benchmarks": [
+    {
+      "name": "WriteBenchmark/SingleThreadedWrite/1000",
+      "family_index": 0,
+      "per_family_instance_index": 0,
+      "run_name": "WriteBenchmark/SingleThreadedWrite/1000",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 333433,
+      "real_time": 4.9084076384002277e-03,
+      "cpu_time": 4.6126718111284730e-03,
+      "time_unit": "ms",
+      "items_per_second": 2.1679409265307212e+05
+    },
+    {
+      "name": "WriteBenchmark/SingleThreadedWrite/4096",
+      "family_index": 0,
+      "per_family_instance_index": 1,
+      "run_name": "WriteBenchmark/SingleThreadedWrite/4096",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 299493,
+      "real_time": 4.3289781964289580e-03,
+      "cpu_time": 4.0121672292841581e-03,
+      "time_unit": "ms",
+      "items_per_second": 2.4924185430287203e+05
+    },
+    {
+      "name": "WriteBenchmark/SingleThreadedWrite/32768",
+      "family_index": 0,
+      "per_family_instance_index": 2,
+      "run_name": "WriteBenchmark/SingleThreadedWrite/32768",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 328008,
+      "real_time": 4.3777776269495619e-03,
+      "cpu_time": 4.0582333357722994e-03,
+      "time_unit": "ms",
+      "items_per_second": 2.4641264246322488e+05
+    },
+    {
+      "name": "WriteBenchmark/SingleThreadedWrite/100000",
+      "family_index": 0,
+      "per_family_instance_index": 3,
+      "run_name": "WriteBenchmark/SingleThreadedWrite/100000",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 342400,
+      "real_time": 4.3156657682918882e-03,
+      "cpu_time": 4.0110484813084156e-03,
+      "time_unit": "ms",
+      "items_per_second": 2.4931137199164374e+05
+    }
+  ]
+}

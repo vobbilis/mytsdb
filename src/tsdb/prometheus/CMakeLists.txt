@@ -43,7 +43,7 @@ if(httplib_FOUND)
 endif()
 
 if(RapidJSON_FOUND)
-    set(HAVE_RAPIDJSON TRUE)
+    set(HAVE_RAPIDJSON TRUE CACHE BOOL "RapidJSON found" FORCE)
     message(STATUS "Found RapidJSON")
 endif()
 
