@@ -17,6 +17,7 @@ target_include_directories(tsdb_lib
 # Add sources to main library
 target_sources(tsdb_lib PRIVATE
     tsdb/query/query.cpp
+    tsdb/common/logger.cpp
 )
 
 # Add otel sources only if we have gRPC

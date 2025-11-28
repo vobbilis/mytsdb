@@ -377,71 +377,39 @@ compression:
   type_detection: true
 ```
 
-## 🚀 **High-Concurrency Sharded Storage Architecture**
+## 🚀 **High-Concurrency Sharded Architecture**
 
 ### **Overview**
-The high-concurrency storage architecture provides enterprise-grade performance through horizontal partitioning and asynchronous processing. This architecture achieves 498K operations/second with <1ms P99 latency and 99.9995% success rate.
+The storage engine uses fine-grained sharding for critical write-path components (WAL and Index) to eliminate global lock contention. This allows the system to scale writes linearly with thread count.
 
 ### **Architecture Components**
 
-#### **ShardedStorageManager**
-- **4 Shards**: Each shard is a complete StorageImpl instance
-- **Hash Distribution**: Series labels are hashed to determine shard assignment
-- **Independent Processing**: Each shard operates with its own resources
-- **Load Balancing**: Even distribution across all shards
+#### **Sharded Write Ahead Log (WAL)**
+-   **16 Shards**: The WAL is partitioned into 16 independent shards.
+-   **Async Batching**: Each shard uses a background thread to batch writes.
+-   **Hash Distribution**: Series are assigned to shards based on a hash of their labels/ID.
+-   **Independent Locking**: Each shard has its own mutex and file writer.
+-   **Benefit**: Reduces lock contention and decouples client latency from disk I/O.
 
-#### **Write Queue System**
-- **Per-Shard Queues**: Dedicated write queue for each shard
-- **Asynchronous Processing**: Non-blocking write operations
-- **Batch Processing**: Grouped operations for efficiency
-- **Queue Management**: Configurable sizes with overflow handling
-
-#### **Worker Thread Model**
-- **Dedicated Workers**: Background threads for each shard
-- **Retry Logic**: Automatic retry for failed operations
-- **Health Monitoring**: Continuous worker thread monitoring
-- **Non-Blocking**: Client threads never block on writes
+#### **Sharded Index**
+-   **16 Shards**: The In-Memory Index is partitioned into 16 shards.
+-   **Shared Mutexes**: Each shard uses `std::shared_mutex` allowing multiple concurrent readers.
+-   **Scatter-Gather Lookups**: Search operations query all shards in parallel.
+-   **Benefit**: Enables high-throughput concurrent series creation and lookups.
 
 ### **Performance Characteristics**
 
-#### **Throughput Comparison**
-```
-Original StorageImpl:     ~30K ops/sec
-High-Concurrency:         498K ops/sec
-Improvement:              16.6x faster
-```
+#### **Throughput**
+-   **Single Thread**: ~333,000 items/sec (Async WAL)
+-   **Concurrent (8 threads)**: ~43,600 items/sec
+-   **OTEL Ingestion**: ~18,900 items/sec (batch size 100)
 
-#### **Latency Comparison**
-```
-Original StorageImpl:     ~5ms P99
-High-Concurrency:         <1ms P99
-Improvement:              5x faster
-```
-
-#### **Success Rate Comparison**
-```
-Original StorageImpl:     ~33% under load
-High-Concurrency:         99.9995%
-Improvement:              3x more reliable
-```
+#### **Latency**
+-   **Write Latency**: <1us (p99) for WAL write (memory only)
+-   **Lock Wait Time**: Negligible under normal load
 
 ### **Configuration**
-```yaml
-high_concurrency:
-  num_shards: 4
-  queue_size: 10000
-  batch_size: 100
-  num_workers: 2
-  flush_interval: 50ms
-  retry_delay: 5ms
-  max_retries: 3
-```
-
-### **Scalability**
-- **Linear Scaling**: Performance scales linearly with additional shards
-- **Resource Isolation**: Each shard has independent resources
-- **Fault Tolerance**: Shard failures don't affect other shards
-- **Load Distribution**: Automatic load balancing across shards
+The number of shards is currently fixed at compile time (default 16) but designed to be configurable.
 
 ## 🔍 **Storage Monitoring**
 

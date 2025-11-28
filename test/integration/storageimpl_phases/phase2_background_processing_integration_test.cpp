@@ -243,10 +243,10 @@ TEST_F(Phase2BackgroundProcessingIntegrationTest, AutoCleanupExecution) {
     
     // Delete some series to create cleanup work
     for (int i = 0; i < 5; ++i) {
-        std::vector<std::pair<std::string, std::string>> matchers;
-        matchers.push_back({"__name__", "cleanup_test_" + std::to_string(i)});
-        matchers.push_back({"instance", "test"});
-        matchers.push_back({"job", "bg_test"});
+        std::vector<core::LabelMatcher> matchers;
+        matchers.emplace_back(core::MatcherType::Equal, "__name__", "cleanup_test_" + std::to_string(i));
+        matchers.emplace_back(core::MatcherType::Equal, "instance", "test");
+        matchers.emplace_back(core::MatcherType::Equal, "job", "bg_test");
         
         auto delete_result = storage_->delete_series(matchers);
         // Note: delete_series might not be implemented, so we don't assert success

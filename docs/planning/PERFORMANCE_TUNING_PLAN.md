@@ -233,6 +233,9 @@ Tested: [test results]
   - `concurrency_benchmark.cpp`
   - `run_baseline_benchmarks.sh`
 - [x] Run baseline measurements
+- [ ] **OTEL/gRPC write performance testing** ⚠️ **In Progress**
+  - **Status:** Server implementation needed (see `OTEL_GRPC_PERFORMANCE_TESTING_READINESS.md`)
+  - **Missing:** gRPC server startup code, performance test client
   - **Write (New Series):** ~9K writes/sec (110μs/write)
   - **Write (Update):** ~137K writes/sec (7.3μs/write)
   - **Read:** ~1.4K reads/sec

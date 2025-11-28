@@ -147,10 +147,12 @@ TEST_F(StorageTest, MultipleSeries) {
     ASSERT_TRUE(storage_->write(series1).ok());
     ASSERT_TRUE(storage_->write(series2).ok());
     
+#include "tsdb/core/matcher.h"
+// ...
+
     // Query for all series with instance=host1
-    std::vector<std::pair<std::string, std::string>> matchers = {
-        {"instance", "host1"}
-    };
+    std::vector<core::LabelMatcher> matchers;
+    matchers.emplace_back(core::MatcherType::Equal, "instance", "host1");
     
     auto query_result = storage_->query(matchers, 0, 3000);
     ASSERT_TRUE(query_result.ok()) << "Query failed: " << query_result.error();
@@ -229,10 +231,9 @@ TEST_F(StorageTest, DeleteSeries) {
     ASSERT_EQ(read_result.value().samples().size(), 2);
     
     // Delete the series
-    std::vector<std::pair<std::string, std::string>> matchers = {
-        {"__name__", "test_metric"},
-        {"instance", "host1"}
-    };
+    std::vector<core::LabelMatcher> matchers;
+    matchers.emplace_back(core::MatcherType::Equal, "__name__", "test_metric");
+    matchers.emplace_back(core::MatcherType::Equal, "instance", "host1");
     
     auto delete_result = storage_->delete_series(matchers);
     if (!delete_result.ok()) {

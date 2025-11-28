@@ -10,6 +10,8 @@
 #include "tsdb/core/config.h"
 #include "tsdb/core/error.h"
 #include "tsdb/core/result.h"
+#include "tsdb/core/matcher.h"
+#include "tsdb/core/aggregation.h"
 
 namespace tsdb {
 namespace storage {
@@ -64,12 +66,30 @@ public:
      * @brief Query time series data
      */
     virtual core::Result<std::vector<core::TimeSeries>> query(
-        const std::vector<std::pair<std::string, std::string>>& matchers,
+        const std::vector<core::LabelMatcher>& matchers,
         int64_t start_time,
         int64_t end_time) = 0;
-    
+
     /**
-     * @brief Get label names
+     * @brief Queries time series with aggregation pushdown
+     * 
+     * @param matchers Vector of label matchers to filter series
+     * @param start_time Start timestamp (inclusive)
+     * @param end_time End timestamp (inclusive)
+     * @param aggregation Aggregation request details
+     * @return Result containing aggregated time series
+     */
+    virtual core::Result<std::vector<core::TimeSeries>> query_aggregate(
+        const std::vector<core::LabelMatcher>& matchers,
+        int64_t start_time,
+        int64_t end_time,
+        const core::AggregationRequest& aggregation) {
+        // Default implementation falls back to error
+        return core::Result<std::vector<core::TimeSeries>>::error("Aggregation pushdown not implemented");
+    }
+
+    /**
+     * @brief Returns all unique label names across all stored time series
      */
     virtual core::Result<std::vector<std::string>> label_names() = 0;
     
@@ -83,7 +103,7 @@ public:
      * @brief Delete time series data
      */
     virtual core::Result<void> delete_series(
-        const std::vector<std::pair<std::string, std::string>>& matchers) = 0;
+        const std::vector<core::LabelMatcher>& matchers) = 0;
     
     /**
      * @brief Compact storage

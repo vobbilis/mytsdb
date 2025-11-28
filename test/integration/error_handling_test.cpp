@@ -119,16 +119,26 @@ TEST_F(ErrorHandlingTest, StorageErrorPropagation) {
     
     try {
         auto init_result = invalid_storage->init(invalid_config);
-        // If we get here, the test should fail because we expected an error
-        FAIL() << "Expected storage initialization to fail with invalid data directory";
+        // If init returns successfully (doesn't throw), check if it's an error
+        if (init_result.ok()) {
+            FAIL() << "Expected storage initialization to fail with invalid data directory";
+        } else {
+            // Got an error result - verify the error message
+            EXPECT_TRUE(init_result.error().find("Failed to create") != std::string::npos ||
+                       init_result.error().find("WAL directory") != std::string::npos ||
+                       init_result.error().find("storage directories") != std::string::npos)
+                << "Expected error message about directory creation, got: " << init_result.error();
+        }
     } catch (const std::exception& e) {
-        // This is expected - storage should fail to initialize with invalid directory
-        // The error may come from WAL directory creation or BlockManager
-        EXPECT_TRUE(std::string(e.what()).find("Failed to create") != std::string::npos ||
+        // If init throws an exception, verify it's about directory creation
+        EXPECT_TRUE(std::string(e.what()).find("create_directories") != std::string::npos ||
+                   std::string(e.what()).find("Read-only file system") != std::string::npos ||
+                   std::string(e.what()).find("Failed to create") != std::string::npos ||
                    std::string(e.what()).find("WAL directory") != std::string::npos ||
                    std::string(e.what()).find("storage directories") != std::string::npos)
-            << "Expected error message about directory creation, got: " << e.what();
+            << "Expected error about directory creation, got: " << e.what();
     }
+
     
     // Test 2: Invalid time series data
     core::Labels invalid_labels;

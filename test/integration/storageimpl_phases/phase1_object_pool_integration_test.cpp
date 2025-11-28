@@ -311,13 +311,14 @@ TEST_F(Phase1ObjectPoolIntegrationTest, MemoryAllocationEfficiency) {
         ASSERT_TRUE(read_result.ok()) << "Read failed for operation " << i << ": " << (read_result.ok() ? "" : read_result.error());
     }
     
+#include "tsdb/core/matcher.h"
     // Phase 3: Query operations to test multiple result handling
     // Reduced number of queries to avoid timeout (queries are slow with many series)
     const int num_queries = std::min(10, num_operations / 100); // Limit to 10 queries max
     for (int i = 0; i < num_queries; ++i) {
-        std::vector<std::pair<std::string, std::string>> matchers;
-        matchers.emplace_back("test", "phase1");
-        matchers.emplace_back("pool_test", "true");
+        std::vector<core::LabelMatcher> matchers;
+        matchers.emplace_back(core::MatcherType::Equal, "test", "phase1");
+        matchers.emplace_back(core::MatcherType::Equal, "pool_test", "true");
         
         auto query_result = storage_->query(matchers, 1000, 1000 + samples_per_series);
         ASSERT_TRUE(query_result.ok()) << "Query failed for batch " << i;
@@ -382,9 +383,9 @@ TEST_F(Phase1ObjectPoolIntegrationTest, PoolLifecycleAndMemoryLeakDetection) {
         
         // Query phase
         for (int i = 0; i < operations_per_iteration / 5; ++i) {
-            std::vector<std::pair<std::string, std::string>> matchers;
-            matchers.emplace_back("test", "phase1");
-            matchers.emplace_back("pool_test", "true");
+            std::vector<core::LabelMatcher> matchers;
+            matchers.emplace_back(core::MatcherType::Equal, "test", "phase1");
+            matchers.emplace_back(core::MatcherType::Equal, "pool_test", "true");
             
             auto query_result = storage_->query(matchers, 1000, 1050);
             ASSERT_TRUE(query_result.ok()) << "Query failed in cycle " << cycle << ", batch " << i;

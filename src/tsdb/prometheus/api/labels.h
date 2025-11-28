@@ -9,8 +9,9 @@
 
 namespace tsdb {
 namespace prometheus {
+namespace api {
 
-using Storage = storage::Storage;  // Alias for convenience
+using Storage = tsdb::storage::Storage;  // Alias for convenience
 
 /**
  * @brief Parameters for label queries
@@ -81,5 +82,6 @@ private:
     LabelQueryResult CreateSuccessResponse(std::vector<std::string> values) const;
 };
 
+} // namespace api
 } // namespace prometheus
 } // namespace tsdb 

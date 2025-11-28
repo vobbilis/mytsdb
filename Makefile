@@ -50,6 +50,10 @@ test-parser: build
 	@echo "Running PromQL parser tests (34 tests)..."
 	$(MAKE) -C $(BUILD_DIR) test-parser
 
+test-promql-full: build
+	@echo "Running comprehensive PromQL tests with data generation..."
+	./scripts/run_promql_comprehensive.sh
+
 test-main-integration: build
 	@echo "Running main integration test suite (124 tests)..."
 	$(MAKE) -C $(BUILD_DIR) test-main-integration
@@ -238,7 +242,7 @@ deps-macos:
 	@echo "Installing required dependencies..."
 	brew install cmake
 	@echo "Installing optional but recommended dependencies..."
-	@brew install tbb spdlog googletest grpc protobuf || echo "Some optional dependencies failed to install (this is OK)"
+	@brew install tbb spdlog googletest grpc protobuf rapidjson cpp-httplib || echo "Some optional dependencies failed to install (this is OK)"
 	@echo "Dependencies installed successfully!"
 
 deps-linux:
@@ -247,7 +251,7 @@ deps-linux:
 		echo "Detected Debian/Ubuntu, using apt-get..."; \
 		sudo apt-get update; \
 		sudo apt-get install -y build-essential cmake; \
-		sudo apt-get install -y libtbb-dev libspdlog-dev libgtest-dev libgrpc++-dev protobuf-compiler libprotobuf-dev || echo "Some optional dependencies failed to install (this is OK)"; \
+		sudo apt-get install -y libtbb-dev libspdlog-dev libgtest-dev libgrpc++-dev protobuf-compiler libprotobuf-dev rapidjson-dev libhttplib-dev || echo "Some optional dependencies failed to install (this is OK)"; \
 	elif command -v dnf > /dev/null; then \
 		echo "Detected Fedora/RHEL/CentOS, using dnf..."; \
 		sudo dnf install -y gcc-c++ cmake make; \

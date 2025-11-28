@@ -38,6 +38,23 @@ public:
     Result(T value) : value_(std::move(value)), error_(nullptr) {}
     Result(std::unique_ptr<Error> error) : value_(), error_(std::move(error)) {}
     
+    // Move constructor
+    Result(Result&& other) noexcept 
+        : value_(std::move(other.value_)), error_(std::move(other.error_)) {}
+    
+    // Move assignment
+    Result& operator=(Result&& other) noexcept {
+        if (this != &other) {
+            value_ = std::move(other.value_);
+            error_ = std::move(other.error_);
+        }
+        return *this;
+    }
+    
+    // Delete copy constructor and assignment (Result should be move-only)
+    Result(const Result&) = delete;
+    Result& operator=(const Result&) = delete;
+    
     bool ok() const { return error_ == nullptr; }
     std::string error() const { 
         if (!error_) {

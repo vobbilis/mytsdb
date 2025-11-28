@@ -59,6 +59,22 @@ else()
     set(HAVE_GRPC FALSE)
 endif()
 
+find_package(httplib QUIET)
+if(httplib_FOUND)
+    message(STATUS "Found httplib")
+    set(HAVE_HTTPLIB TRUE)
+else()
+    set(HAVE_HTTPLIB FALSE)
+endif()
+
+find_package(RapidJSON QUIET)
+if(RapidJSON_FOUND)
+    message(STATUS "Found RapidJSON")
+    set(HAVE_RAPIDJSON TRUE)
+else()
+    set(HAVE_RAPIDJSON FALSE)
+endif()
+
 ## Test dependencies
 if(BUILD_TESTS)
     find_package(GTest 1.11.0 QUIET)
@@ -117,6 +133,7 @@ configure_file(
 
 # Subdirectories
 add_subdirectory(src)
+add_subdirectory(tools)
 
 # Tests
 if(BUILD_TESTS AND HAVE_GTEST)

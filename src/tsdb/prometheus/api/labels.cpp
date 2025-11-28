@@ -4,9 +4,11 @@
 #include <rapidjson/writer.h>
 #include <regex>
 #include <limits>
+#include <iostream>
 
 namespace tsdb {
 namespace prometheus {
+namespace api {
 
 namespace {
     const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_]*");
@@ -74,19 +76,33 @@ LabelsHandler::LabelsHandler(const std::shared_ptr<Storage>& storage)
     : storage_(storage) {}
 
 LabelQueryResult LabelsHandler::GetLabels(const LabelQueryParams& params) {
+    std::cout << "LabelsHandler::GetLabels called" << std::endl;
     // Validate parameters
-    if (!params.Validate()) {
+    std::cout << "About to call params.Validate()" << std::endl;
+    bool is_valid = params.Validate();
+    std::cout << "params.Validate() returned: " << is_valid << std::endl;
+    if (!is_valid) {
+        std::cout << "Validation failed" << std::endl;
         return CreateErrorResponse("invalid_parameters",
                                  "Invalid query parameters");
     }
+    std::cout << "Validation passed, calling storage->label_names()" << std::endl;
     
     try {
         auto result = storage_->label_names();
-        if (!result.ok()) {
+        std::cout << "storage->label_names() returned" << std::endl;
+        std::cout << "About to call result.ok()" << std::endl;
+        bool ok = result.ok();
+        std::cout << "result.ok() returned: " << ok << std::endl;
+        if (!ok) {
             return CreateErrorResponse("internal_error", result.error());
         }
-        return CreateSuccessResponse(std::move(result.value()));
+        std::cout << "Calling CreateSuccessResponse" << std::endl;
+        auto response = CreateSuccessResponse(std::move(result.value()));
+        std::cout << "CreateSuccessResponse returned" << std::endl;
+        return response;
     } catch (const std::exception& e) {
+        std::cout << "Exception: " << e.what() << std::endl;
         return CreateErrorResponse("internal_error", e.what());
     }
 }
@@ -131,14 +147,17 @@ LabelQueryResult LabelsHandler::GetSeries(const std::vector<std::string>& matche
     }
     
     try {
+#include "tsdb/core/matcher.h"
+// ...
+
         // Convert matchers to the format expected by storage
-        std::vector<std::pair<std::string, std::string>> storage_matchers;
+        std::vector<core::LabelMatcher> storage_matchers;
         for (const auto& matcher : matchers) {
             // Simple parser for {key="value"} format
-            std::regex matcher_regex(R"(\{([^=]+)="([^"]+)"\})");
+            std::regex matcher_regex(R"xxx(\{([^=]+)="([^"]+)"\})xxx");
             std::smatch match;
             if (std::regex_match(matcher, match, matcher_regex)) {
-                storage_matchers.emplace_back(match[1].str(), match[2].str());
+                storage_matchers.emplace_back(core::MatcherType::Equal, match[1].str(), match[2].str());
             }
         }
         
@@ -190,10 +209,13 @@ LabelQueryResult LabelsHandler::CreateErrorResponse(const std::string& error_typ
 }
 
 LabelQueryResult LabelsHandler::CreateSuccessResponse(std::vector<std::string> values) const {
+    std::cout << "Inside CreateSuccessResponse" << std::endl;
     LabelQueryResult result;
     result.values = std::move(values);
+    std::cout << "CreateSuccessResponse done" << std::endl;
     return result;
 }
 
+} // namespace api
 } // namespace prometheus
 } // namespace tsdb 

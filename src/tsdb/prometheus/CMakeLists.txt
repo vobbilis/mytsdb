@@ -8,8 +8,23 @@ add_library(tsdb::prometheus ALIAS tsdb_prometheus)
 target_sources(tsdb_prometheus
     PRIVATE
         api/labels.cpp
+        api/query_handler.cpp
         model/types.cpp
         server/http_server.cpp
+        promql/ast.cpp
+        promql/lexer.cpp
+        promql/parser.cpp
+        promql/engine.cpp
+        promql/evaluator.cpp
+        promql/functions.cpp
+        promql/functions/rate.cpp
+        promql/functions/extrapolation.cpp
+        promql/functions/aggregation_advanced.cpp
+        promql/functions/label_manipulation.cpp
+        promql/functions/utility.cpp
+        promql/functions/math_advanced.cpp
+        promql/functions/remaining_functions.cpp
+        storage/tsdb_adapter.cpp
 )
 
 # Try to find dependencies
@@ -40,9 +55,11 @@ endif()
 # Include directories
 target_include_directories(tsdb_prometheus
     PUBLIC
-        ${CMAKE_SOURCE_DIR}/include
+        $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+        $<INSTALL_INTERFACE:include>
     PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
 )
 
 if(HAVE_HTTPLIB)
@@ -86,57 +103,4 @@ target_compile_options(tsdb_prometheus PRIVATE
     -O2
 )
 
-if(BUILD_TESTS AND HAVE_GTEST AND HAVE_RAPIDJSON)
-    # Add test executable
-    add_executable(prometheus_tests
-        tests/types_test.cpp
-        tests/http_server_test.cpp
-        tests/labels_test.cpp
-    )
-
-    # Test include directories
-    target_include_directories(prometheus_tests
-        PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}
-            ${RAPIDJSON_INCLUDE_DIRS}
-    )
-
-    # Test dependencies
-    target_link_libraries(prometheus_tests
-        PRIVATE
-            tsdb_prometheus
-            GTest::GTest
-            GTest::Main
-            Threads::Threads
-    )
-    
-    if(HAVE_HTTPLIB)
-        target_link_libraries(prometheus_tests PRIVATE httplib::httplib)
-    endif()
-    
-    if(HAVE_RAPIDJSON)
-        target_link_libraries(prometheus_tests PRIVATE ${RAPIDJSON_LIBRARIES})
-    endif()
-
-    # Add tests
-    add_test(NAME prometheus_model_types 
-             COMMAND prometheus_tests --gtest_filter="TypesTest.*")
-    add_test(NAME prometheus_http_server 
-             COMMAND prometheus_tests --gtest_filter="HttpServerTest.*")
-    add_test(NAME prometheus_labels_api
-             COMMAND prometheus_tests --gtest_filter="LabelsTest.*")
-
-    # Test configuration
-    set_tests_properties(prometheus_model_types PROPERTIES
-        ENVIRONMENT "GTEST_COLOR=1"
-        TIMEOUT 30
-    )
-    set_tests_properties(prometheus_http_server PROPERTIES
-        ENVIRONMENT "GTEST_COLOR=1"
-        TIMEOUT 60
-    )
-    set_tests_properties(prometheus_labels_api PROPERTIES
-        ENVIRONMENT "GTEST_COLOR=1"
-        TIMEOUT 30
-    )
-endif() 
+ 

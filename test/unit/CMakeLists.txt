@@ -55,6 +55,57 @@ add_executable(tsdb_performance_config_unit_tests
 )
 
 # Sharded write buffer unit tests
+add_executable(tsdb_sharded_wal_unit_tests
+    ${CMAKE_SOURCE_DIR}/test/storage/sharded_wal_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/storage/async_wal_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/storage/sharded_wal.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/storage/wal.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_sharded_wal_unit_tests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_sharded_wal_unit_tests
+    PRIVATE
+        tsdb_test_common
+        tsdb_core_impl
+)
+
+gtest_discover_tests(tsdb_sharded_wal_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
+# Sharded index unit tests
+add_executable(tsdb_sharded_index_unit_tests
+    ${CMAKE_SOURCE_DIR}/test/storage/sharded_index_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/storage/sharded_index.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/storage/index.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_sharded_index_unit_tests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_sharded_index_unit_tests
+    PRIVATE
+        tsdb_test_common
+        tsdb_core_impl
+)
+
+gtest_discover_tests(tsdb_sharded_index_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
 
 # Background processor unit tests
 add_executable(tsdb_background_processor_unit_tests
@@ -85,6 +136,53 @@ add_executable(tsdb_atomic_ref_counted_unit_tests
     ${CMAKE_SOURCE_DIR}/test/unit/storage/atomic_ref_counted_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )
+
+# Prometheus unit tests
+if(HAVE_RAPIDJSON)
+    add_executable(tsdb_prometheus_unit_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/types_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/http_server_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/labels_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_engine_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_parser_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/vector_matching_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/functions_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/aggregation_advanced_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/label_manipulation_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/utility_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remaining_functions_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/result_minimal_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+
+    target_include_directories(tsdb_prometheus_unit_tests
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/include
+            ${RAPIDJSON_INCLUDE_DIRS}
+    )
+
+    target_link_libraries(tsdb_prometheus_unit_tests
+        PRIVATE
+            tsdb_test_common
+            tsdb_prometheus
+            GTest::gmock
+    )
+
+    if(HAVE_HTTPLIB)
+        target_link_libraries(tsdb_prometheus_unit_tests PRIVATE httplib::httplib)
+    endif()
+    
+    if(HAVE_RAPIDJSON)
+        target_link_libraries(tsdb_prometheus_unit_tests PRIVATE ${RAPIDJSON_LIBRARIES})
+    endif()
+
+    gtest_discover_tests(tsdb_prometheus_unit_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+endif()
 
 add_executable(tsdb_integration_tests
     ${CMAKE_SOURCE_DIR}/test/tsdb/storage/storage_test.cpp
@@ -374,31 +472,37 @@ endif()
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_custom_command(TARGET tsdb_core_unit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_storage_unit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_integration_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_histogram_unit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_object_pool_unit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_working_set_cache_unit_tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data

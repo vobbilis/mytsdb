@@ -1,4 +1,5 @@
 #include "http_server.h"
+#include "tsdb/prometheus/server/request.h"
 #include <httplib.h>
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
@@ -38,8 +39,16 @@ public:
         });
         
         // Set up request counting
-        server_->set_pre_routing_handler([this](const httplib::Request& /*req*/, httplib::Response& /*res*/) {
-            active_connections_++;
+        server_->set_pre_routing_handler([this](const httplib::Request& /*req*/, httplib::Response& res) {
+            // Check max connections atomically
+            uint64_t current = active_connections_.fetch_add(1);
+            
+            if (current >= config_.max_connections) {
+                res.status = 503;
+                res.set_content("Too Many Requests", "text/plain");
+                return httplib::Server::HandlerResponse::Handled;
+            }
+            
             return httplib::Server::HandlerResponse::Unhandled;
         });
         
@@ -73,29 +82,39 @@ public:
         std::lock_guard<std::mutex> lock(handlers_mutex_);
         handlers_[path] = handler;
         
-        server_->Get(path.c_str(), [this, path](const httplib::Request& req, 
-                                               httplib::Response& res) {
+        auto handle_req = [this, path](const httplib::Request& req, httplib::Response& res) {
             try {
+                Request prom_req;
+                prom_req.method = req.method;
+                prom_req.path = req.path;
+                prom_req.body = req.body;
+                
+                // Copy params
+                for (const auto& [k, v] : req.params) {
+                    prom_req.params.insert({k, v});
+                }
+
+                // Copy path params
+                for (const auto& [k, v] : req.path_params) {
+                    prom_req.path_params[k] = v;
+                }
+                
+                // Copy headers
+                for (const auto& [k, v] : req.headers) {
+                    prom_req.headers[k] = v;
+                }
+                
                 std::string response;
-                handlers_[path](req.body, response);
+                handlers_[path](prom_req, response);
                 res.set_content(response, "application/json");
             } catch (const std::exception& e) {
                 res.status = 500;
                 res.set_content(CreateErrorJson(e.what()), "application/json");
             }
-        });
-        
-        server_->Post(path.c_str(), [this, path](const httplib::Request& req, 
-                                                httplib::Response& res) {
-            try {
-                std::string response;
-                handlers_[path](req.body, response);
-                res.set_content(response, "application/json");
-            } catch (const std::exception& e) {
-                res.status = 500;
-                res.set_content(CreateErrorJson(e.what()), "application/json");
-            }
-        });
+        };
+
+        server_->Get(path.c_str(), handle_req);
+        server_->Post(path.c_str(), handle_req);
     }
     
     std::string GetMetricsJson() const {

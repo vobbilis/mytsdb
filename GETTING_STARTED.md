@@ -163,6 +163,9 @@ make test-storage-unit       # Storage unit tests (60 tests)
 make test-cache-unit         # Cache unit tests (28 tests)
 make test-compression-unit   # Compression unit tests (19 tests)
 make test-histogram-unit     # Histogram unit tests (22 tests)
+
+# PromQL Comprehensive Tests
+make test-promql-full        # Full PromQL suite with data generation (900+ tests)
 ```
 
 ### Background Test Execution

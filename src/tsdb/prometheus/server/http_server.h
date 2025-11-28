@@ -5,6 +5,7 @@
 #include <functional>
 #include <thread>
 #include <atomic>
+#include "tsdb/prometheus/server/request.h"
 
 namespace tsdb {
 namespace prometheus {
@@ -26,7 +27,10 @@ struct ServerConfig {
 /**
  * @brief Handler function type for HTTP endpoints
  */
-using RequestHandler = std::function<void(const std::string& request, std::string& response)>;
+/**
+ * @brief Handler function type for HTTP endpoints
+ */
+using RequestHandler = std::function<void(const Request& request, std::string& response)>;
 
 /**
  * @brief HTTP server for Prometheus API endpoints
