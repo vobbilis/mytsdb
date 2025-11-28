@@ -144,17 +144,17 @@ make -j$(nproc)
 ### Quick Test Run
 
 ```bash
-# Run all tests (453+ tests, takes ~7-8 minutes)
+# Run all tests (600+ tests, takes ~7-8 minutes)
 make test-all
 ```
 
 ### Test Categories
 
 ```bash
-# Unit tests only (357 tests, ~2-3 minutes)
+# Unit tests only (357+ tests, ~2-3 minutes)
 make test-unit
 
-# Integration tests only (177 tests, ~5-6 minutes)
+# Integration tests only (177+ tests, ~5-6 minutes)
 make test-integration
 
 # Specific test suites
