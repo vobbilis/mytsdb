@@ -1,8 +1,0 @@
-==========================================
-Starting Baseline Benchmark Run
-Date: Sun Nov 23 15:17:52 PST 2025
-Log: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test_results/baseline/baseline_run_20251123_151752.log
-==========================================
-
-Building benchmarks...
-make: *** No rule to make target `tsdb_benchmarks'.  Stop.

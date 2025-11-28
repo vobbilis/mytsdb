@@ -126,11 +126,14 @@ protected:
         shared_config_.enable_compression = true;
     }
 
+#include "tsdb/core/matcher.h"
+// ...
+
     // Helper method to convert labels to matchers for storage queries
-    std::vector<std::pair<std::string, std::string>> labelsToMatchers(const core::Labels& labels) {
-        std::vector<std::pair<std::string, std::string>> matchers;
+    std::vector<core::LabelMatcher> labelsToMatchers(const core::Labels& labels) {
+        std::vector<core::LabelMatcher> matchers;
         for (const auto& [key, value] : labels.map()) {
-            matchers.emplace_back(key, value);
+            matchers.emplace_back(core::MatcherType::Equal, key, value);
         }
         return matchers;
     }
@@ -279,9 +282,9 @@ TEST_F(MultiComponentTest, ConcurrentReadWriteOperations) {
                                    &shared_data, &shared_data_mutex, &processing_queue, &queue_cv, &bridge_operations]() {
             for (int i = 0; i < operations_per_thread; ++i) {
                 // REAL read from storage
-                std::vector<std::pair<std::string, std::string>> matchers;
-                matchers.emplace_back("__name__", "concurrent_metric");
-                matchers.emplace_back("writer_id", std::to_string(r % num_writers));
+                std::vector<core::LabelMatcher> matchers;
+                matchers.emplace_back(core::MatcherType::Equal, "__name__", "concurrent_metric");
+                matchers.emplace_back(core::MatcherType::Equal, "writer_id", std::to_string(r % num_writers));
                 
                 auto query_result = storage_->query(matchers, 0, std::numeric_limits<int64_t>::max());
                 if (query_result.ok()) {
@@ -637,9 +640,9 @@ TEST_F(MultiComponentTest, ResourceSharingBetweenComponents) {
                 }
                 
                 // Read from shared storage
-                std::vector<std::pair<std::string, std::string>> matchers;
-                matchers.emplace_back("__name__", "shared_storage_test");
-                matchers.emplace_back("instance_id", std::to_string(i));
+                std::vector<core::LabelMatcher> matchers;
+                matchers.emplace_back(core::MatcherType::Equal, "__name__", "shared_storage_test");
+                matchers.emplace_back(core::MatcherType::Equal, "instance_id", std::to_string(i));
                 
                 auto query_result = shared_storage_instances[i]->query(matchers, 0, std::numeric_limits<int64_t>::max());
                 if (query_result.ok() && !query_result.value().empty()) {
@@ -1348,9 +1351,9 @@ TEST_F(MultiComponentTest, ComponentInteractionPatterns) {
         pattern1_operations++;
         
         // Step 3: Retrieve from storage and create histogram
-        std::vector<std::pair<std::string, std::string>> matchers;
-        matchers.emplace_back("__name__", "pattern1_metric");
-        matchers.emplace_back("pattern", "core_storage_histogram");
+        std::vector<core::LabelMatcher> matchers;
+        matchers.emplace_back(core::MatcherType::Equal, "__name__", "pattern1_metric");
+        matchers.emplace_back(core::MatcherType::Equal, "pattern", "core_storage_histogram");
         
         auto query_result = storage_->query(matchers, 0, std::numeric_limits<int64_t>::max());
         ASSERT_TRUE(query_result.ok()) << "Failed to query pattern1 data";
@@ -1408,9 +1411,9 @@ TEST_F(MultiComponentTest, ComponentInteractionPatterns) {
         pattern2_operations++;
         
         // Step 4: Verify bridge processing
-        std::vector<std::pair<std::string, std::string>> bridge_matchers;
-        bridge_matchers.emplace_back("__name__", "pattern2_metric");
-        bridge_matchers.emplace_back("processed_by", "bridge");
+        std::vector<core::LabelMatcher> bridge_matchers;
+        bridge_matchers.emplace_back(core::MatcherType::Equal, "__name__", "pattern2_metric");
+        bridge_matchers.emplace_back(core::MatcherType::Equal, "processed_by", "bridge");
         
         auto bridge_query_result = storage_->query(bridge_matchers, 0, std::numeric_limits<int64_t>::max());
         ASSERT_TRUE(bridge_query_result.ok()) << "Failed to query bridge processed data";
@@ -1509,8 +1512,8 @@ TEST_F(MultiComponentTest, ComponentInteractionPatterns) {
         ASSERT_TRUE(complex_storage_result.ok()) << "Failed to store complex workflow data";
         
         // Step 2: Retrieve and create histogram
-        std::vector<std::pair<std::string, std::string>> complex_matchers;
-        complex_matchers.emplace_back("__name__", "complex_workflow_metric");
+        std::vector<core::LabelMatcher> complex_matchers;
+        complex_matchers.emplace_back(core::MatcherType::Equal, "__name__", "complex_workflow_metric");
         
         auto complex_query_result = storage_->query(complex_matchers, 0, std::numeric_limits<int64_t>::max());
         ASSERT_TRUE(complex_query_result.ok()) << "Failed to query complex workflow data";

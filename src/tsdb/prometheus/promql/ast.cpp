@@ -75,7 +75,7 @@ std::string CallNode::String() const {
 }
 
 std::string AggregateExprNode::String() const {
-    std::string s = TokenTypeToString(op) + " ";
+    std::string s = TokenTypeToString(opType) + " ";
     if (param) {
         s += "(" + param->String() + ", " + expr->String() + ")";
     } else {

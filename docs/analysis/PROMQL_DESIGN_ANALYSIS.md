@@ -435,7 +435,11 @@ The design leverages existing TSDB performance features while maintaining comple
 
 ---
 
-**Document Status**: Complete  
-**Next Steps**: Proceed with implementation plan in `docs/planning/PROMQL_ENGINE_IMPLEMENTATION_PLAN.md`  
-**Last Updated**: September 2025
+**Document Status**: Complete - Updated November 2025  
+**Next Steps**: See comprehensive research in `docs/planning/promql_research/`  
+- [Prometheus Reference Implementation](../planning/promql_research/PROMETHEUS_REFERENCE_IMPLEMENTATION.md)
+- [Gap Analysis](../planning/promql_research/GAP_ANALYSIS.md)
+- [Research README](../planning/promql_research/README.md)
+
+**Last Updated**: November 2025
 

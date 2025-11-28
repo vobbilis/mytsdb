@@ -41,10 +41,10 @@ The TSDB performance architecture implements advanced performance optimizations 
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
 │  │  Sharded    │  │  Lock-Free  │  │  Background │  │  Atomic     │           │
-│  │  Write      │  │   Queue     │  │  Processor  │  │  Operations │           │
-│  │  Buffers    │  │  (442M      │  │  (Multi-    │  │  (Zero-     │           │
-│  │  (3-5x      │  │   ops/sec)  │  │  threaded)  │  │  overhead)  │           │
-│  │   Throughput)│  │             │  │             │  │             │           │
+│  │  WAL &      │  │   Queue     │  │  Processor  │  │  Operations │           │
+│  │  Index      │  │  (Future)   │  │  (Multi-    │  │  (Zero-     │           │
+│  │  (16 shards)│  │             │  │  threaded)  │  │  overhead)  │           │
+│  │             │  │             │  │             │  │             │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -166,31 +166,31 @@ Performance Characteristics:
 
 ## ⚡ **Concurrency Optimization Architecture**
 
-### **Sharded Write Buffers**
+### **Sharded WAL & Index**
 
 #### **Sharding Architecture**
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
-│                              SHARDED WRITE BUFFERS                              │
+│                              SHARDED ARCHITECTURE                               │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │  Shard 1    │  │  Shard 2    │  │  Shard 3    │  │  Shard N    │           │
-│  │  (Buffer)   │  │  (Buffer)   │  │  (Buffer)   │  │  (Buffer)   │           │
+│  │  Shard 1    │  │  Shard 2    │  │  Shard 3    │  │  Shard 16   │           │
+│  │  (WAL+Index)│  │  (WAL+Index)│  │  (WAL+Index)│  │  (WAL+Index)│           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
-│  • Configurable Number of Shards                                               │
-│  • Thread-Safe Distribution                                                    │
-│  • Background Flushing                                                         │
-│  • 3-5x Throughput Improvement                                                 │
+│  • 16 Independent Shards                                                       │
+│  • Hash-Based Distribution                                                     │
+│  • Independent Locking (std::shared_mutex)                                     │
+│  • Parallel Lookups                                                            │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### **Performance Characteristics**
-- **Throughput**: 3-5x improvement
-- **Concurrency**: 100% write success rate
-- **Latency**: 2-3x improvement
-- **Shards**: Configurable (default: 8)
-- **Load Balancing**: Intelligent distribution
+-   **Single-Threaded Throughput**: ~233,000 items/sec
+-   **Concurrent Throughput**: ~38,000 items/sec (8 threads)
+-   **OTEL Ingestion**: ~19,400 items/sec (batch size 100)
+-   **Latency**: <10us per operation
+-   **Shards**: 16 (default)
 
 ### **Lock-Free Queue**
 
@@ -323,10 +323,12 @@ Compressed Timestamps (30-60% reduction)
 ## 📈 **Performance Targets and Achievements**
 
 ### **Throughput Performance**
-- **Write Throughput**: 4.8M metrics/sec ✅
-- **Read Throughput**: 10M queries/sec ✅
-- **Concurrent Operations**: 100K+ requests ✅
-- **Cache Operations**: 50M ops/sec ✅
+### **Throughput Performance**
+- **Write Throughput**: ~233,000 metrics/sec (Single Thread) ✅
+- **Concurrent Write**: ~38,000 metrics/sec (8 Threads) ✅
+- **OTEL Ingestion**: ~19,400 metrics/sec (gRPC) ✅
+- **Read Throughput**: 10M queries/sec (Target)
+- **Cache Operations**: 50M ops/sec (Target)
 
 ### **Latency Performance**
 - **API Gateway**: <1ms ✅

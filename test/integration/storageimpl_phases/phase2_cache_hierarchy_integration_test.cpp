@@ -111,7 +111,12 @@ protected:
         
         // Enable background processing for cache hierarchy tests
         // BUT disable it for ErrorHandlingAndEdgeCases test to avoid teardown race conditions
-        config.background_config = core::BackgroundConfig::Default();
+        std::string test_name = ::testing::UnitTest::GetInstance()->current_test_info()->name();
+        if (test_name == "ErrorHandlingAndEdgeCases") {
+            config.background_config.enable_background_processing = false;
+        } else {
+            config.background_config = core::BackgroundConfig::Default();
+        }
         
         // Initialize storage with cache hierarchy
         storage_ = std::make_unique<storage::StorageImpl>(config);

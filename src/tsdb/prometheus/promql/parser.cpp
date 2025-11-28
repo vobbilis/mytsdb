@@ -206,6 +206,50 @@ std::unique_ptr<ExprNode> Parser::parseInfixExpression(std::unique_ptr<ExprNode>
     Precedence currentPrecedence = getPrecedence(operatorToken);
     nextToken(); // Consume the operator
 
+    bool returnBool = false;
+    // Check for "bool" modifier (only for comparison operators)
+    if (currentToken_.type == TokenType::BOOL) {
+        if (operatorToken >= TokenType::EQL && operatorToken <= TokenType::GTR) { // Assuming EQL..GTR are comparisons
+            returnBool = true;
+            nextToken(); // Consume "bool"
+        } else {
+            errors_.emplace_back("'bool' modifier can only be used with comparison operators", currentToken_.line, currentToken_.pos);
+            return nullptr;
+        }
+    }
+
+    // Check for vector matching (on/ignoring)
+    std::vector<std::string> matchingLabels;
+    bool on = false;
+    bool hasMatching = false;
+
+    if (currentToken_.type == TokenType::ON || currentToken_.type == TokenType::IGNORING) {
+        hasMatching = true;
+        on = (currentToken_.type == TokenType::ON);
+        nextToken(); // Consume ON/IGNORING
+        
+        if (currentToken_.type != TokenType::LEFT_PAREN) {
+            errors_.emplace_back("Expected '(' after on/ignoring", currentToken_.line, currentToken_.pos);
+            return nullptr;
+        }
+        matchingLabels = parseGroupingLabels(); // Re-use parseGroupingLabels as it parses (label, list)
+    }
+
+    // Check for group_left/group_right
+    std::string groupSide;
+    std::vector<std::string> includeLabels;
+    
+    if (currentToken_.type == TokenType::GROUP_LEFT || currentToken_.type == TokenType::GROUP_RIGHT) {
+        if (currentToken_.type == TokenType::GROUP_LEFT) groupSide = "left";
+        else groupSide = "right";
+        
+        nextToken(); // Consume GROUP_LEFT/RIGHT
+        
+        if (currentToken_.type == TokenType::LEFT_PAREN) {
+            includeLabels = parseGroupingLabels();
+        }
+    }
+
     auto rightExpr = parseExpression(currentPrecedence);
     if (!rightExpr) {
         // Error already logged by parseExpression
@@ -213,10 +257,15 @@ std::unique_ptr<ExprNode> Parser::parseInfixExpression(std::unique_ptr<ExprNode>
     }
     
     auto binaryExpr = std::make_unique<BinaryExprNode>(operatorToken, std::move(left), std::move(rightExpr));
-
-    // TODO: Handle vector matching clauses (on, ignoring, group_left, group_right)
-    // Example: if (operatorToken is comparison or arithmetic or logical)
-    // look for ON, IGNORING, GROUP_LEFT, GROUP_RIGHT keywords
+    binaryExpr->returnBool = returnBool;
+    if (hasMatching) {
+        binaryExpr->matchingLabels = std::move(matchingLabels);
+        binaryExpr->on = on;
+    }
+    if (!groupSide.empty()) {
+        binaryExpr->groupSide = groupSide;
+        binaryExpr->includeLabels = std::move(includeLabels);
+    }
 
     return binaryExpr;
 }
@@ -332,12 +381,11 @@ std::unique_ptr<CallNode> Parser::parseCallExpression(std::string funcName) {
     // Current token is LEFT_PAREN
     nextToken(); // Consume '('
     auto args = parseExpressionList(TokenType::RIGHT_PAREN);
-    if (!expectPeek(TokenType::RIGHT_PAREN)) { // expectPeek consumes the token if it matches
-         // Error already logged by expectPeek
+    if (currentToken_.type != TokenType::RIGHT_PAREN) {
+        errors_.emplace_back("Expected ')' to close function call", currentToken_.line, currentToken_.pos);
         return nullptr;
     }
-    // after expectPeek, currentToken_ is RIGHT_PAREN. We need to advance past it.
-    nextToken(); 
+    nextToken(); // Consume ')' 
 
     return std::make_unique<CallNode>(std::move(funcName), std::move(args));
 }
@@ -389,6 +437,19 @@ std::unique_ptr<AggregateExprNode> Parser::parseAggregateExpression() {
     }
     nextToken(); // Consume ')'
 
+    // Check for suffix "by" or "without" clause if not already parsed
+    if (groupingLabels.empty() && !without) {
+        if (currentToken_.type == TokenType::BY || currentToken_.type == TokenType::WITHOUT) {
+            without = (currentToken_.type == TokenType::WITHOUT);
+            nextToken(); // Consume 'by' or 'without'
+            if (currentToken_.type != TokenType::LEFT_PAREN) {
+                errors_.emplace_back("Expected '(' after by/without", currentToken_.line, currentToken_.pos);
+                return nullptr;
+            }
+            groupingLabels = parseGroupingLabels(); // Consumes up to and including ')'
+        }
+    }
+
     auto aggNode = std::make_unique<AggregateExprNode>(aggOp, std::move(expr), std::move(groupingLabels), without);
     aggNode->param = std::move(param);
     return aggNode;
@@ -399,10 +460,11 @@ std::unique_ptr<ParenExprNode> Parser::parseParenExpression() {
     auto expr = parseExpression(Precedence::LOWEST);
     if (!expr) return nullptr;
 
-    if (!expectPeek(TokenType::RIGHT_PAREN)) { // expectPeek consumes the token if it matches
+    if (currentToken_.type != TokenType::RIGHT_PAREN) {
+        errors_.emplace_back("Expected ')' to close parenthesized expression", currentToken_.line, currentToken_.pos);
         return nullptr;
     }
-    nextToken(); // Consume the ')' that expectPeek just set as currentToken_
+    nextToken(); // Consume ')'
 
     return std::make_unique<ParenExprNode>(std::move(expr));
 }

@@ -22,7 +22,10 @@ target_sources(tsdb_storage_impl
         storage_impl.cpp
         storage_factory.cpp
         wal.cpp
+        sharded_wal.cpp
+        async_wal_shard.cpp
         index.cpp
+        sharded_index.cpp
         internal/block_impl.cpp
 )
 

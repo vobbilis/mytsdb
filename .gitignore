@@ -51,3 +51,9 @@ install_manifest.txt
 
 # IDE and Editor files
 .cursor/ GETTING_STARTED.pdf
+
+# Test artifacts
+test_results/
+test/integration/test/data/
+test/data/
+data/

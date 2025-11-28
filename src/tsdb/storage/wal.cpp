@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <sstream>
 #include <cstring>
+#include "tsdb/common/logger.h"
 
 namespace tsdb {
 namespace storage {
@@ -55,7 +56,7 @@ WriteAheadLog::~WriteAheadLog() {
     }
 }
 
-core::Result<void> WriteAheadLog::log(const core::TimeSeries& series) {
+core::Result<void> WriteAheadLog::log(const core::TimeSeries& series, bool flush_now) {
     std::lock_guard<std::mutex> lock(mutex_);
     
     try {
@@ -63,7 +64,7 @@ core::Result<void> WriteAheadLog::log(const core::TimeSeries& series) {
         auto serialized_data = serialize_series(series);
         
         // Write to current segment
-        if (!write_to_segment(serialized_data)) {
+        if (!write_to_segment(serialized_data, flush_now)) {
             return core::Result<void>::error("Failed to write to WAL segment");
         }
         
@@ -76,6 +77,17 @@ core::Result<void> WriteAheadLog::log(const core::TimeSeries& series) {
     } catch (const std::exception& e) {
         return core::Result<void>::error("WAL log failed: " + std::string(e.what()));
     }
+}
+
+core::Result<void> WriteAheadLog::flush() {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (current_file_.is_open()) {
+        current_file_.flush();
+        if (!current_file_.good()) {
+            return core::Result<void>::error("Failed to flush WAL");
+        }
+    }
+    return core::Result<void>();
 }
 
 core::Result<void> WriteAheadLog::replay(std::function<void(const core::TimeSeries&)> callback) {
@@ -124,6 +136,8 @@ core::Result<void> WriteAheadLog::replay(std::function<void(const core::TimeSeri
                     }
                     
                     std::string filename = entry.path().filename().string();
+                    // std::cout << "WAL Replay: Found file " << filename << std::endl;
+                    // std::cout << "WAL Replay: Found file " << filename << std::endl;
                     if (filename.length() >= 4 && filename.substr(0, 4) == "wal_") {
                         segment_files.push_back(entry.path().string());
                     }
@@ -202,6 +216,9 @@ std::vector<uint8_t> WriteAheadLog::serialize_series(const core::TimeSeries& ser
     // 1. Serialize labels (using same pattern as BlockImpl)
     const auto& labels = series.labels();
     uint32_t label_count = static_cast<uint32_t>(labels.map().size());
+    
+
+    
     const uint8_t* label_count_bytes = reinterpret_cast<const uint8_t*>(&label_count);
     result.insert(result.end(), label_count_bytes, label_count_bytes + sizeof(uint32_t));
     
@@ -240,7 +257,7 @@ std::vector<uint8_t> WriteAheadLog::serialize_series(const core::TimeSeries& ser
     return result;
 }
 
-bool WriteAheadLog::write_to_segment(const std::vector<uint8_t>& data) {
+bool WriteAheadLog::write_to_segment(const std::vector<uint8_t>& data, bool flush_now) {
     if (!current_file_.is_open()) {
         return false;
     }
@@ -251,7 +268,12 @@ bool WriteAheadLog::write_to_segment(const std::vector<uint8_t>& data) {
     
     // Write the actual data
     current_file_.write(reinterpret_cast<const char*>(data.data()), data.size());
-    current_file_.flush();
+    // std::cout << "WAL: Wrote " << data.size() << " bytes. Flush: " << flush_now << std::endl;
+    // std::cout << "WAL: Wrote " << data.size() << " bytes. Flush: " << flush_now << std::endl;
+    
+    if (flush_now) {
+        current_file_.flush();
+    }
     
     return current_file_.good();
 }
@@ -286,6 +308,9 @@ core::Result<void> WriteAheadLog::replay_segment(const std::string& segment_path
     file.seekg(0, std::ios::end);
     std::streamsize file_size = file.tellg();
     file.seekg(0, std::ios::beg);
+    
+    // std::cout << "WAL Replay: Segment " << segment_path << " size: " << file_size << std::endl;
+    // std::cout << "WAL Replay: Segment " << segment_path << " size: " << file_size << std::endl;
     
     // If file is empty, nothing to replay
     if (file_size == 0) {
@@ -406,6 +431,8 @@ std::optional<core::TimeSeries> WriteAheadLog::deserialize_series(const std::vec
         uint32_t label_count;
         std::memcpy(&label_count, data.data() + offset, sizeof(label_count));
         offset += sizeof(label_count);
+        
+
         
         // Sanity check: prevent excessive label count
         if (label_count > 1000) {

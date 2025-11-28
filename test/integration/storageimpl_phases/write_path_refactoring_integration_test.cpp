@@ -89,8 +89,17 @@ protected:
             return false;
         }
         
+        // ShardedWAL creates subdirectories like shard_000, shard_001, etc.
         for (const auto& entry : std::filesystem::directory_iterator(wal_dir)) {
-            if (entry.is_regular_file()) {
+            if (entry.is_directory()) {
+                // Check if this shard directory has any files
+                for (const auto& file_entry : std::filesystem::directory_iterator(entry.path())) {
+                    if (file_entry.is_regular_file()) {
+                        return true;
+                    }
+                }
+            } else if (entry.is_regular_file()) {
+                // Also check for files directly in wal/ (for backwards compatibility)
                 return true;
             }
         }
@@ -153,6 +162,9 @@ TEST_F(WritePathRefactoringIntegrationTest, Phase1_WALReceivesWrites) {
     auto series = createTestSeries("wal_test_metric", 10);
     auto result = storage_->write(series);
     ASSERT_TRUE(result.ok()) << "Write should succeed: " << result.error();
+    
+    // Give async WAL worker time to process the write
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
     
     // Verify WAL files were created
     EXPECT_TRUE(walFilesExist()) 
@@ -326,16 +338,19 @@ TEST_F(WritePathRefactoringIntegrationTest, EndToEnd_CompleteWritePipeline) {
     auto write_result = storage_->write(series);
     ASSERT_TRUE(write_result.ok()) << "Write operation should succeed";
     
-    // Step 2: Verify WAL persistence
+    // Step 2: Give async WAL worker time to process
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    
+    // Step 3: Verify WAL persistence
     EXPECT_TRUE(walFilesExist()) << "Data should be logged to WAL";
     
-    // Step 3: Wait for block sealing and persistence
+    // Step 4: Wait for block sealing and persistence
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     
-    // Step 4: Verify block persistence
+    // Step 5: Verify block persistence
     EXPECT_TRUE(blockFilesExist()) << "Sealed blocks should be persisted to disk";
     
-    // Step 5: Verify data can be read back
+    // Step 6: Verify data can be read back
     auto read_result = storage_->read(series.labels(), 0, 300000);
     EXPECT_TRUE(read_result.ok()) << "Data should be readable";
 }

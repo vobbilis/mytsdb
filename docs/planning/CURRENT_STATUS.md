@@ -135,6 +135,16 @@
   - Global statistics
   - Template-based implementation
 
+#### 4. PromQL Engine Core (Phase 1)
+- **Status:** ✅ COMPLETED
+- **Features:**
+  - Complete Lexer and Parser
+  - AST with all node types
+  - Basic Query Engine (Evaluator)
+  - Core Aggregations (sum, avg, min, max, count)
+  - Rate Functions (rate, irate, increase)
+  - Basic Storage Adapter
+
 ### 🔄 In Progress Features
 - **None currently active**
 

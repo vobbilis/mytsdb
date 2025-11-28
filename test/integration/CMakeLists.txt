@@ -211,46 +211,55 @@ target_link_libraries(tsdb_error_handling_test
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_custom_command(TARGET tsdb_integration_test_suite POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_core_storage_integration_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_storage_histogram_integration_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_config_integration_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_otel_integration_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_grpc_integration_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_end_to_end_workflow_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_multi_component_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
     add_custom_command(TARGET tsdb_error_handling_test POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data

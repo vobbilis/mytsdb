@@ -182,11 +182,14 @@ protected:
         return metrics;
     }
 
+#include "tsdb/core/matcher.h"
+// ...
+
     // Helper method to convert labels to query matchers
-    std::vector<std::pair<std::string, std::string>> labelsToMatchers(const core::Labels& labels) {
-        std::vector<std::pair<std::string, std::string>> matchers;
+    std::vector<core::LabelMatcher> labelsToMatchers(const core::Labels& labels) {
+        std::vector<core::LabelMatcher> matchers;
         for (const auto& [key, value] : labels.map()) {
-            matchers.emplace_back(key, value);
+            matchers.emplace_back(core::MatcherType::Equal, key, value);
         }
         return matchers;
     }

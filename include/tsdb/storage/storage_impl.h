@@ -10,6 +10,7 @@
 #include <mutex>
 #include <shared_mutex>
 #include <atomic>
+#include <functional>
 
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
@@ -27,8 +28,8 @@
 #include "tsdb/storage/predictive_cache.h"
 #include "tsdb/storage/internal/block_internal.h"
 #include "tsdb/storage/internal/block_impl.h"
-#include "tsdb/storage/index.h"
-#include "tsdb/storage/wal.h"
+#include "tsdb/storage/sharded_wal.h"
+#include "tsdb/storage/sharded_index.h"
 #include <tbb/concurrent_hash_map.h>
 
 namespace tsdb {
@@ -86,6 +87,32 @@ public:
         int64_t end_time);
 
     /**
+     * @brief Reads samples for a series without acquiring mutex (internal use)
+     * 
+     * @param series_id The ID of the series to read
+     * @param start_time Start timestamp (inclusive)
+     * @param end_time End timestamp (inclusive)
+     * @param callback Function to call for each sample
+     * @return Result indicating success or failure
+     */
+    core::Result<void> read_samples_nolock(
+        core::SeriesID series_id,
+        int64_t start_time,
+        int64_t end_time,
+        std::function<void(const core::Sample&)> callback);
+
+    /**
+     * @brief Queries time series data based on label matchers
+     * @param matchers The label matchers for selecting time series
+     * @param start_time The start time for the query range
+     * @param end_time The end time for the query range
+     * @return Result object containing the matching time series data
+     */
+#include "tsdb/core/matcher.h"
+
+// ...
+
+    /**
      * @brief Queries time series data based on label matchers
      * @param matchers The label matchers for selecting time series
      * @param start_time The start time for the query range
@@ -93,9 +120,15 @@ public:
      * @return Result object containing the matching time series data
      */
     core::Result<std::vector<core::TimeSeries>> query(
-        const std::vector<std::pair<std::string, std::string>>& matchers,
+        const std::vector<core::LabelMatcher>& matchers,
         int64_t start_time,
         int64_t end_time) override;
+
+    core::Result<std::vector<core::TimeSeries>> query_aggregate(
+        const std::vector<core::LabelMatcher>& matchers,
+        int64_t start_time,
+        int64_t end_time,
+        const core::AggregationRequest& aggregation) override;
 
     /**
      * @brief Retrieves the available label names in the storage
@@ -117,7 +150,7 @@ public:
      * @return Result object indicating success or failure
      */
     core::Result<void> delete_series(
-        const std::vector<std::pair<std::string, std::string>>& matchers) override;
+        const std::vector<core::LabelMatcher>& matchers) override;
 
     /**
      * @brief Compacts the storage to optimize space and performance
@@ -171,8 +204,7 @@ private:
     std::unique_ptr<WorkingSetCache> working_set_cache_;
 
     // New Core Components
-    std::unique_ptr<Index> index_;
-    std::unique_ptr<WriteAheadLog> wal_;
+    std::unique_ptr<ShardedIndex> index_;
     using SeriesMap = tbb::concurrent_hash_map<core::SeriesID, std::shared_ptr<Series>>;
     SeriesMap active_series_;
     
@@ -188,7 +220,7 @@ private:
     std::unique_ptr<internal::LabelCompressor> label_compressor_;
     std::unique_ptr<internal::CompressorFactory> compressor_factory_;
     
-    // Background processing components
+    std::unique_ptr<ShardedWAL> wal_;
     std::unique_ptr<BackgroundProcessor> background_processor_;
     
     // Predictive caching components

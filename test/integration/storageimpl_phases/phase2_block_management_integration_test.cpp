@@ -172,6 +172,14 @@ TEST_F(Phase2BlockManagementIntegrationTest, BlockCreationAndLifecycle) {
     auto result = storage_->write(series);
     ASSERT_TRUE(result.ok()) << "Write failed: " << result.error();
     
+    // Close storage to ensure blocks are persisted to disk
+    std::cout << "Calling storage_->close()" << std::endl;
+    storage_->close();
+    
+    std::cout << "Calling storage_.reset()" << std::endl;
+    storage_.reset();
+    std::cout << "storage_.reset() complete" << std::endl;
+    
     // Verify block files were created
     EXPECT_TRUE(verifyBlockFilesExist()) << "No block files found after write";
     
@@ -381,6 +389,9 @@ TEST_F(Phase2BlockManagementIntegrationTest, BlockPerformanceUnderLoad) {
     // Verify read performance is reasonable
     double read_ops_per_sec = (NUM_SERIES * 1000.0) / read_duration.count();
     EXPECT_GT(read_ops_per_sec, 20.0) << "Read performance too slow: " << read_ops_per_sec << " ops/sec";
+    
+    // Close storage to ensure all data is flushed to disk
+    storage_->close();
     
     // Verify block files were created
     EXPECT_TRUE(verifyBlockFilesExist()) << "No block files found after performance test";
