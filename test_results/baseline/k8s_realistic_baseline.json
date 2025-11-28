@@ -1,0 +1,114 @@
+{
+  "context": {
+    "date": "2025-11-24T23:07:40-08:00",
+    "host_name": "HPE-QN2039W45W",
+    "executable": "./build/test/benchmark/otel_write_perf_bench",
+    "num_cpus": 12,
+    "mhz_per_cpu": 24,
+    "cpu_scaling_enabled": false,
+    "caches": [
+      {
+        "type": "Data",
+        "level": 1,
+        "size": 65536,
+        "num_sharing": 0
+      },
+      {
+        "type": "Instruction",
+        "level": 1,
+        "size": 131072,
+        "num_sharing": 0
+      },
+      {
+        "type": "Unified",
+        "level": 2,
+        "size": 4194304,
+        "num_sharing": 1
+      }
+    ],
+    "load_avg": [4.54395,3.79395,3.875],
+    "library_build_type": "debug"
+  },
+  "benchmarks": [
+    {
+      "name": "OTELWriteBenchmark/SingleThreadedWrite/iterations:1000",
+      "family_index": 0,
+      "per_family_instance_index": 0,
+      "run_name": "OTELWriteBenchmark/SingleThreadedWrite/iterations:1000",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 1000,
+      "real_time": 5.6689366698265076e+02,
+      "cpu_time": 1.3540799999999973e+02,
+      "time_unit": "us",
+      "failed_writes": 0.0000000000000000e+00,
+      "successful_writes": 1.0000000000000000e+03
+    },
+    {
+      "name": "OTELWriteBenchmark/BatchWrite/1",
+      "family_index": 1,
+      "per_family_instance_index": 0,
+      "run_name": "OTELWriteBenchmark/BatchWrite/1",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 5708,
+      "real_time": 5.4709434845552016e+02,
+      "cpu_time": 1.2562736510161179e+02,
+      "time_unit": "us",
+      "failed_writes": 0.0000000000000000e+00,
+      "successful_writes": 5.7080000000000000e+03
+    },
+    {
+      "name": "OTELWriteBenchmark/BatchWrite/8",
+      "family_index": 1,
+      "per_family_instance_index": 1,
+      "run_name": "OTELWriteBenchmark/BatchWrite/8",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 884,
+      "real_time": 2.8761199557504774e+03,
+      "cpu_time": 8.0231674208144807e+02,
+      "time_unit": "us",
+      "failed_writes": 0.0000000000000000e+00,
+      "successful_writes": 7.0720000000000000e+03
+    },
+    {
+      "name": "OTELWriteBenchmark/BatchWrite/64",
+      "family_index": 1,
+      "per_family_instance_index": 2,
+      "run_name": "OTELWriteBenchmark/BatchWrite/64",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 114,
+      "real_time": 2.0375888157439858e+04,
+      "cpu_time": 6.1044122807017529e+03,
+      "time_unit": "us",
+      "failed_writes": 0.0000000000000000e+00,
+      "successful_writes": 7.2960000000000000e+03
+    },
+    {
+      "name": "OTELWriteBenchmark/BatchWrite/100",
+      "family_index": 1,
+      "per_family_instance_index": 3,
+      "run_name": "OTELWriteBenchmark/BatchWrite/100",
+      "run_type": "iteration",
+      "repetitions": 1,
+      "repetition_index": 0,
+      "threads": 1,
+      "iterations": 74,
+      "real_time": 3.1849092338234186e+04,
+      "cpu_time": 9.5446891891891792e+03,
+      "time_unit": "us",
+      "failed_writes": 0.0000000000000000e+00,
+      "successful_writes": 7.4000000000000000e+03
+    }
+  ]
+}
