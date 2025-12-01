@@ -187,9 +187,9 @@ Performance Characteristics:
 
 #### **Performance Characteristics**
 -   **Single-Threaded Throughput**: ~233,000 items/sec
--   **Concurrent Throughput**: ~38,000 items/sec (8 threads)
--   **OTEL Ingestion**: ~19,400 items/sec (batch size 100)
--   **Latency**: <10us per operation
+-   **Concurrent Throughput**: ~260,000 items/sec (20 threads)
+-   **OTEL Ingestion**: ~260,000 items/sec (Batching Enabled)
+-   **Latency**: <4us per operation
 -   **Shards**: 16 (default)
 
 ### **Lock-Free Queue**
