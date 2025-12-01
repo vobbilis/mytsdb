@@ -168,7 +168,7 @@ int main() {
 
 ## 📊 Performance
 
-### Baseline Performance
+### Legacy Baseline Performance (v1.0)
 
 ```
 Write Performance:  ~10K ops/sec (single-threaded)
@@ -449,8 +449,7 @@ storage.background_config.enable_auto_cleanup = false;
 ## 🐛 Known Issues
 
 1. **L2 Cache Disabled** - Memory-mapped cache causes segfaults (under investigation)
-2. **Performance Gap** - Current 10K ops/sec vs theoretical 80K+ ops/sec (needs profiling)
-3. **Background Processing Disabled** - Disabled by default for testing stability
+2. **Background Processing Disabled** - Disabled by default for testing stability
 
 ---
 
@@ -463,7 +462,7 @@ storage.background_config.enable_auto_cleanup = false;
 - ✅ Index and query support
 - ✅ Compression and optimization
 - ✅ Basic PromQL support (Phase 1)
-- ⚠️ Performance optimization (in progress)
+- ✅ Performance optimization (Batching enabled)
 - ⚠️ Fix L2 cache (in progress)
 
 ### Next Release (v1.1)

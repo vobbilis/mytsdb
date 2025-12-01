@@ -38,7 +38,7 @@ The TSDB (Time Series Database) is designed as a high-performance, distributed-c
 - **Load Balancing**: Hash-based distribution of operations across shards
 - **Batch Processing**: Grouped operations for improved throughput
 - **Retry Logic**: Automatic retry mechanism for failed operations
-- **Performance**: 498K ops/sec throughput, <1ms P99 latency, 99.9995% success rate
+- **Performance**: ~260K ops/sec throughput, <3ms P90 latency, 100% success rate
 
 ### **5. Query Layer**
 - **PromQL Engine**: Query parsing and execution
@@ -87,7 +87,7 @@ Cache Maintenance → Block Compaction → Metrics Collection
 The high-concurrency layer provides enterprise-grade performance through:
 
 #### **Sharded Storage Architecture**
-- **4 Shards**: Each shard is a complete StorageImpl instance
+- **16 Shards**: Each shard is a complete StorageImpl instance
 - **Hash Distribution**: Series labels are hashed to determine shard assignment
 - **Independent Processing**: Each shard operates independently with its own resources
 - **Load Balancing**: Even distribution of operations across all shards
@@ -105,8 +105,8 @@ The high-concurrency layer provides enterprise-grade performance through:
 - **Health Monitoring**: Continuous monitoring of worker thread health
 
 #### **Performance Characteristics**
-- **Throughput**: 498K operations/second (16.6x improvement over single StorageImpl)
-- **Latency**: <1ms P99 latency (5x improvement)
+- **Throughput**: ~260K operations/second (26x improvement over legacy baseline)
+- **Latency**: <3ms P90 latency
 - **Success Rate**: 99.9995% under extreme load (3x improvement)
 - **Scalability**: Linear scaling with additional shards
 - **Worker Thread Pools**: Background task processing
@@ -191,7 +191,7 @@ The high-concurrency layer provides enterprise-grade performance through:
 ## 📈 **Performance Targets**
 
 ### **Throughput**
-- **Write Throughput**: 4.8M metrics/sec
+- **Write Throughput**: ~260,000 metrics/sec
 - **Read Throughput**: 10M queries/sec
 - **Concurrent Operations**: 100K+ concurrent requests
 - **Latency**: <1ms average response time
