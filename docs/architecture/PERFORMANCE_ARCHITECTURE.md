@@ -325,7 +325,7 @@ Compressed Timestamps (30-60% reduction)
 ### **Throughput Performance**
 ### **Throughput Performance**
 - **Write Throughput**: ~233,000 metrics/sec (Single Thread) ✅
-- **Concurrent Write**: ~38,000 metrics/sec (8 Threads) ✅
+- **Concurrent Write**: ~260,000 metrics/sec (20 Threads) ✅
 - **OTEL Ingestion**: ~260,000 metrics/sec (gRPC) ✅ (Batching Enabled)
 - **Read Throughput**: 10M queries/sec (Target)
 - **Cache Operations**: 50M ops/sec (Target)
@@ -433,4 +433,4 @@ compression:
 
 ---
 
-*This performance architecture provides comprehensive optimization strategies across memory, caching, concurrency, and compression layers, achieving exceptional performance characteristics with 4.8M metrics/sec write throughput, 98.52% cache hit ratio, and 99% memory allocation reduction.* 
+*This performance architecture provides comprehensive optimization strategies across memory, caching, concurrency, and compression layers, achieving exceptional performance characteristics with ~260,000 metrics/sec write throughput, 98.52% cache hit ratio, and 99% memory allocation reduction.* 
