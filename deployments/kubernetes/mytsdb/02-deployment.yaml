@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mytsdb
+  namespace: mytsdb
+  labels:
+    app: mytsdb
+    component: database
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mytsdb
+  template:
+    metadata:
+      labels:
+        app: mytsdb
+        component: database
+    spec:
+      containers:
+      - name: mytsdb
+        image: mytsdb:latest
+        imagePullPolicy: Never  # For Kind local images
+        args: ["--address", "0.0.0.0:4317", "--http-port", "9090", "--data-dir", "/data"]
+        ports:
+        - name: http
+          containerPort: 9090
+          protocol: TCP
+        - name: grpc
+          containerPort: 4317
+          protocol: TCP
+        env:
+        - name: DATA_DIR
+          value: "/data"
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "2000m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 3
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: mytsdb-data

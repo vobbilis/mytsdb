@@ -1,0 +1,156 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-comprehensive
+  namespace: mytsdb
+  labels:
+    app: grafana
+data:
+  01-cluster-overview.json: |
+    {
+      "title": "Cluster Overview",
+      "tags": ["mytsdb", "cluster", "overview"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Cluster Health (Up)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 24, "x": 0, "y": 0},
+          "targets": [{"expr": "sum(up)", "legendFormat": "Total Pods Up"}]
+        },
+        {
+          "id": 2,
+          "title": "Node CPU Usage Ratio",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "targets": [{"expr": "node_cpu_usage_ratio", "legendFormat": "{{node}} - {{zone}}"}]
+        },
+        {
+          "id": 3,
+          "title": "Node Memory Usage Ratio",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "targets": [{"expr": "node_memory_usage_ratio", "legendFormat": "{{node}}"}]
+        },
+        {
+          "id": 4,
+          "title": "Top 5 CPU Consumers (Pods)",
+          "type": "bar-gauge",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "targets": [{"expr": "topk(5, container_cpu_usage_ratio)", "legendFormat": "{{pod}}"}]
+        },
+        {
+          "id": 5,
+          "title": "Top 5 Memory Consumers (Pods)",
+          "type": "bar-gauge",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "targets": [{"expr": "topk(5, process_resident_memory_bytes)", "legendFormat": "{{pod}}"}]
+        }
+      ],
+      "refresh": "10s",
+      "time": {"from": "now-1h", "to": "now"}
+    }
+
+  02-pod-performance.json: |
+    {
+      "title": "Pod Performance",
+      "tags": ["mytsdb", "pod", "performance"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "HTTP Request Rate (Per Service)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "targets": [{"expr": "sum(rate(http_requests_total[5m])) by (service)", "legendFormat": "{{service}}"}]
+        },
+        {
+          "id": 2,
+          "title": "HTTP Request Rate (Per Pod)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "targets": [{"expr": "rate(http_requests_total[5m])", "legendFormat": "{{pod}}"}]
+        },
+        {
+          "id": 3,
+          "title": "99th Percentile Latency",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 8},
+          "targets": [{"expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, service))", "legendFormat": "{{service}}"}]
+        },
+        {
+          "id": 4,
+          "title": "Average Latency",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 24, "x": 0, "y": 16},
+          "targets": [{"expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])", "legendFormat": "{{service}}"}]
+        }
+      ],
+      "refresh": "10s",
+      "time": {"from": "now-1h", "to": "now"}
+    }
+
+  03-promql-playground.json: |
+    {
+      "title": "PromQL Playground",
+      "tags": ["mytsdb", "promql", "advanced"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Rate vs IRate (Traffic)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "targets": [
+            {"expr": "rate(http_requests_total[5m])", "legendFormat": "rate 5m"},
+            {"expr": "irate(http_requests_total[5m])", "legendFormat": "irate 5m"}
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Derivative of CPU Usage",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "targets": [{"expr": "deriv(container_cpu_usage_ratio[5m])", "legendFormat": "deriv {{pod}}"}]
+        },
+        {
+          "id": 3,
+          "title": "Linear Prediction (Memory Usage next 1h)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+          "targets": [
+            {"expr": "process_resident_memory_bytes", "legendFormat": "Actual"},
+            {"expr": "predict_linear(process_resident_memory_bytes[1h], 3600)", "legendFormat": "Predicted"}
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Aggregations (CPU)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+          "targets": [
+            {"expr": "avg(container_cpu_usage_ratio)", "legendFormat": "Avg"},
+            {"expr": "max(container_cpu_usage_ratio)", "legendFormat": "Max"},
+            {"expr": "min(container_cpu_usage_ratio)", "legendFormat": "Min"},
+            {"expr": "quantile(0.95, container_cpu_usage_ratio)", "legendFormat": "P95"}
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Changes (Resets)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 16},
+          "targets": [{"expr": "changes(up[1h])", "legendFormat": "Changes in Up status"}]
+        },
+        {
+          "id": 6,
+          "title": "Delta (Requests last 1h)",
+          "type": "bar-gauge",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 16},
+          "targets": [{"expr": "delta(http_requests_total[1h])", "legendFormat": "{{pod}}"}]
+        }
+      ],
+      "refresh": "10s",
+      "time": {"from": "now-1h", "to": "now"}
+    }

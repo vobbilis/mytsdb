@@ -1,0 +1,14 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: mytsdb-cluster
+nodes:
+- role: control-plane
+  extraPortMappings:
+  # Grafana
+  - containerPort: 30300
+    hostPort: 3000
+    protocol: TCP
+  # MyTSDB (optional, for direct access)
+  - containerPort: 30090
+    hostPort: 9090
+    protocol: TCP

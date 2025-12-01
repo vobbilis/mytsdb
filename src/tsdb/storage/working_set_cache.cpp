@@ -131,8 +131,11 @@ void WorkingSetCache::put(core::SeriesID series_id, std::shared_ptr<core::TimeSe
     
     auto it = cache_map_.find(series_id);
     if (it != cache_map_.end()) {
-        // Update existing entry
-        it->second->series = std::move(series);
+        // Update existing entry - MERGE samples
+        // Instead of overwriting, we append new samples to the existing series
+        for (const auto& sample : series->samples()) {
+            it->second->series->add_sample(sample);
+        }
         move_to_front(it->second);
     } else {
         // Add new entry

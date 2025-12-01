@@ -1,4 +1,4 @@
-#include "lexer.h"
+#include "tsdb/prometheus/promql/lexer.h"
 #include <cctype>
 #include <unordered_map>
 

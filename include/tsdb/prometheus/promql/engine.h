@@ -62,6 +62,11 @@ public:
      */
     QueryResult ExecuteRange(const std::string& query, int64_t start, int64_t end, int64_t step);
 
+    /**
+     * @brief Get values for a specific label
+     */
+    std::vector<std::string> LabelValues(const std::string& label_name);
+
 private:
     EngineOptions options_;
 };

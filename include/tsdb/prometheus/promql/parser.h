@@ -1,8 +1,8 @@
 #ifndef TSDB_PROMETHEUS_PROMQL_PARSER_H_
 #define TSDB_PROMETHEUS_PROMQL_PARSER_H_
 
-#include "lexer.h"
-#include "ast.h"
+#include "tsdb/prometheus/promql/lexer.h"
+#include "tsdb/prometheus/promql/ast.h"
 #include <memory>
 #include <stdexcept>
 #include <vector>

@@ -1,4 +1,4 @@
-#include "http_server.h"
+#include "tsdb/prometheus/server/http_server.h"
 #include "tsdb/prometheus/server/request.h"
 #include <httplib.h>
 #include <rapidjson/document.h>

@@ -76,7 +76,25 @@ bool Sample::operator!=(const Sample& other) const {
 TimeSeries::TimeSeries(const Labels& labels)
     : labels_(labels) {}
 
+TimeSeries::TimeSeries(const TimeSeries& other) {
+    std::lock_guard<std::mutex> lock(other.mutex_);
+    labels_ = other.labels_;
+    samples_ = other.samples_;
+}
+
+TimeSeries& TimeSeries::operator=(const TimeSeries& other) {
+    if (this != &other) {
+        std::unique_lock<std::mutex> lock(mutex_, std::defer_lock);
+        std::unique_lock<std::mutex> other_lock(other.mutex_, std::defer_lock);
+        std::lock(lock, other_lock);
+        labels_ = other.labels_;
+        samples_ = other.samples_;
+    }
+    return *this;
+}
+
 void TimeSeries::add_sample(const Sample& sample) {
+    std::lock_guard<std::mutex> lock(mutex_);
     // Ensure samples are added in chronological order
     if (!samples_.empty() && samples_.back().timestamp() >= sample.timestamp()) {
         throw InvalidArgumentError("Samples must be added in chronological order");
@@ -89,10 +107,34 @@ void TimeSeries::add_sample(Timestamp ts, Value val) {
 }
 
 void TimeSeries::clear() {
+    std::lock_guard<std::mutex> lock(mutex_);
     samples_.clear();
 }
 
+std::vector<Sample> TimeSeries::samples() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return samples_;
+}
+
+std::vector<Sample> TimeSeries::get_samples_snapshot() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return samples_;
+}
+
+size_t TimeSeries::size() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return samples_.size();
+}
+
+bool TimeSeries::empty() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return samples_.empty();
+}
+
 bool TimeSeries::operator==(const TimeSeries& other) const {
+    if (this == &other) return true;
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> other_lock(other.mutex_);
     return labels_ == other.labels_ && samples_ == other.samples_;
 }
 

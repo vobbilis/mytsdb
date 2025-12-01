@@ -125,6 +125,31 @@ add_executable(tsdb_cache_hierarchy_unit_tests
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )
 
+# Cache hierarchy reproduction test
+add_executable(tsdb_cache_hierarchy_repro_test
+    ${CMAKE_SOURCE_DIR}/test/storage/cache_hierarchy_repro_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_cache_hierarchy_repro_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_cache_hierarchy_repro_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+)
+
+gtest_discover_tests(tsdb_cache_hierarchy_repro_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
 # Predictive cache unit tests
 add_executable(tsdb_predictive_cache_unit_tests
     ${CMAKE_SOURCE_DIR}/test/unit/storage/predictive_cache_test.cpp
@@ -151,6 +176,8 @@ if(HAVE_RAPIDJSON)
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/label_manipulation_test.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/utility_test.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remaining_functions_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remote/test_converter.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/auth/test_authenticators.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/result_minimal_test.cpp
         ${CMAKE_SOURCE_DIR}/test/main.cpp
     )
@@ -160,6 +187,7 @@ if(HAVE_RAPIDJSON)
             ${CMAKE_SOURCE_DIR}/src
             ${CMAKE_SOURCE_DIR}/include
             ${RAPIDJSON_INCLUDE_DIRS}
+            ${CMAKE_BINARY_DIR}/common
     )
 
     target_link_libraries(tsdb_prometheus_unit_tests
@@ -168,6 +196,10 @@ if(HAVE_RAPIDJSON)
             tsdb_prometheus
             GTest::gmock
     )
+    
+    if(TARGET tsdb_proto)
+        target_link_libraries(tsdb_prometheus_unit_tests PRIVATE tsdb_proto)
+    endif()
 
     if(HAVE_HTTPLIB)
         target_link_libraries(tsdb_prometheus_unit_tests PRIVATE httplib::httplib)
@@ -178,6 +210,30 @@ if(HAVE_RAPIDJSON)
     endif()
 
     gtest_discover_tests(tsdb_prometheus_unit_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+    
+    # Query metrics unit tests
+    add_executable(tsdb_query_metrics_unit_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql/query_metrics_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+    
+    target_include_directories(tsdb_query_metrics_unit_tests
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/include
+    )
+    
+    target_link_libraries(tsdb_query_metrics_unit_tests
+        PRIVATE
+            tsdb_test_common
+            tsdb_prometheus
+    )
+    
+    gtest_discover_tests(tsdb_query_metrics_unit_tests
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTIES
             ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"

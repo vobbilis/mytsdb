@@ -52,13 +52,15 @@ bool MemoryMappedCache::put(core::SeriesID series_id, std::shared_ptr<core::Time
             evict_lru();
         }
         
+        // Calculate size (simplified for now)
+        size_t size_bytes = series->samples().size() * sizeof(core::Sample) + 100; // Approximate
+
         // Add to cache map
         cache_map_[series_id] = std::move(series);
         
         // Add metadata
         metadata_map_[series_id] = CacheEntryMetadata(series_id);
-        // Calculate size (simplified for now)
-        metadata_map_[series_id].size_bytes = series->samples().size() * sizeof(core::Sample) + 100; // Approximate
+        metadata_map_[series_id].size_bytes = size_bytes;
         
         // Add to LRU list
         add_to_front(series_id);

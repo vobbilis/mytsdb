@@ -1,4 +1,5 @@
 #include "tsdb/prometheus/promql/evaluator.h"
+#include "tsdb/prometheus/promql/query_metrics.h"
 #include "tsdb/core/aggregation.h"
 #include <cmath>
 #include <algorithm>
@@ -36,8 +37,9 @@ Evaluator::Evaluator(int64_t timestamp, int64_t lookback_delta, storage::Storage
     : timestamp_(timestamp), lookback_delta_(lookback_delta), storage_(storage) {}
 
 Value Evaluator::Evaluate(const ExprNode* node) {
+    ScopedQueryTimer timer(ScopedQueryTimer::Type::EVAL);
     if (!node) {
-        throw std::runtime_error("Null expression node");
+        return Value{};
     }
 
     switch (node->type()) {
@@ -385,13 +387,6 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    if (duration > 10000) { // Log aggregations taking > 10ms
-        std::cout << "[SLOW AGGREGATION] " << AggregateOpToString(node->op()) 
-                  << " took " << duration / 1000.0 << "ms. Input size: " << input_vector.size() 
-                  << ", Output size: " << result_vector.size() << std::endl;
-    } else {
-         std::cout << "DEBUG: Pushdown skipped: Not a VectorSelector. Expr type: " << typeid(*node->expr).name() << std::endl;
-    }
     
     return Value(result_vector);
 }
@@ -457,7 +452,7 @@ std::string GenerateSignature(const LabelSet& labels, const std::vector<std::str
 }
 
 Value Evaluator::EvaluateBinary(const BinaryExprNode* node) {
-    std::cout << "DEBUG: EvaluateBinary op=" << static_cast<int>(node->op) << std::endl;
+
     Value lhs = Evaluate(node->lhs.get());
     Value rhs = Evaluate(node->rhs.get());
 
@@ -537,7 +532,6 @@ Value Evaluator::EvaluateBinary(const BinaryExprNode* node) {
             // For comparison, we filter unless bool modifier is present
             if (TokenType::EQL <= node->op && node->op <= TokenType::GTR) {
                 if (node->returnBool) {
-                    // If bool modifier, we return 0/1 value and drop metric name
                     Sample s = sample;
                     s.value = (res != 0) ? 1.0 : 0.0;
                     s.metric.RemoveLabel("__name__");
@@ -705,10 +699,6 @@ Value Evaluator::EvaluateCall(const CallNode* node) {
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
     
-    if (duration > 10000) { // Log function calls taking > 10ms
-        std::cout << "[SLOW FUNCTION] " << node->func_name() 
-                  << " took " << duration / 1000.0 << "ms" << std::endl;
-    }
     
     return result;
 }

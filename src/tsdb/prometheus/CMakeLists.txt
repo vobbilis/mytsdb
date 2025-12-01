@@ -24,7 +24,15 @@ target_sources(tsdb_prometheus
         promql/functions/utility.cpp
         promql/functions/math_advanced.cpp
         promql/functions/remaining_functions.cpp
+        promql/query_metrics.cpp
         storage/tsdb_adapter.cpp
+        remote/converter.cpp
+        remote/write_handler.cpp
+        remote/read_handler.cpp
+        auth/basic_auth.cpp
+        auth/bearer_auth.cpp
+        auth/header_auth.cpp
+        auth/composite_auth.cpp
 )
 
 # Try to find dependencies
@@ -32,6 +40,7 @@ find_package(httplib QUIET)
 find_package(RapidJSON QUIET)
 find_package(Protobuf QUIET)
 find_package(Threads REQUIRED)
+find_package(OpenSSL REQUIRED)
 
 set(HAVE_HTTPLIB FALSE)
 set(HAVE_RAPIDJSON FALSE)
@@ -50,6 +59,13 @@ endif()
 if(Protobuf_FOUND)
     set(HAVE_PROTOBUF TRUE)
     message(STATUS "Found Protobuf")
+endif()
+
+find_package(Snappy QUIET)
+set(HAVE_SNAPPY FALSE)
+if(Snappy_FOUND)
+    set(HAVE_SNAPPY TRUE)
+    message(STATUS "Found Snappy for Prometheus Remote Storage")
 endif()
 
 # Include directories
@@ -80,6 +96,8 @@ target_link_libraries(tsdb_prometheus
         tsdb::lib
     PRIVATE
         Threads::Threads
+        OpenSSL::SSL
+        OpenSSL::Crypto
 )
 
 if(HAVE_HTTPLIB)
@@ -92,6 +110,15 @@ endif()
 
 if(HAVE_PROTOBUF)
     target_link_libraries(tsdb_prometheus PRIVATE protobuf::libprotobuf)
+    if(TARGET tsdb_proto)
+        target_link_libraries(tsdb_prometheus PRIVATE tsdb_proto)
+        target_include_directories(tsdb_prometheus PRIVATE ${CMAKE_BINARY_DIR}/common)
+    endif()
+endif()
+
+if(HAVE_SNAPPY)
+    target_compile_definitions(tsdb_prometheus PRIVATE HAVE_SNAPPY)
+    target_link_libraries(tsdb_prometheus PRIVATE Snappy::snappy)
 endif()
 
 # Compiler flags

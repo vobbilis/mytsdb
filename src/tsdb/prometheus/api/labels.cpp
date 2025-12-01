@@ -1,4 +1,4 @@
-#include "labels.h"
+#include "tsdb/prometheus/api/labels.h"
 #include <rapidjson/document.h>
 #include <rapidjson/stringbuffer.h>
 #include <rapidjson/writer.h>
@@ -109,6 +109,7 @@ LabelQueryResult LabelsHandler::GetLabels(const LabelQueryParams& params) {
 
 LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
                                              const LabelQueryParams& params) {
+    std::cout << "LabelsHandler::GetLabelValues called for " << label_name << std::endl;
     // Validate label name
     if (!ValidateLabelName(label_name)) {
         return CreateErrorResponse("invalid_parameter",
@@ -122,7 +123,9 @@ LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
     }
     
     try {
+        std::cout << "Calling storage_->label_values(" << label_name << ")" << std::endl;
         auto result = storage_->label_values(label_name);
+        std::cout << "storage_->label_values returned" << std::endl;
         if (!result.ok()) {
             return CreateErrorResponse("internal_error", result.error());
         }

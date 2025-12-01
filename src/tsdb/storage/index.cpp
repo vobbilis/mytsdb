@@ -3,6 +3,8 @@
 
 #include <regex>
 #include <iostream>
+#include <mutex>
+#include <shared_mutex>
 
 namespace tsdb {
 namespace storage {
@@ -27,6 +29,8 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
     
     std::vector<core::SeriesID> candidates;
     bool candidates_initialized = false;
+
+
 
     // 1. Filter by Equality Matchers (Use Inverted Index)
     for (const auto& matcher : matchers) {

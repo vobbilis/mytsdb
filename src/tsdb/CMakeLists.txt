@@ -69,6 +69,8 @@ endif()
 add_executable(tsdb_server)
 target_sources(tsdb_server PRIVATE
     main.cpp
+    server/self_monitor.cpp
+    common/logger.cpp
 )
 
 # Link server executable with required libraries

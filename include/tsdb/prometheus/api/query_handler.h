@@ -15,6 +15,7 @@ public:
 
     void HandleInstantQuery(const Request& req, std::string& res);
     void HandleRangeQuery(const Request& req, std::string& res);
+    void HandleLabelValues(const Request& req, std::string& res);
 
 private:
     std::shared_ptr<promql::Engine> engine_;

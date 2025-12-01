@@ -145,6 +145,14 @@ public:
         const std::string& label_name) override;
 
     /**
+     * @brief Get the background processor instance
+     * @return Shared pointer to background processor
+     */
+    std::shared_ptr<BackgroundProcessor> GetBackgroundProcessor() { 
+        return std::shared_ptr<BackgroundProcessor>(background_processor_.get(), [](BackgroundProcessor*){}); 
+    }
+
+    /**
      * @brief Deletes time series data matching the given label matchers
      * @param matchers The label matchers for selecting time series to delete
      * @return Result object indicating success or failure
