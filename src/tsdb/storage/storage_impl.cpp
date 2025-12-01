@@ -45,6 +45,7 @@
 #include "tsdb/storage/compression.h"
 #include "tsdb/storage/histogram_ops.h"
 #include "tsdb/storage/write_performance_instrumentation.h"
+#include "tsdb/storage/read_performance_instrumentation.h"
 #include "tsdb/storage/object_pool.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
@@ -200,6 +201,7 @@ core::Result<std::vector<core::Sample>> Series::Read(
     std::shared_lock lock(mutex_);
     
     std::vector<core::Sample> result;
+    
     
     // Read from sealed blocks first
     for (const auto& block : blocks_) {
@@ -417,18 +419,21 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
             // Repopulate the index and active_series_ map from WAL
             auto series_id = calculate_series_id(series.labels());
             
-            // Create or update series in active_series_ (concurrent_hash_map is thread-safe)
+            // 4. Update active series map
             SeriesMap::accessor accessor;
             bool created = active_series_.insert(accessor, series_id);
             
             if (created) {
-                // Add to index only if it's a new series
+                // New series - create and insert
+                accessor->second = std::make_shared<Series>(series_id, series.labels(), core::MetricType::GAUGE, Granularity());
+                
+                // Add to index
                 index_->add_series(series_id, series.labels());
                 
-                auto new_series = std::make_shared<Series>(series_id, series.labels(), core::MetricType::GAUGE, Granularity());
-                accessor->second = new_series;
             }
             
+            // 5. Write sample to series
+            // We need to write all samples from the input series
             // Add samples to the series (this locks Series mutex)
             // Note: During replay, we're single-threaded, so no deadlock risk
             for (const auto& sample : series.samples()) {
@@ -457,8 +462,8 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
     if (!cache_hierarchy_) {
         TSDB_INFO("StorageImpl::init() - Initializing CacheHierarchy");
         CacheHierarchyConfig cache_config;
-        cache_config.l1_max_size = 1000;
-        cache_config.l2_max_size = 10000;
+        cache_config.l1_max_size = 50000;   // Increased from 1000 to cover typical working set
+        cache_config.l2_max_size = 500000;  // Increased from 10000 to cover larger datasets
         cache_config.l2_storage_path = config.data_dir + "/cache/l2";
         cache_config.l3_storage_path = config.data_dir + "/cache/l3";
         cache_config.enable_background_processing = config.background_config.enable_background_processing;
@@ -493,6 +498,9 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
     // Initialize block management
     TSDB_INFO("StorageImpl::init() - Initializing BlockManagement");
     initialize_block_management();
+    
+    // Enable write performance instrumentation
+    WritePerformanceInstrumentation::instance().enable();
     
     initialized_ = true;
     TSDB_INFO("StorageImpl::init() - Initialization complete");
@@ -589,6 +597,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         
         if (created) {
             metrics.is_new_series = true;
+            
             
             // This is the first time we see this series. Create it.
             {
@@ -725,8 +734,13 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
     const core::Labels& labels,
     int64_t start_time,
     int64_t end_time) {
+    // Instrumentation
+    ReadPerformanceInstrumentation::ReadMetrics metrics;
+    ReadScopedTimer total_timer(metrics.total_us);
+
     // CATEGORY 2 FIX: This version assumes mutex_ is already held by caller
     // to avoid nested lock acquisition (deadlock) - std::shared_mutex does NOT support recursive locking
+    
     
     try {
         // Try cache hierarchy first for fast access (if available)
@@ -736,7 +750,6 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
         record_access_pattern(labels);
         
         // Prefetch predicted series based on access patterns
-        // prefetch_predicted_series(series_id);
         
         std::shared_ptr<core::TimeSeries> cached_series = nullptr;
         if (cache_hierarchy_) {
@@ -766,12 +779,13 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
         }
         
         // Cache miss - try reading from active_series_ first (in-memory data)
-        SeriesMap::accessor accessor;
+        SeriesMap::const_accessor accessor;
         if (active_series_.find(accessor, series_id)) {
             // Found in active series - read from it
             try {
                 auto samples_result = accessor->second->Read(start_time, end_time);
                 if (samples_result.ok()) {
+                    
                     // Create result - samples from Series::Read() are already sorted chronologically
                     core::TimeSeries result(labels);
                     const auto& samples = samples_result.value();
@@ -804,28 +818,36 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
             } catch (...) {
                 // Catch any other exceptions and try block-based read
             }
+        } else {
+            
         }
         
         // Try block-based read (persisted data)
+        
         // DEADLOCK FIX #3: read_from_blocks() will acquire ObjectPool mutex, but we've already
         // released any ObjectPool mutex we held, so no nested acquisition
         // CATEGORY 2 FIX: read_from_blocks() tries to acquire mutex_ again, but we already hold it
         // Use read_from_blocks_nolock() to avoid nested lock acquisition (deadlock)
-        auto block_result = read_from_blocks_nolock(labels, start_time, end_time);
-        
-        if (block_result.ok()) {
-            // Block-based read successful - add to cache and return (even if empty)
-            if (!block_result.value().empty()) {
-                auto shared_series = std::make_shared<core::TimeSeries>(block_result.value());
-                if (cache_hierarchy_) {
-                    cache_hierarchy_->put(series_id, shared_series);
+        {
+            ReadScopedTimer block_timer(metrics.block_lookup_us);
+            auto block_result = read_from_blocks_nolock(labels, start_time, end_time);
+            
+            if (block_result.ok()) {
+                // Block-based read successful - add to cache and return (even if empty)
+                if (!block_result.value().empty()) {
+                    auto shared_series = std::make_shared<core::TimeSeries>(block_result.value());
+                    if (cache_hierarchy_) {
+                        cache_hierarchy_->put(series_id, shared_series);
+                    }
                 }
+                ReadPerformanceInstrumentation::instance().record_read(metrics);
+                return block_result;
             }
-            return block_result;
         }
         
         // If no series was found, return empty result (not an error - series might not exist yet)
         core::TimeSeries empty_result(labels);
+        ReadPerformanceInstrumentation::instance().record_read(metrics);
         return core::Result<core::TimeSeries>(std::move(empty_result));
     } catch (const std::exception& e) {
         return core::Result<core::TimeSeries>::error("Read failed: " + std::string(e.what()));
@@ -858,6 +880,7 @@ core::Result<void> StorageImpl::read_samples_nolock(
         // 2. Cache miss - try active_series_
         SeriesMap::accessor accessor;
         if (active_series_.find(accessor, series_id)) {
+
             // Found in active series
             auto samples_result = accessor->second->Read(start_time, end_time);
             if (samples_result.ok()) {
@@ -942,6 +965,10 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
     const std::vector<core::LabelMatcher>& matchers,
     int64_t start_time,
     int64_t end_time) {
+    // Instrumentation
+    ReadPerformanceInstrumentation::ReadMetrics metrics;
+    ReadScopedTimer total_timer(metrics.total_us);
+
     if (!initialized_) {
         return core::Result<std::vector<core::TimeSeries>>::error("Storage not initialized");
     }
@@ -956,6 +983,7 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
     std::vector<core::SeriesID> series_ids;
     std::map<core::SeriesID, core::Labels> series_labels_map;
     {
+        ReadScopedTimer index_timer(metrics.index_search_us);
         auto series_ids_result = index_->find_series(matchers);
         if (!series_ids_result.ok()) {
             return core::Result<std::vector<core::TimeSeries>>::error("Index query failed: " + series_ids_result.error());
@@ -1042,6 +1070,7 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
             }
         }
         
+        ReadPerformanceInstrumentation::instance().record_read(metrics);
         return core::Result<std::vector<core::TimeSeries>>(std::move(results));
     } catch (const std::exception& e) {
         return core::Result<std::vector<core::TimeSeries>>::error("Query failed: " + std::string(e.what()));
@@ -2297,6 +2326,7 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
         // Find blocks for this series
         auto it = series_blocks_.find(series_id);
         if (it == series_blocks_.end()) {
+
             // No blocks found for this series
             if (pooled_result && time_series_pool_) {
                 time_series_pool_->release(std::move(pooled_result));
@@ -2405,8 +2435,11 @@ void StorageImpl::initialize_background_processor() {
         bg_config.shutdown_timeout = std::chrono::milliseconds(5000);
         
         background_processor_ = std::make_unique<BackgroundProcessor>(bg_config);
-        
-        // Background processor starts workers automatically in constructor
+        auto init_result = background_processor_->initialize();
+        if (!init_result.ok()) {
+             TSDB_ERROR("Failed to initialize background processor: " + init_result.error());
+             // We continue even if background processor fails, but log error
+        }
         
         // Schedule periodic background tasks
         if (config_.background_config.enable_auto_compaction) {

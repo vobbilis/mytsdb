@@ -5,6 +5,8 @@
 #include <thread>
 #include <atomic>
 #include <chrono>
+#include "tsdb/common/logger.h"
+#include <spdlog/spdlog.h>
 #include "tsdb/storage/storage.h"
 #include "tsdb/storage/storage_impl.h"
 #include "tsdb/prometheus/server/http_server.h"
@@ -12,6 +14,10 @@
 #include "tsdb/prometheus/storage/tsdb_adapter.h"
 #include "tsdb/prometheus/api/query_handler.h"
 #include "tsdb/prometheus/api/labels.h"
+#include "tsdb/prometheus/remote/write_handler.h"
+#include "tsdb/prometheus/remote/read_handler.h"
+#include "tsdb/prometheus/auth/no_auth.h"
+#include "tsdb/server/self_monitor.h"
 
 #ifdef HAVE_GRPC
 #include "tsdb/otel/bridge.h"
@@ -69,9 +75,30 @@ public:
             // 4. Create and Start HTTP Server
             prometheus::ServerConfig server_config;
             server_config.port = static_cast<uint16_t>(http_port_);
+            server_config.num_threads = 16;  // Increase threads to handle concurrent load
             http_server_ = std::make_unique<prometheus::HttpServer>(server_config);
             
             // Register handlers
+            
+            // Register Remote Write handler
+            auto authenticator = std::make_shared<prometheus::auth::NoAuthenticator>();
+            auto write_handler = std::make_shared<prometheus::remote::WriteHandler>(
+                std::static_pointer_cast<storage::Storage>(storage_), 
+                std::static_pointer_cast<prometheus::auth::Authenticator>(authenticator));
+            http_server_->RegisterHandler("/api/v1/write", 
+                [write_handler](const prometheus::Request& req, std::string& res) {
+                    write_handler->Handle(req, res);
+                });
+            
+            // Register Remote Read handler
+            auto read_handler = std::make_shared<prometheus::remote::ReadHandler>(
+                std::static_pointer_cast<storage::Storage>(storage_), 
+                std::static_pointer_cast<prometheus::auth::Authenticator>(authenticator));
+            http_server_->RegisterHandler("/api/v1/read",
+                [read_handler](const prometheus::Request& req, std::string& res) {
+                    read_handler->Handle(req, res);
+                });
+
             http_server_->RegisterHandler("/api/v1/query", [this](const prometheus::Request& req, std::string& res) {
                 query_handler_->HandleInstantQuery(req, res);
             });
@@ -164,11 +191,28 @@ public:
         std::cout << "TSDB server started (gRPC support not available)" << std::endl;
 #endif
         
+        // Start self-monitoring
+        std::cout << "[Main] Initializing self-monitoring..." << std::endl;
+        auto bg_processor = std::dynamic_pointer_cast<storage::StorageImpl>(storage_)->GetBackgroundProcessor();
+        if (bg_processor) {
+            std::cout << "[Main] Background processor obtained successfully" << std::endl;
+            self_monitor_ = std::make_unique<server::SelfMonitor>(storage_, bg_processor);
+            self_monitor_->Start();
+            std::cout << "[Main] Self-monitoring started" << std::endl;
+        } else {
+            std::cerr << "[Main] ERROR: Failed to get background processor!" << std::endl;
+        }
+        
         return true;
     }
 
     void Stop() {
         shutdown_.store(true);
+        
+        if (self_monitor_) {
+            std::cout << "Stopping self-monitor..." << std::endl;
+            self_monitor_->Stop();
+        }
         
         if (http_server_) {
             std::cout << "Stopping HTTP server..." << std::endl;
@@ -217,7 +261,9 @@ private:
     std::string address_;
     int http_port_;
     std::string data_dir_;
-    std::shared_ptr<storage::StorageImpl> storage_;
+    std::shared_ptr<storage::Storage> storage_;
+    std::unique_ptr<prometheus::HttpServer> http_server_;
+    std::unique_ptr<server::SelfMonitor> self_monitor_;
     std::atomic<bool> shutdown_;
     
     // Prometheus components
@@ -225,7 +271,6 @@ private:
     std::shared_ptr<prometheus::promql::Engine> engine_;
     std::unique_ptr<prometheus::api::QueryHandler> query_handler_;
     std::unique_ptr<prometheus::api::LabelsHandler> labels_handler_;
-    std::unique_ptr<prometheus::HttpServer> http_server_;
     
 #ifdef HAVE_GRPC
         std::unique_ptr<grpc::Server> grpc_server_;
@@ -254,12 +299,21 @@ int main(int argc, char* argv[]) {
             http_port = std::stoi(argv[++i]);
         } else if (arg == "--data-dir" && i + 1 < argc) {
             data_dir = argv[++i];
+        } else if (arg == "--log-level" && i + 1 < argc) {
+            std::string level_str = argv[++i];
+            if (level_str == "debug") tsdb::common::Logger::SetLevel(spdlog::level::debug);
+            else if (level_str == "info") tsdb::common::Logger::SetLevel(spdlog::level::info);
+            else if (level_str == "warn") tsdb::common::Logger::SetLevel(spdlog::level::warn);
+            else if (level_str == "error") tsdb::common::Logger::SetLevel(spdlog::level::err);
+            else if (level_str == "off") tsdb::common::Logger::SetLevel(spdlog::level::off);
+            else std::cerr << "Unknown log level: " << level_str << ". Using default (info)." << std::endl;
         } else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: " << argv[0] << " [OPTIONS]" << std::endl;
             std::cout << "Options:" << std::endl;
             std::cout << "  --address ADDRESS    gRPC Server address (default: 0.0.0.0:4317)" << std::endl;
             std::cout << "  --http-port PORT     HTTP Server port (default: 9090)" << std::endl;
             std::cout << "  --data-dir DIR       Data directory (default: /tmp/tsdb)" << std::endl;
+            std::cout << "  --log-level LEVEL    Log level (debug, info, warn, error, off)" << std::endl;
             std::cout << "  --help, -h           Show this help message" << std::endl;
             return 0;
         } else {

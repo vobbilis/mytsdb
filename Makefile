@@ -242,7 +242,7 @@ deps-macos:
 	@echo "Installing required dependencies..."
 	brew install cmake
 	@echo "Installing optional but recommended dependencies..."
-	@brew install tbb spdlog googletest grpc protobuf rapidjson cpp-httplib || echo "Some optional dependencies failed to install (this is OK)"
+	@brew install tbb spdlog googletest grpc protobuf rapidjson cpp-httplib snappy || echo "Some optional dependencies failed to install (this is OK)"
 	@echo "Dependencies installed successfully!"
 
 deps-linux:
@@ -251,11 +251,11 @@ deps-linux:
 		echo "Detected Debian/Ubuntu, using apt-get..."; \
 		sudo apt-get update; \
 		sudo apt-get install -y build-essential cmake; \
-		sudo apt-get install -y libtbb-dev libspdlog-dev libgtest-dev libgrpc++-dev protobuf-compiler libprotobuf-dev rapidjson-dev libhttplib-dev || echo "Some optional dependencies failed to install (this is OK)"; \
+		sudo apt-get install -y libtbb-dev libspdlog-dev libgtest-dev libgrpc++-dev protobuf-compiler libprotobuf-dev rapidjson-dev libhttplib-dev libsnappy-dev || echo "Some optional dependencies failed to install (this is OK)"; \
 	elif command -v dnf > /dev/null; then \
 		echo "Detected Fedora/RHEL/CentOS, using dnf..."; \
 		sudo dnf install -y gcc-c++ cmake make; \
-		sudo dnf install -y tbb-devel spdlog-devel gtest-devel grpc-devel protobuf-devel protobuf-compiler || echo "Some optional dependencies failed to install (this is OK)"; \
+		sudo dnf install -y tbb-devel spdlog-devel gtest-devel grpc-devel protobuf-devel protobuf-compiler snappy-devel || echo "Some optional dependencies failed to install (this is OK)"; \
 	else \
 		echo "Error: Unsupported Linux distribution. Please install dependencies manually."; \
 		exit 1; \

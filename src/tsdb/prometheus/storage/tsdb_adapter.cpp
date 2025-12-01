@@ -59,7 +59,7 @@ promql::Matrix TSDBAdapter::SelectSeries(
     if (num_threads == 0) num_threads = 4; // Fallback
     
     // Don't spawn threads for small datasets
-    if (num_series < 100) {
+    if (num_series < 1000) {
         num_threads = 1;
     }
 
@@ -113,11 +113,7 @@ promql::Matrix TSDBAdapter::SelectSeries(
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
 
-    if (duration > 50000) { // Log storage queries taking > 50ms
-        std::cout << "[SLOW STORAGE] SelectSeries took " << duration / 1000.0 << "ms. "
-                  << "Returned " << matrix.size() << " series. "
-                  << "Matchers: " << matchers.size() << std::endl;
-    }
+
 
     return matrix;
 }
@@ -185,7 +181,7 @@ promql::Matrix TSDBAdapter::SelectAggregateSeries(
     if (num_threads == 0) num_threads = 4; // Fallback
     
     // Don't spawn threads for small datasets
-    if (num_series < 100) {
+    if (num_series < 1000) {
         num_threads = 1;
     }
 

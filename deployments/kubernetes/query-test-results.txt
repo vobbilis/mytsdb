@@ -1,0 +1,34 @@
+[0;34m========================================[0m
+[0;34mMyTSDB PromQL Query Testing[0m
+[0;34mTarget: http://localhost:9090[0m
+[0;34m========================================[0m
+
+[0;34m=== HTTP Request Metrics ===[0m
+
+[1;33m[1][0m Testing: Total HTTP Requests ... [0;32mPASSED[0m
+  Result type: vector, Series count: 1
+[1;33m[2][0m Testing: HTTP Request Rate (5m) ... [0;32mPASSED[0m
+  Result type: vector, Series count: 1
+[1;33m[3][0m Testing: HTTP Requests by Method ... [0;32mPASSED[0m
+  Result type: vector, Series count: 4
+[1;33m[4][0m Testing: HTTP Requests by Status Code ... [0;32mPASSED[0m
+  Result type: vector, Series count: 5
+[1;33m[5][0m Testing: HTTP Requests by Service ... [0;32mPASSED[0m
+  Result type: vector, Series count: 6
+[1;33m[6][0m Testing: HTTP Error Rate (4xx + 5xx) ... [0;32mPASSED[0m
+  Result type: vector, Series count: 1
+[1;33m[7][0m Testing: HTTP 5xx Error Rate ... [0;32mPASSED[0m
+  Result type: vector, Series count: 1
+[1;33m[8][0m Testing: HTTP Success Rate (2xx) ... [0;32mPASSED[0m
+  Result type: vector, Series count: 1
+[1;33m[9][0m Testing: Top 5 Services by Request Volume ... [0;32mPASSED[0m
+  Result type: vector, Series count: 5
+[1;33m[10][0m Testing: HTTP Requests Heatmap by Status ... [0;32mPASSED[0m
+  Result type: vector, Series count: 5
+
+[0;34m=== HTTP Request Duration Metrics ===[0m
+
+[1;33m[11][0m Testing: Average Request Duration ... [0;32mPASSED[0m
+  Result type: vector, Series count: 21
+[1;33m[12][0m Testing: P50 Request Duration ... [0;31mFAILED[0m
+  Error: Execution error: Unknown function: histogram_quantile

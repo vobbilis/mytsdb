@@ -208,6 +208,49 @@ target_link_libraries(tsdb_error_handling_test
         GTest::gtest_main
 )
 
+# Query instrumentation integration test
+add_executable(tsdb_query_instrumentation_integration_test
+    query_instrumentation_integration_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/server/self_monitor.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_query_instrumentation_integration_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_query_instrumentation_integration_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_lib
+        tsdb_prometheus
+        GTest::gtest
+        GTest::gtest_main
+        Threads::Threads
+)
+
+# Self-monitor end-to-end test (standalone executable, not using GTest)
+add_executable(tsdb_self_monitor_e2e_test
+    self_monitor_e2e_test.cpp
+    ${CMAKE_SOURCE_DIR}/src/tsdb/server/self_monitor.cpp
+)
+
+target_include_directories(tsdb_self_monitor_e2e_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_self_monitor_e2e_test
+    PRIVATE
+        tsdb_lib
+        tsdb_prometheus
+        tsdb_storage_impl
+        Threads::Threads
+)
+
 # Test fixtures
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_custom_command(TARGET tsdb_integration_test_suite POST_BUILD
@@ -295,6 +338,9 @@ gtest_discover_tests(tsdb_config_integration_test
         TIMEOUT 300   # 5 minutes timeout for config integration tests
 )
 
+# Prometheus Remote Storage integration tests
+add_subdirectory(prometheus)
+
 gtest_discover_tests(tsdb_otel_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
@@ -328,4 +374,11 @@ gtest_discover_tests(tsdb_error_handling_test
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 600   # 10 minutes timeout for error handling tests
+)
+
+gtest_discover_tests(tsdb_query_instrumentation_integration_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        TIMEOUT 600   # 10 minutes timeout for query instrumentation tests
 ) 

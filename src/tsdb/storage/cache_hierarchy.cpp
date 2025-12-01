@@ -70,19 +70,18 @@ CacheHierarchy::CacheHierarchy(const CacheHierarchyConfig& config)
     l1_cache_ = std::make_unique<WorkingSetCache>(config_.l1_max_size);
     
     // Initialize L2 cache (MemoryMappedCache) only if L2 is enabled
-    // Temporarily disable L2 cache to avoid segfaults
-    // if (config_.l2_max_size > 0) {
-    //     l2_cache_ = std::make_unique<MemoryMappedCache>(config_);
-    //     
-    //     // Create storage directories
-    //     try {
-    //         std::filesystem::create_directories(config_.l2_storage_path);
-    //         std::filesystem::create_directories(config_.l3_storage_path);
-    //     } catch (const std::exception& e) {
-    //         // If directory creation fails, we'll continue without L2 cache
-    //         l2_cache_.reset();
-    //     }
-    // }
+    if (config_.l2_max_size > 0) {
+        l2_cache_ = std::make_unique<MemoryMappedCache>(config_);
+        
+        // Create storage directories
+        try {
+            std::filesystem::create_directories(config_.l2_storage_path);
+            std::filesystem::create_directories(config_.l3_storage_path);
+        } catch (const std::exception& e) {
+            // If directory creation fails, we'll continue without L2 cache
+            l2_cache_.reset();
+        }
+    }
     
     // Start background processing if enabled
     if (config_.enable_background_processing) {

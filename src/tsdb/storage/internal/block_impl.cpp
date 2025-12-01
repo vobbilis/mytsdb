@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 #include <cstring>
+#include "tsdb/storage/read_performance_instrumentation.h"
 
 namespace tsdb {
 namespace storage {
@@ -43,9 +44,17 @@ size_t BlockImpl::num_series() const {
 }
 
 core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
+    ReadPerformanceInstrumentation::ReadMetrics metrics;
+    metrics.blocks_accessed = 1;
+
     std::lock_guard<std::mutex> lock(mutex_);
+    // Measure lock wait + map lookup as "block_read" for now (since we hold lock during read)
+    // Ideally we'd separate lock wait, but std::lock_guard combines them.
+    // We can assume map lookup is fast.
+    
     auto it = series_.find(labels);
     if (it == series_.end()) {
+        ReadPerformanceInstrumentation::instance().record_read(metrics);
         return core::TimeSeries(labels); // Empty series if not found
     }
 
@@ -53,19 +62,28 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
     
     // Check if data is compressed or uncompressed
     if (!data.is_compressed) {
+        ReadScopedTimer read_timer(metrics.block_read_us);
         // Read from uncompressed buffers
         core::TimeSeries ts(labels);
         size_t min_size = std::min(data.timestamps_uncompressed.size(), data.values_uncompressed.size());
         for (size_t i = 0; i < min_size; i++) {
             ts.add_sample(data.timestamps_uncompressed[i], data.values_uncompressed[i]);
         }
+        metrics.samples_scanned = min_size;
+        ReadPerformanceInstrumentation::instance().record_read(metrics);
         return ts;
     }
     
     // Data is compressed - decompress it
     // The compressed data is in the new batch format (single compressed block per series)
-    auto all_timestamps = ts_compressor_->decompress(data.timestamps_compressed);
-    auto all_values = val_compressor_->decompress(data.values_compressed);
+    std::vector<int64_t> all_timestamps;
+    std::vector<double> all_values;
+    
+    {
+        ReadScopedTimer decompress_timer(metrics.decompression_us);
+        all_timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+        all_values = val_compressor_->decompress(data.values_compressed);
+    }
     
     // Match timestamps and values to create samples
     core::TimeSeries ts(labels);
@@ -74,6 +92,8 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
         ts.add_sample(all_timestamps[i], all_values[i]);
     }
     
+    metrics.samples_scanned = min_size;
+    ReadPerformanceInstrumentation::instance().record_read(metrics);
     return ts;
 }
 

@@ -1,8 +1,8 @@
 #ifndef TSDB_PROMETHEUS_PROMQL_AST_H_
 #define TSDB_PROMETHEUS_PROMQL_AST_H_
 
-#include "lexer.h" // For TokenType and Token
-#include "../model/types.h" // For potential model types like LabelMatcher
+#include "tsdb/prometheus/promql/lexer.h" // For TokenType and Token
+#include "tsdb/prometheus/model/types.h" // For potential model types like LabelMatcher
 #include <string>
 #include <vector>
 #include <memory>

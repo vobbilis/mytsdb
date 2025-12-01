@@ -109,6 +109,40 @@ void QueryHandler::HandleRangeQuery(const Request& req, std::string& res) {
     }
 }
 
+void QueryHandler::HandleLabelValues(const Request& req, std::string& res) {
+    // Path param "name" from /api/v1/label/:name/values
+    auto it = req.path_params.find("name");
+    if (it == req.path_params.end()) {
+        res = FormatErrorResponse("missing label name parameter");
+        return;
+    }
+    std::string label_name = it->second;
+
+    try {
+        std::vector<std::string> values = engine_->LabelValues(label_name);
+        
+        Document doc;
+        doc.SetObject();
+        auto& allocator = doc.GetAllocator();
+
+        doc.AddMember("status", "success", allocator);
+        
+        Value data(kArrayType);
+        for (const auto& v : values) {
+            data.PushBack(Value(v.c_str(), allocator).Move(), allocator);
+        }
+        
+        doc.AddMember("data", data, allocator);
+
+        StringBuffer buffer;
+        Writer<StringBuffer> writer(buffer);
+        doc.Accept(writer);
+        res = buffer.GetString();
+    } catch (const std::exception& e) {
+        res = FormatErrorResponse(e.what());
+    }
+}
+
 std::string QueryHandler::FormatSuccessResponse(const promql::Value& value) {
     Document doc;
     doc.SetObject();
@@ -143,7 +177,7 @@ std::string QueryHandler::FormatSuccessResponse(const promql::Value& value) {
             Value val(kArrayType);
             val.PushBack(static_cast<double>(sample.timestamp) / 1000.0, allocator);
             std::string valStr = std::to_string(sample.value);
-            val.PushBack(StringRef(valStr.c_str()), allocator); // Value as string
+            val.PushBack(Value(valStr.c_str(), allocator).Move(), allocator); // Value as string
             item.AddMember("value", val, allocator);
             
             result.PushBack(item, allocator);
@@ -176,22 +210,9 @@ std::string QueryHandler::FormatSuccessResponse(const promql::Value& value) {
         Value val(kArrayType);
         val.PushBack(static_cast<double>(value.getScalar().timestamp) / 1000.0, allocator);
         std::string valStr = std::to_string(value.getScalar().value);
-        val.PushBack(StringRef(valStr.c_str()), allocator);
-        result.PushBack(val, allocator); // Scalar result is just [t, v] inside result array? No, scalar is usually just the value?
-        // Prometheus API for scalar: result: [t, "v"]
-        // Wait, result is array of results?
-        // For scalar, result is just the array [t, "v"] directly?
-        // Let's check docs. "result": [ <unix_time>, "<scalar_value>" ]
-        // So result is NOT an array of items, but the item itself.
-        // But I initialized result as kArrayType.
-        // Let's fix this.
-        // Actually, for consistency with vector/matrix, let's keep it as array for now, but Prometheus spec says:
-        // resultType: "scalar", result: [t, "v"]
-        // So I should overwrite result.
-        
         result.SetArray(); // Clear
         result.PushBack(static_cast<double>(value.getScalar().timestamp) / 1000.0, allocator);
-        result.PushBack(StringRef(valStr.c_str()), allocator);
+        result.PushBack(Value(valStr.c_str(), allocator).Move(), allocator);
     }
     
     data.AddMember("result", result, allocator);

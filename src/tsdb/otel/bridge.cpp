@@ -1,5 +1,6 @@
 #include "tsdb/otel/bridge.h"
 #include <spdlog/spdlog.h>
+#include "tsdb/storage/write_performance_instrumentation.h"
 #include <chrono>
 #include <thread>
 
@@ -106,37 +107,71 @@ public:
     
     core::Result<void> ConvertMetrics(
         const opentelemetry::proto::metrics::v1::MetricsData& metrics_data) override {
-        std::cerr << "OTEL Bridge: ConvertMetrics called with " << metrics_data.resource_metrics_size() << " resource metrics" << std::endl;
         
-        for (const auto& resource_metrics : metrics_data.resource_metrics()) {
-            // Convert resource-level attributes (e.g., service.name)
-            auto resource_labels = ConvertAttributes(
-                resource_metrics.resource().attributes());
-            std::cerr << "OTEL Bridge: Resource has " << resource_metrics.resource().attributes_size() 
-                      << " attributes, converted to " << resource_labels.map().size() << " labels" << std::endl;
+        // Performance instrumentation
+        auto& perf = storage::WritePerformanceInstrumentation::instance();
+        bool perf_enabled = perf.is_enabled();
+        storage::WritePerformanceInstrumentation::WriteMetrics metrics;
+        
+        // Measure conversion time
+        {
+            storage::ScopedTimer timer(metrics.otel_conversion_us, perf_enabled);
             
-            for (const auto& scope_metrics : resource_metrics.scope_metrics()) {
-                // Convert instrumentation scope attributes
-                auto scope_labels = ConvertAttributes(
-                    scope_metrics.scope().attributes());
-                std::cerr << "OTEL Bridge: Scope has " << scope_metrics.scope().attributes_size() 
-                          << " attributes, converted to " << scope_labels.map().size() << " labels" << std::endl;
+            // std::cerr << "OTEL Bridge: ConvertMetrics called with " << metrics_data.resource_metrics_size() << " resource metrics" << std::endl;
+            
+            for (const auto& resource_metrics : metrics_data.resource_metrics()) {
+                // Measure resource processing
+                storage::ScopedTimer r_timer(metrics.otel_resource_processing_us, perf_enabled);
                 
-                for (const auto& metric : scope_metrics.metrics()) {
-                    std::cerr << "OTEL Bridge: Processing metric: " << metric.name() 
-                              << " with " << (metric.has_gauge() ? metric.gauge().data_points_size() : 0) << " gauge data points" << std::endl;
-                    auto result = ConvertMetric(
-                        metric, resource_labels, scope_labels);
-                    if (!result.ok()) {
-                        std::cerr << "ERROR: Failed to convert metric: " << result.error() << std::endl;
-                        spdlog::warn("Failed to convert metric: {}",
-                                   result.error());
-                        dropped_metrics_++;
-                        continue;
+                // Convert resource-level attributes (e.g., service.name)
+                core::Labels resource_labels;
+                {
+                    storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                    resource_labels = ConvertAttributes(resource_metrics.resource().attributes());
+                }
+                
+                for (const auto& scope_metrics : resource_metrics.scope_metrics()) {
+                    // Measure scope processing
+                    storage::ScopedTimer s_timer(metrics.otel_scope_processing_us, perf_enabled);
+                    
+                    // Convert instrumentation scope attributes
+                    core::Labels scope_labels;
+                    {
+                        storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                        scope_labels = ConvertAttributes(scope_metrics.scope().attributes());
                     }
-                    processed_metrics_++;
+                    
+                    for (const auto& metric : scope_metrics.metrics()) {
+                        // Measure metric processing
+                        storage::ScopedTimer m_timer(metrics.otel_metric_processing_us, perf_enabled);
+                        
+                        size_t points = 0;
+                        std::string type = "unknown";
+                        if (metric.has_gauge()) { points = metric.gauge().data_points_size(); type = "gauge"; }
+                        else if (metric.has_sum()) { points = metric.sum().data_points_size(); type = "sum"; }
+                        else if (metric.has_histogram()) { points = metric.histogram().data_points_size(); type = "histogram"; }
+                        
+                        auto result = ConvertMetric(
+                            metric, resource_labels, scope_labels, metrics, perf_enabled);
+                        if (!result.ok()) {
+                            // std::cerr << "ERROR: Failed to convert metric: " << result.error() << std::endl;
+                            spdlog::warn("Failed to convert metric: {}",
+                                       result.error());
+                            dropped_metrics_++;
+                            continue;
+                        }
+                        processed_metrics_++;
+                    }
                 }
             }
+        }
+        
+        // Record the conversion metric
+        // Note: This records a separate "write" event that only contains conversion time
+        // The actual storage writes inside ConvertMetric will record their own metrics
+        if (perf_enabled) {
+            metrics.total_us = metrics.otel_conversion_us;
+            perf.record_write(metrics);
         }
         
         return core::Result<void>();
@@ -160,7 +195,9 @@ private:
     core::Result<void> ConvertMetric(
         const opentelemetry::proto::metrics::v1::Metric& metric,
         const core::Labels& resource_labels,
-        const core::Labels& scope_labels) {
+        const core::Labels& scope_labels,
+        storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
+        bool perf_enabled) {
         // Base labels: resource + scope + metric name
         core::Labels::Map base_labels;
         base_labels.insert(resource_labels.map().begin(), resource_labels.map().end());
@@ -171,11 +208,11 @@ private:
         // so we need to create separate series for each unique set of attributes
         switch (metric.data_case()) {
             case opentelemetry::proto::metrics::v1::Metric::kGauge:
-                return ConvertGaugeWithAttributes(metric.gauge(), base_labels);
+                return ConvertGaugeWithAttributes(metric.gauge(), base_labels, metrics, perf_enabled);
             case opentelemetry::proto::metrics::v1::Metric::kSum:
-                return ConvertSumWithAttributes(metric.sum(), base_labels);
+                return ConvertSumWithAttributes(metric.sum(), base_labels, metrics, perf_enabled);
             case opentelemetry::proto::metrics::v1::Metric::kHistogram:
-                return ConvertHistogramWithAttributes(metric.histogram(), base_labels);
+                return ConvertHistogramWithAttributes(metric.histogram(), base_labels, metrics, perf_enabled);
             default:
                 return core::Result<void>(std::make_unique<core::Error>(
                     "Unsupported metric type"));
@@ -185,102 +222,145 @@ private:
     // Convert gauge with data point attributes
     core::Result<void> ConvertGaugeWithAttributes(
         const opentelemetry::proto::metrics::v1::Gauge& gauge,
-        const core::Labels::Map& base_labels) {
+        const core::Labels::Map& base_labels,
+        storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
+        bool perf_enabled) {
+        
+        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        
+        // Batching map: Labels -> TimeSeries
+        std::map<core::Labels, core::TimeSeries> batch;
+        
         for (const auto& point : gauge.data_points()) {
             // Combine base labels with data point attributes
-            core::Labels::Map labels = base_labels;
+            core::Labels::Map labels_map = base_labels;
             
-            // Convert data point attributes to labels
-            auto point_labels = ConvertAttributes(point.attributes());
-            
-            // CRITICAL DEBUG: Log to stderr so we can see it
-            if (point.attributes_size() > 0) {
-                std::cerr << "OTEL Bridge DEBUG: Data point has " << point.attributes_size() 
-                          << " attributes, base_labels has " << base_labels.size() << " labels" << std::endl;
+            {
+                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                auto point_labels = ConvertAttributes(point.attributes());
+                // Insert point labels (this will overwrite base_labels if keys conflict)
+                labels_map.insert(point_labels.map().begin(), point_labels.map().end());
             }
             
-            // Insert point labels (this will overwrite base_labels if keys conflict)
-            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            core::Labels labels(labels_map);
             
-            // CRITICAL DEBUG: Log final label count
-            std::cerr << "OTEL Bridge DEBUG: Combined labels: " << labels.size() 
-                      << " total (base: " << base_labels.size() 
-                      << ", point: " << point_labels.map().size() << ")" << std::endl;
-            
-            // If we have very few labels, something is wrong
-            if (labels.size() < 10 && point.attributes_size() > 0) {
-                std::cerr << "ERROR: OTEL Bridge - Series has only " << labels.size() 
-                          << " labels but data point has " << point.attributes_size() 
-                          << " attributes! base_labels=" << base_labels.size() 
-                          << ", point_labels=" << point_labels.map().size() << std::endl;
+            // Find or create series in batch
+            auto it = batch.find(labels);
+            if (it == batch.end()) {
+                it = batch.emplace(labels, core::TimeSeries(labels)).first;
             }
             
-            // Create series with combined labels
-            auto series = core::TimeSeries(core::Labels(std::move(labels)));
-            series.add_sample(core::Sample(
+            it->second.add_sample(core::Sample(
                 point.time_unix_nano() / 1000000,  // Convert to milliseconds
                 point.as_double()));
-            
-            auto result = storage_->write(series);
+        }
+        
+        // Write batched series
+        for (const auto& kv : batch) {
+            auto result = storage_->write(kv.second);
             if (!result.ok()) {
                 return result;
             }
         }
+        
         return core::Result<void>();
     }
     
     // Convert sum with data point attributes
     core::Result<void> ConvertSumWithAttributes(
         const opentelemetry::proto::metrics::v1::Sum& sum,
-        const core::Labels::Map& base_labels) {
+        const core::Labels::Map& base_labels,
+        storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
+        bool perf_enabled) {
+        
+        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        
+        // Batching map: Labels -> TimeSeries
+        std::map<core::Labels, core::TimeSeries> batch;
+        
         for (const auto& point : sum.data_points()) {
             // Combine base labels with data point attributes
-            core::Labels::Map labels = base_labels;
-            auto point_labels = ConvertAttributes(point.attributes());
-            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            core::Labels::Map labels_map = base_labels;
             
-            // Create series with combined labels
-            auto series = core::TimeSeries(core::Labels(std::move(labels)));
-            series.add_sample(core::Sample(
+            {
+                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                auto point_labels = ConvertAttributes(point.attributes());
+                labels_map.insert(point_labels.map().begin(), point_labels.map().end());
+            }
+            
+            core::Labels labels(labels_map);
+            
+            // Find or create series in batch
+            auto it = batch.find(labels);
+            if (it == batch.end()) {
+                it = batch.emplace(labels, core::TimeSeries(labels)).first;
+            }
+            
+            it->second.add_sample(core::Sample(
                 point.time_unix_nano() / 1000000,  // Convert to milliseconds
                 point.as_double()));
-            
-            auto result = storage_->write(series);
+        }
+        
+        // Write batched series
+        for (const auto& kv : batch) {
+            auto result = storage_->write(kv.second);
             if (!result.ok()) {
                 return result;
             }
         }
+        
         return core::Result<void>();
     }
     
     // Convert histogram with data point attributes
     core::Result<void> ConvertHistogramWithAttributes(
         const opentelemetry::proto::metrics::v1::Histogram& histogram,
-        const core::Labels::Map& base_labels) {
+        const core::Labels::Map& base_labels,
+        storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
+        bool perf_enabled) {
+        
+        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        
+        // Batching map: Labels -> TimeSeries
+        std::map<core::Labels, core::TimeSeries> batch;
+        
         for (const auto& point : histogram.data_points()) {
             // Combine base labels with data point attributes
-            core::Labels::Map labels = base_labels;
-            auto point_labels = ConvertAttributes(point.attributes());
-            labels.insert(point_labels.map().begin(), point_labels.map().end());
+            core::Labels::Map labels_map = base_labels;
             
-            // Create series with combined labels
-            auto series = core::TimeSeries(core::Labels(std::move(labels)));
+            {
+                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                auto point_labels = ConvertAttributes(point.attributes());
+                labels_map.insert(point_labels.map().begin(), point_labels.map().end());
+            }
+            
+            core::Labels labels(labels_map);
+            
+            // Find or create series in batch
+            auto it = batch.find(labels);
+            if (it == batch.end()) {
+                it = batch.emplace(labels, core::TimeSeries(labels)).first;
+            }
             
             // Store count and sum
             core::Timestamp ts = point.time_unix_nano() / 1000000;
-            series.add_sample(core::Sample(ts, point.count()));
-            series.add_sample(core::Sample(ts + 1, point.sum()));  // Offset by 1ms
+            it->second.add_sample(core::Sample(ts, point.count()));
+            it->second.add_sample(core::Sample(ts + 1, point.sum()));  // Offset by 1ms
             
             // Store bucket counts
             for (size_t i = 0; i < static_cast<size_t>(point.bucket_counts_size()); i++) {
-                series.add_sample(core::Sample(ts + 2 + i, point.bucket_counts(i)));
+                it->second.add_sample(core::Sample(ts + 2 + i, point.bucket_counts(i)));
             }
-            
-            auto result = storage_->write(series);
+        }
+        
+        // Write batched series
+        for (const auto& kv : batch) {
+            auto result = storage_->write(kv.second);
             if (!result.ok()) {
                 return result;
             }
         }
+        
         return core::Result<void>();
     }
     
@@ -339,29 +419,48 @@ grpc::Status MetricsService::Export(
     grpc::ServerContext* /*context*/,
     const opentelemetry::proto::collector::metrics::v1::ExportMetricsServiceRequest* request,
     opentelemetry::proto::collector::metrics::v1::ExportMetricsServiceResponse* /*response*/) {
-    try {
-        std::cerr << "MetricsService::Export called with " << request->resource_metrics_size() << " resource metrics" << std::endl;
+    
+    // Performance instrumentation
+    auto& perf = storage::WritePerformanceInstrumentation::instance();
+    bool perf_enabled = perf.is_enabled();
+    storage::WritePerformanceInstrumentation::WriteMetrics metrics;
+    
+    // Measure total gRPC handling time
+    {
+        storage::ScopedTimer timer(metrics.grpc_handling_us, perf_enabled);
         
-    for (const auto& resource_metrics : request->resource_metrics()) {
-            opentelemetry::proto::metrics::v1::MetricsData metrics_data;
-            *metrics_data.add_resource_metrics() = resource_metrics;
+        try {
+            // std::cerr << "MetricsService::Export called with " << request->resource_metrics_size() << " resource metrics" << std::endl;
             
-            std::cerr << "Calling bridge_->ConvertMetrics..." << std::endl;
-            auto result = bridge_->ConvertMetrics(metrics_data);
-        if (!result.ok()) {
-                std::cerr << "ERROR: Failed to convert metrics: " << result.error() << std::endl;
-                spdlog::error("Failed to convert metrics: {}", result.error());
-                return grpc::Status(grpc::StatusCode::INTERNAL, result.error());
+            for (const auto& resource_metrics : request->resource_metrics()) {
+                opentelemetry::proto::metrics::v1::MetricsData metrics_data;
+                *metrics_data.add_resource_metrics() = resource_metrics;
+                
+                // std::cerr << "Calling bridge_->ConvertMetrics..." << std::endl;
+                auto result = bridge_->ConvertMetrics(metrics_data);
+                if (!result.ok()) {
+                    std::cerr << "ERROR: Failed to convert metrics: " << result.error() << std::endl;
+                    spdlog::error("Failed to convert metrics: {}", result.error());
+                    return grpc::Status(grpc::StatusCode::INTERNAL, result.error());
+                }
+            }
+            
+            bridge_->flush();
+        } catch (const std::exception& e) {
+            std::cerr << "ERROR in Export: " << e.what() << std::endl;
+            spdlog::error("Error in Export: {}", e.what());
+            return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
         }
     }
     
-        bridge_->flush();
-    return grpc::Status::OK;
-    } catch (const std::exception& e) {
-        std::cerr << "ERROR in Export: " << e.what() << std::endl;
-        spdlog::error("Error in Export: {}", e.what());
-        return grpc::Status(grpc::StatusCode::INTERNAL, e.what());
+    // Record the gRPC handling metric
+    // Note: This records a separate "write" event that only contains gRPC handling time
+    if (perf_enabled) {
+        metrics.total_us = metrics.grpc_handling_us;
+        perf.record_write(metrics);
     }
+    
+    return grpc::Status::OK;
 }
 
 #endif // HAVE_GRPC

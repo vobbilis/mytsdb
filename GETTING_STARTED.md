@@ -9,7 +9,8 @@ This guide will help you get MyTSDB up and running from scratch. All instruction
 3. [Building the Project](#building-the-project)
 4. [Running Tests](#running-tests)
 5. [Using the Library](#using-the-library)
-6. [Troubleshooting](#troubleshooting)
+6. [Prometheus Remote Storage](#prometheus-remote-storage)
+7. [Troubleshooting](#troubleshooting)
 
 ---
 
@@ -339,6 +340,108 @@ make test-background-stop        # Stop background tests
 ```bash
 make help               # Show all available targets
 ```
+
+---
+
+
+---
+
+## Prometheus Remote Storage
+
+MyTSDB can serve as a long-term storage backend for Prometheus and OTEL Collector.
+
+### Running the Example Server
+
+```bash
+# Build the project
+make build
+
+# Run the Prometheus Remote Storage server
+./build/examples/prometheus_remote_storage/prometheus_remote_storage_server 9090
+```
+
+The server will start on port 9090 with the following endpoints:
+- `POST /api/v1/write` - Prometheus Remote Write
+- `POST /api/v1/read` - Prometheus Remote Read
+- `GET /health` - Health check
+
+### Configure Prometheus
+
+Add to your `prometheus.yml`:
+
+```yaml
+remote_write:
+  - url: "http://localhost:9090/api/v1/write"
+
+remote_read:
+  - url: "http://localhost:9090/api/v1/read"
+```
+
+Restart Prometheus and it will start sending metrics to MyTSDB.
+
+### Configure OTEL Collector
+
+Add to your OTEL Collector config:
+
+```yaml
+exporters:
+  prometheusremotewrite:
+    endpoint: "http://localhost:9090/api/v1/write"
+
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [prometheusremotewrite]
+```
+
+### Verify It's Working
+
+```bash
+# Check health
+curl http://localhost:9090/health
+
+# Query Prometheus to see if remote storage is configured
+curl http://localhost:9091/api/v1/status/config | grep remote
+```
+
+For more details, see [`examples/prometheus_remote_storage/README.md`](examples/prometheus_remote_storage/README.md).
+
+---
+
+## ☸️ Kubernetes Deployment
+
+MyTSDB provides ready-to-use Kubernetes manifests for deploying a scalable cluster.
+
+### 1. Deploy the Cluster
+
+```bash
+# Apply all manifests
+kubectl apply -f deployments/k8s/
+```
+
+This creates:
+- `StatefulSet` (mytsdb): Manages the pods with stable identity.
+- `Service` (mytsdb): Headless service for internal discovery.
+- `Service` (mytsdb-public): LoadBalancer/NodePort for external access.
+
+### 2. Verify Deployment
+
+```bash
+kubectl get pods -l app=mytsdb
+# NAME       READY   STATUS    RESTARTS   AGE
+# mytsdb-0   1/1     Running   0          1m
+```
+
+### 3. Accessing the UI/API
+
+Forward the port to access locally:
+
+```bash
+kubectl port-forward svc/mytsdb 9090:9090
+```
+
+Now you can send metrics to `http://localhost:9090/api/v1/write`.
 
 ---
 

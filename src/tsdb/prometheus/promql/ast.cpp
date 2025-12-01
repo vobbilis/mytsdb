@@ -1,5 +1,5 @@
-#include "ast.h"
-#include "lexer.h" // For TokenTypeToString
+#include "tsdb/prometheus/promql/ast.h"
+#include "tsdb/prometheus/promql/lexer.h" // For TokenTypeToString
 #include <sstream>
 
 namespace tsdb {

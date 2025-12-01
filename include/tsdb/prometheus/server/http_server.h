@@ -5,6 +5,7 @@
 #include <functional>
 #include <thread>
 #include <atomic>
+#include <stdexcept>
 #include "tsdb/prometheus/server/request.h"
 
 namespace tsdb {

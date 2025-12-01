@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mytsdb-external
+  namespace: mytsdb
+  labels:
+    app: mytsdb
+    component: database
+  annotations:
+    description: "Optional NodePort service for direct external access to MyTSDB"
+spec:
+  type: NodePort
+  ports:
+  - name: http
+    port: 9090
+    targetPort: 9090
+    nodePort: 30090  # Maps to host port 9090 via Kind config
+    protocol: TCP
+  selector:
+    app: mytsdb
+---
+# Note: This is an OPTIONAL service for direct external access.
+# By default, use port-forwarding: kubectl port-forward -n mytsdb svc/mytsdb 9090:9090
+# 
+# To enable external access:
+# 1. Apply this file: kubectl apply -f 04-service-nodeport.yaml
+# 2. Access MyTSDB at: http://localhost:9090
+# 
+# To disable:
+# kubectl delete svc mytsdb-external -n mytsdb

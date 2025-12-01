@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: synthetic-generator
+  namespace: mytsdb
+  labels:
+    app: synthetic-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: synthetic-generator
+  template:
+    metadata:
+      labels:
+        app: synthetic-generator
+    spec:
+      containers:
+      - name: generator
+        image: mytsdb:latest
+        imagePullPolicy: Never
+        command: ["/usr/local/bin/synthetic_cluster_generator"]
+        args:
+          - "--address"
+          - "mytsdb.mytsdb.svc.cluster.local:4317"
+          - "--nodes"
+          - "5"
+          - "--pods-per-node"
+          - "10"
+          - "--scrape-interval"
+          - "5"
+          - "--realtime"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"

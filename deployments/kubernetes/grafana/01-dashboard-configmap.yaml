@@ -1,0 +1,820 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards
+  namespace: mytsdb
+  labels:
+    app: grafana
+data:
+  dashboard-provider.yaml: |
+    apiVersion: 1
+    providers:
+    - name: 'default'
+      orgId: 1
+      folder: ''
+      type: file
+      disableDeletion: false
+      updateIntervalSeconds: 10
+      allowUiUpdates: true
+      options:
+        path: /var/lib/grafana/dashboards
+  
+  sample-app-dashboard.json: |
+    {
+      "title": "MyTSDB Sample Application Metrics",
+      "tags": ["mytsdb", "otel", "sample"],
+      "timezone": "browser",
+      "panels": [
+        {
+          "id": 1,
+          "title": "Request Rate",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+          "targets": [
+            {
+              "expr": "rate(http_requests_total[5m])",
+              "legendFormat": "{{method}} {{path}}"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "title": "Request Duration",
+          "type": "graph",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+              "legendFormat": "p95"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "title": "Active Requests",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 8},
+          "targets": [
+            {
+              "expr": "http_requests_active"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Total Requests",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 8},
+          "targets": [
+            {
+              "expr": "sum(http_requests_total)"
+            }
+          ]
+        }
+      ],
+      "refresh": "10s",
+      "time": {"from": "now-15m", "to": "now"}
+    }
+  
+  executive-dashboard.json: |
+    {
+      "title": "Executive Performance Dashboard",
+        "tags": ["executive", "overview", "performance"],
+        "timezone": "browser",
+        "schemaVersion": 38,
+        "version": 1,
+        "refresh": "30s",
+        "time": {
+          "from": "now-1h",
+          "to": "now"
+        },
+        "panels": [
+          {
+            "id": 1,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+            "type": "stat",
+            "title": "Total Request Rate",
+            "targets": [{
+              "expr": "sum(rate(http_requests_total[5m])) * 60",
+              "refId": "A",
+              "legendFormat": "req/min"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "reqpm",
+                "decimals": 0,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"},
+                    {"value": 1000, "color": "yellow"},
+                    {"value": 5000, "color": "red"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 2,
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+            "type": "stat",
+            "title": "Success Rate",
+            "targets": [{
+              "expr": "(sum(rate(http_requests_total{status=~\"2..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+              "refId": "A",
+              "legendFormat": "Success %"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "decimals": 2,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "red"},
+                    {"value": 95, "color": "yellow"},
+                    {"value": 99, "color": "green"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 3,
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+            "type": "stat",
+            "title": "Error Rate (4xx/5xx)",
+            "targets": [{
+              "expr": "(sum(rate(http_requests_total{status=~\"4..|5..\"}[5m])) / sum(rate(http_requests_total[5m]))) * 100",
+              "refId": "A",
+              "legendFormat": "Error %"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "decimals": 2,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"},
+                    {"value": 1, "color": "yellow"},
+                    {"value": 5, "color": "red"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+      "id": 4,
+      "gridPos": {
+        "h": 4,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "type": "stat",
+      "title": "Max Response Time",
+      "targets": [
+        {
+          "expr": "max(rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])) * 1000",
+          "refId": "A",
+          "legendFormat": "ms"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "decimals": 0,
+          "color": {
+            "mode": "thresholds"
+          },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "value": null,
+                "color": "green"
+              },
+              {
+                "value": 500,
+                "color": "yellow"
+              },
+              {
+                "value": 1000,
+                "color": "red"
+              }
+            ]
+          }
+        }
+      },
+      "options": {
+        "graphMode": "area",
+        "colorMode": "value",
+        "orientation": "auto",
+        "textMode": "value_and_name"
+      }
+    },
+          {
+            "id": 5,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+            "type": "timeseries",
+            "title": "Request Rate by HTTP Method",
+            "targets": [{
+              "expr": "sum by (method) (rate(http_requests_total[5m])) * 60",
+              "refId": "A",
+              "legendFormat": "{{method}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "reqpm",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 20,
+                  "showPoints": "never",
+                  "stacking": {"mode": "normal"}
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "list", "placement": "bottom"}
+            }
+          },
+          {
+            "id": 6,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+            "type": "timeseries",
+            "title": "Request Rate by Status Code",
+            "targets": [{
+              "expr": "sum by (status) (rate(http_requests_total[5m])) * 60",
+              "refId": "A",
+              "legendFormat": "{{status}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "reqpm",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 20,
+                  "showPoints": "never",
+                  "stacking": {"mode": "normal"}
+                }
+              },
+              "overrides": [
+                {
+                  "matcher": {"id": "byRegexp", "options": "5.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+                },
+                {
+                  "matcher": {"id": "byRegexp", "options": "4.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+                },
+                {
+                  "matcher": {"id": "byRegexp", "options": "2.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+                }
+              ]
+            },
+            "options": {
+              "legend": {"displayMode": "list", "placement": "bottom"}
+            }
+          },
+          {
+            "id": 7,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+            "type": "timeseries",
+            "title": "Request Rate by Service",
+            "targets": [{
+              "expr": "sum by (service) (rate(http_requests_total[5m])) * 60",
+              "refId": "A",
+              "legendFormat": "{{service}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "reqpm",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 15,
+                  "showPoints": "never"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 8,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+            "type": "timeseries",
+            "title": "Average Response Time by Service",
+            "targets": [{
+              "expr": "(sum by (service) (rate(http_request_duration_seconds_sum[5m])) / sum by (service) (rate(http_request_duration_seconds_count[5m]))) * 1000",
+              "refId": "A",
+              "legendFormat": "{{service}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "ms",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 0,
+                  "showPoints": "auto"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 9,
+            "gridPos": {"h": 4, "w": 6, "x": 0, "y": 20},
+            "type": "stat",
+            "title": "Cluster CPU Usage",
+            "targets": [{
+              "expr": "avg(node_cpu_usage_ratio) * 100",
+              "refId": "A"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "decimals": 1,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"},
+                    {"value": 60, "color": "yellow"},
+                    {"value": 80, "color": "red"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 10,
+            "gridPos": {"h": 4, "w": 6, "x": 6, "y": 20},
+            "type": "stat",
+            "title": "Cluster Memory Usage",
+            "targets": [{
+              "expr": "avg(node_memory_usage_ratio) * 100",
+              "refId": "A"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "decimals": 1,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"},
+                    {"value": 70, "color": "yellow"},
+                    {"value": 85, "color": "red"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 11,
+            "gridPos": {"h": 4, "w": 6, "x": 12, "y": 20},
+            "type": "stat",
+            "title": "Total Pods Running",
+            "targets": [{
+              "expr": "count(up == 1)",
+              "refId": "A"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short",
+                "decimals": 0,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 12,
+            "gridPos": {"h": 4, "w": 6, "x": 18, "y": 20},
+            "type": "stat",
+            "title": "Pod Availability",
+            "targets": [{
+              "expr": "(count(up == 1) / count(up)) * 100",
+              "refId": "A"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "decimals": 1,
+                "color": {"mode": "thresholds"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "red"},
+                    {"value": 95, "color": "yellow"},
+                    {"value": 99, "color": "green"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "graphMode": "area",
+              "colorMode": "value",
+              "orientation": "auto",
+              "textMode": "value_and_name"
+            }
+          },
+          {
+            "id": 13,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+            "type": "timeseries",
+            "title": "CPU Usage by Node",
+            "targets": [{
+              "expr": "avg by (node) (node_cpu_usage_ratio) * 100",
+              "refId": "A",
+              "legendFormat": "{{node}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 10,
+                  "showPoints": "never"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 14,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+            "type": "timeseries",
+            "title": "Memory Usage by Node",
+            "targets": [{
+              "expr": "avg by (node) (node_memory_usage_ratio) * 100",
+              "refId": "A",
+              "legendFormat": "{{node}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 10,
+                  "showPoints": "never"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 15,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+            "type": "timeseries",
+            "title": "Container CPU Usage by Service",
+            "targets": [{
+              "expr": "avg by (service) (container_cpu_usage_ratio) * 100",
+              "refId": "A",
+              "legendFormat": "{{service}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 10,
+                  "showPoints": "never"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 16,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+            "type": "timeseries",
+            "title": "Memory Usage by Service",
+            "targets": [{
+              "expr": "avg by (service) (process_resident_memory_bytes) / 1024 / 1024",
+              "refId": "A",
+              "legendFormat": "{{service}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "decmbytes",
+                "custom": {
+                  "drawStyle": "line",
+                  "lineInterpolation": "smooth",
+                  "fillOpacity": 10,
+                  "showPoints": "never"
+                }
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "calcs": ["mean", "max", "last"]}
+            }
+          },
+          {
+            "id": 17,
+            "gridPos": {"h": 8, "w": 8, "x": 0, "y": 40},
+            "type": "bargauge",
+            "title": "Top Services by Request Volume",
+            "targets": [{
+              "expr": "topk(5, sum by (service) (rate(http_requests_total[5m])) * 60)",
+              "refId": "A",
+              "legendFormat": "{{service}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "reqpm",
+                "color": {"mode": "palette-classic"}
+              }
+            },
+            "options": {
+              "orientation": "horizontal",
+              "displayMode": "gradient",
+              "showUnfilled": true
+            }
+          },
+          {
+            "id": 18,
+            "gridPos": {"h": 8, "w": 8, "x": 8, "y": 40},
+            "type": "bargauge",
+            "title": "Top Pods by CPU Usage",
+            "targets": [{
+              "expr": "topk(10, container_cpu_usage_ratio * 100)",
+              "refId": "A",
+              "legendFormat": "{{pod}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "percent",
+                "color": {"mode": "palette-classic"},
+                "thresholds": {
+                  "mode": "absolute",
+                  "steps": [
+                    {"value": null, "color": "green"},
+                    {"value": 60, "color": "yellow"},
+                    {"value": 80, "color": "red"}
+                  ]
+                }
+              }
+            },
+            "options": {
+              "orientation": "horizontal",
+              "displayMode": "gradient",
+              "showUnfilled": true
+            }
+          },
+          {
+            "id": 19,
+            "gridPos": {"h": 8, "w": 8, "x": 16, "y": 40},
+            "type": "bargauge",
+            "title": "Top Pods by Memory Usage",
+            "targets": [{
+              "expr": "topk(10, process_resident_memory_bytes / 1024 / 1024)",
+              "refId": "A",
+              "legendFormat": "{{pod}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "decmbytes",
+                "color": {"mode": "palette-classic"}
+              }
+            },
+            "options": {
+              "orientation": "horizontal",
+              "displayMode": "gradient",
+              "showUnfilled": true
+            }
+          },
+          {
+            "id": 20,
+            "gridPos": {"h": 8, "w": 12, "x": 0, "y": 48},
+            "type": "piechart",
+            "title": "Request Distribution by HTTP Method",
+            "targets": [{
+              "expr": "sum by (method) (increase(http_requests_total[5m]))",
+              "refId": "A",
+              "legendFormat": "{{method}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short"
+              }
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]},
+              "pieType": "donut",
+              "displayLabels": ["percent"]
+            }
+          },
+          {
+            "id": 21,
+            "gridPos": {"h": 8, "w": 12, "x": 12, "y": 48},
+            "type": "piechart",
+            "title": "Request Distribution by Status Code",
+            "targets": [{
+              "expr": "sum by (status) (increase(http_requests_total[5m]))",
+              "refId": "A",
+              "legendFormat": "{{status}}"
+            }],
+            "fieldConfig": {
+              "defaults": {
+                "unit": "short"
+              },
+              "overrides": [
+                {
+                  "matcher": {"id": "byRegexp", "options": "5.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+                },
+                {
+                  "matcher": {"id": "byRegexp", "options": "4.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "orange"}}]
+                },
+                {
+                  "matcher": {"id": "byRegexp", "options": "2.."},
+                  "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "green"}}]
+                }
+              ]
+            },
+            "options": {
+              "legend": {"displayMode": "table", "placement": "right", "values": ["value", "percent"]},
+              "pieType": "donut",
+              "displayLabels": ["percent"]
+            }
+          },
+          {
+            "id": 22,
+            "gridPos": {"h": 8, "w": 24, "x": 0, "y": 56},
+            "type": "table",
+            "title": "Service Health Overview",
+            "targets": [
+              {
+                "expr": "sum by (service) (rate(http_requests_total[5m])) * 60",
+                "refId": "A",
+                "format": "table",
+                "instant": true
+              },
+              {
+                "expr": "(sum by (service) (rate(http_requests_total{status=~\"2..\"}[5m])) / sum by (service) (rate(http_requests_total[5m]))) * 100",
+                "refId": "B",
+                "format": "table",
+                "instant": true
+              },
+              {
+                "expr": "(sum by (service) (rate(http_requests_total{status=~\"5..\"}[5m])) / sum by (service) (rate(http_requests_total[5m]))) * 100",
+                "refId": "C",
+                "format": "table",
+                "instant": true
+              },
+              {
+                "expr": "avg by (service) (container_cpu_usage_ratio) * 100",
+                "refId": "D",
+                "format": "table",
+                "instant": true
+              },
+              {
+                "expr": "avg by (service) (process_resident_memory_bytes) / 1024 / 1024",
+                "refId": "E",
+                "format": "table",
+                "instant": true
+              }
+            ],
+            "transformations": [
+              {
+                "id": "merge",
+                "options": {}
+              },
+              {
+                "id": "organize",
+                "options": {
+                  "renameByName": {
+                    "service": "Service",
+                    "Value #A": "Req/min",
+                    "Value #B": "Success %",
+                    "Value #C": "Error %",
+                    "Value #D": "CPU %",
+                    "Value #E": "Memory MB"
+                  }
+                }
+              }
+            ],
+            "fieldConfig": {
+              "defaults": {
+                "custom": {
+                  "align": "auto",
+                  "displayMode": "auto"
+                }
+              },
+              "overrides": [
+                {
+                  "matcher": {"id": "byName", "options": "Success %"},
+                  "properties": [
+                    {"id": "custom.displayMode", "value": "color-background"},
+                    {"id": "thresholds", "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {"value": null, "color": "red"},
+                        {"value": 95, "color": "yellow"},
+                        {"value": 99, "color": "green"}
+                      ]
+                    }}
+                  ]
+                },
+                {
+                  "matcher": {"id": "byName", "options": "Error %"},
+                  "properties": [
+                    {"id": "custom.displayMode", "value": "color-background"},
+                    {"id": "thresholds", "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {"value": null, "color": "green"},
+                        {"value": 1, "color": "yellow"},
+                        {"value": 5, "color": "red"}
+                      ]
+                    }}
+                  ]
+                },
+                {
+                  "matcher": {"id": "byName", "options": "CPU %"},
+                  "properties": [
+                    {"id": "custom.displayMode", "value": "color-background"},
+                    {"id": "thresholds", "value": {
+                      "mode": "absolute",
+                      "steps": [
+                        {"value": null, "color": "green"},
+                        {"value": 60, "color": "yellow"},
+                        {"value": 80, "color": "red"}
+                      ]
+                    }}
+                  ]
+                }
+              ]
+            },
+            "options": {
+              "showHeader": true,
+              "sortBy": [{"displayName": "Req/min", "desc": true}]
+            }
+          }
+        ]
+    }

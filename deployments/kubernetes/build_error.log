@@ -1,0 +1,343 @@
+[0;34mBuilding mytsdb:latest...[0m
+#0 building with "desktop-linux" instance using docker driver
+
+#1 [internal] load .dockerignore
+#1 transferring context: 399B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 2.21kB done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/ubuntu:22.04
+#3 DONE 0.3s
+
+#4 [builder 1/6] FROM docker.io/library/ubuntu:22.04@sha256:104ae83764a5119017b8e8d6218fa0832b09df65aae7d5a6de29a85d813da2fb
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 270.60kB 0.2s done
+#5 DONE 0.2s
+
+#6 [builder 2/6] RUN apt-get update && apt-get install -y     build-essential     cmake     git     libssl-dev     libprotobuf-dev     protobuf-compiler     libgrpc++-dev     libsnappy-dev     libtbb-dev     libspdlog-dev     rapidjson-dev     curl     && rm -rf /var/lib/apt/lists/*
+#6 CACHED
+
+#7 [builder 3/6] RUN curl -L -o /usr/include/httplib.h https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h
+#7 CACHED
+
+#8 [builder 4/6] WORKDIR /build
+#8 CACHED
+
+#9 [builder 5/6] COPY . .
+#9 DONE 0.9s
+
+#10 [builder 6/6] RUN make configure CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON" &&     cd build && make prometheus_remote_storage_server -j$(nproc)
+#10 0.110 Configuring TSDB project with CMake...
+#10 0.110 mkdir -p build
+#10 0.111 cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON
+#10 0.157 -- The CXX compiler identification is GNU 11.4.0
+#10 0.161 -- Detecting CXX compiler ABI info
+#10 0.222 -- Detecting CXX compiler ABI info - done
+#10 0.227 -- Check for working CXX compiler: /usr/bin/c++ - skipped
+#10 0.227 -- Detecting CXX compile features
+#10 0.227 -- Detecting CXX compile features - done
+#10 0.229 -- Looking for C++ include pthread.h
+#10 0.279 -- Looking for C++ include pthread.h - found
+#10 0.279 -- Performing Test CMAKE_HAVE_LIBC_PTHREAD
+#10 0.327 -- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Success
+#10 0.327 -- Found Threads: TRUE  
+#10 0.330 -- Found spdlog, enabling logging support
+#10 0.330 -- Found TBB, enabling concurrent data structures
+#10 0.339 -- gRPC or Protobuf not found, building without RPC support
+#10 0.341 -- Found httplib header in /usr/include
+#10 0.341 -- Found httplib
+#10 0.341 -- RapidJSON found. Headers: /usr/include
+#10 0.341 -- Found RapidJSON
+#10 0.342 -- Found Snappy
+#10 0.342 -- Performing Test COMPILER_SUPPORTS_AVX512
+#10 0.355 -- Performing Test COMPILER_SUPPORTS_AVX512 - Failed
+#10 0.357 -- RapidJSON found. Headers: /usr/include
+#10 0.360 -- RapidJSON found. Headers: /usr/include
+#10 0.368 -- Found OpenSSL: /usr/lib/aarch64-linux-gnu/libcrypto.so (found version "3.0.2")  
+#10 0.368 -- Found RapidJSON
+#10 0.368 -- Found Protobuf
+#10 0.369 -- Found Snappy for Prometheus Remote Storage
+#10 0.369 -- gRPC not found, skipping data_gen tool
+#10 0.371 -- OpenTelemetry not found, skipping example_client
+#10 0.371 -- Checking dependencies for Prometheus Remote Storage example:
+#10 0.371 --   HAVE_HTTPLIB: TRUE
+#10 0.371 --   HAVE_RAPIDJSON: TRUE
+#10 0.371 --   HAVE_PROTOBUF: TRUE
+#10 0.371 -- Prometheus Remote Storage example enabled
+#10 0.372 -- Configuring done
+#10 0.390 -- Generating done
+#10 0.393 -- Build files have been written to: /build/build
+#10 0.417 [  1%] Generating remote protobuf files
+#10 0.417 [  3%] Generating alerts protobuf files
+#10 0.417 [  4%] Generating metrics protobuf files
+#10 0.419 [libprotobuf WARNING google/protobuf/compiler/parser.cc:648] No syntax specified for the proto file: alerts.proto. Please use 'syntax = "proto2";' or 'syntax = "proto3";' to specify a syntax version. (Defaulted to proto2 syntax.)
+#10 0.422 [  6%] Building CXX object src/tsdb/core/CMakeFiles/tsdb_core_impl.dir/core.cpp.o
+#10 0.422 [  7%] Building CXX object src/tsdb/core/CMakeFiles/tsdb_core_impl.dir/internal/types.cpp.o
+#10 0.437 [  9%] Building CXX object common/CMakeFiles/tsdb_proto.dir/remote.pb.cc.o
+#10 0.437 [ 10%] Building CXX object common/CMakeFiles/tsdb_proto.dir/metrics.pb.cc.o
+#10 0.438 [ 12%] Building CXX object common/CMakeFiles/tsdb_proto.dir/alerts.pb.cc.o
+#10 0.929 [ 13%] Linking CXX shared library libtsdb_core_impl.so
+#10 0.967 [ 13%] Built target tsdb_core_impl
+#10 0.978 [ 16%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/block_manager.cpp.o
+#10 0.978 [ 16%] Building CXX object src/tsdb/histogram/CMakeFiles/tsdb_histogram_impl.dir/histogram.cpp.o
+#10 0.978 [ 18%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/compression.cpp.o
+#10 0.979 [ 19%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/object_pool.cpp.o
+#10 0.980 [ 21%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/working_set_cache.cpp.o
+#10 0.981 [ 22%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/histogram_ops.cpp.o
+#10 0.983 [ 24%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/delta_of_delta_encoder.cpp.o
+#10 0.983 [ 25%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/atomic_metrics.cpp.o
+#10 0.987 [ 27%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/background_processor.cpp.o
+#10 0.987 [ 28%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/performance_config.cpp.o
+#10 1.278 In file included from /build/include/tsdb/storage/delta_of_delta_encoder.h:6,
+#10 1.278                  from /build/src/tsdb/storage/delta_of_delta_encoder.cpp:1:
+#10 1.278 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 1.278 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 1.278   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 1.278       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 1.278 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 1.278 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 1.278   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 1.278       |                           ~~~~~~~~~^~
+#10 1.286 In file included from /build/src/tsdb/storage/compression.cpp:1:
+#10 1.286 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 1.286 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 1.286   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 1.286       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 1.287 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 1.287 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 1.287   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 1.287       |                           ~~~~~~~~~^~
+#10 1.425 /build/src/tsdb/storage/atomic_metrics.cpp: In member function 'void tsdb::storage::internal::AtomicMetrics::recordCompression(size_t, size_t, uint64_t)':
+#10 1.425 /build/src/tsdb/storage/atomic_metrics.cpp:53:68: warning: unused parameter 'compressed_size' [-Wunused-parameter]
+#10 1.425    53 | void AtomicMetrics::recordCompression(size_t original_size, size_t compressed_size, uint64_t duration_ns) {
+#10 1.425       |                                                             ~~~~~~~^~~~~~~~~~~~~~~
+#10 1.425 /build/src/tsdb/storage/atomic_metrics.cpp: In member function 'void tsdb::storage::internal::AtomicMetrics::recordDecompression(size_t, size_t, uint64_t)':
+#10 1.425 /build/src/tsdb/storage/atomic_metrics.cpp:64:48: warning: unused parameter 'compressed_size' [-Wunused-parameter]
+#10 1.425    64 | void AtomicMetrics::recordDecompression(size_t compressed_size, size_t decompressed_size, uint64_t duration_ns) {
+#10 1.425       |                                         ~~~~~~~^~~~~~~~~~~~~~~
+#10 1.510 /build/src/tsdb/storage/background_processor.cpp: In member function 'std::unique_ptr<tsdb::storage::BackgroundTask> tsdb::storage::BackgroundProcessor::getNextTask()':
+#10 1.510 /build/src/tsdb/storage/background_processor.cpp:269:10: warning: unused variable 'has_task' [-Wunused-variable]
+#10 1.510   269 |     bool has_task = queue_condition_.wait_for(lock, config_.worker_wait_timeout, [this] {
+#10 1.510       |          ^~~~~~~~
+#10 1.522 In file included from /build/include/tsdb/storage/internal/block_impl.h:8,
+#10 1.522                  from /build/include/tsdb/storage/block_manager.h:14,
+#10 1.522                  from /build/src/tsdb/storage/block_manager.cpp:1:
+#10 1.522 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 1.522 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 1.522   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 1.522       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 1.523 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 1.523 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 1.523   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 1.523       |                           ~~~~~~~~~^~
+#10 1.621 [ 30%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/lock_free_queue.cpp.o
+#10 1.713 [ 31%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/cache_hierarchy.cpp.o
+#10 1.739 [ 33%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/memory_mapped_cache.cpp.o
+#10 1.760 /build/src/tsdb/histogram/histogram.cpp:20:9: warning: 'int32_t tsdb::histogram::{anonymous}::ComputeExponentialBucket(double, double, int32_t)' defined but not used [-Wunused-function]
+#10 1.760    20 | int32_t ComputeExponentialBucket(double value, double base, int32_t scale) {
+#10 1.760       |         ^~~~~~~~~~~~~~~~~~~~~~~~
+#10 1.849 [ 34%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/predictive_cache.cpp.o
+#10 1.942 [ 36%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/atomic_ref_counted.cpp.o
+#10 1.992 [ 37%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/storage_impl.cpp.o
+#10 2.055 [ 39%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/storage_factory.cpp.o
+#10 2.072 [ 40%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/wal.cpp.o
+#10 2.414 [ 42%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/sharded_wal.cpp.o
+#10 2.453 In file included from /build/src/tsdb/storage/storage_factory.cpp:1:
+#10 2.453 /build/include/tsdb/storage/storage.h: In member function 'virtual tsdb::core::Result<std::vector<tsdb::core::TimeSeries> > tsdb::storage::Storage::query_aggregate(const std::vector<tsdb::core::LabelMatcher>&, int64_t, int64_t, const tsdb::core::AggregationRequest&)':
+#10 2.453 /build/include/tsdb/storage/storage.h:83:48: warning: unused parameter 'matchers' [-Wunused-parameter]
+#10 2.453    83 |         const std::vector<core::LabelMatcher>& matchers,
+#10 2.453       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+#10 2.453 /build/include/tsdb/storage/storage.h:84:17: warning: unused parameter 'start_time' [-Wunused-parameter]
+#10 2.453    84 |         int64_t start_time,
+#10 2.453       |         ~~~~~~~~^~~~~~~~~~
+#10 2.453 /build/include/tsdb/storage/storage.h:85:17: warning: unused parameter 'end_time' [-Wunused-parameter]
+#10 2.453    85 |         int64_t end_time,
+#10 2.453       |         ~~~~~~~~^~~~~~~~
+#10 2.453 /build/include/tsdb/storage/storage.h:86:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+#10 2.453    86 |         const core::AggregationRequest& aggregation) {
+#10 2.453       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+#10 2.473 [ 43%] Linking CXX shared library libtsdb_histogram_impl.so
+#10 2.486 In file included from /build/include/tsdb/storage/internal/block_impl.h:8,
+#10 2.486                  from /build/include/tsdb/storage/block_manager.h:14,
+#10 2.486                  from /build/include/tsdb/storage/storage_impl.h:17,
+#10 2.486                  from /build/src/tsdb/storage/storage_impl.cpp:29:
+#10 2.486 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 2.486 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 2.486   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 2.486       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 2.487 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 2.487 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 2.487   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 2.487       |                           ~~~~~~~~~^~
+#10 2.567 [ 45%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/async_wal_shard.cpp.o
+#10 2.581 In file included from /build/include/tsdb/storage/storage_impl.h:19,
+#10 2.581                  from /build/src/tsdb/storage/storage_impl.cpp:29:
+#10 2.581 /build/include/tsdb/storage/storage.h: In member function 'virtual tsdb::core::Result<std::vector<tsdb::core::TimeSeries> > tsdb::storage::Storage::query_aggregate(const std::vector<tsdb::core::LabelMatcher>&, int64_t, int64_t, const tsdb::core::AggregationRequest&)':
+#10 2.581 /build/include/tsdb/storage/storage.h:83:48: warning: unused parameter 'matchers' [-Wunused-parameter]
+#10 2.581    83 |         const std::vector<core::LabelMatcher>& matchers,
+#10 2.581       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~
+#10 2.581 /build/include/tsdb/storage/storage.h:84:17: warning: unused parameter 'start_time' [-Wunused-parameter]
+#10 2.581    84 |         int64_t start_time,
+#10 2.581       |         ~~~~~~~~^~~~~~~~~~
+#10 2.581 /build/include/tsdb/storage/storage.h:85:17: warning: unused parameter 'end_time' [-Wunused-parameter]
+#10 2.581    85 |         int64_t end_time,
+#10 2.581       |         ~~~~~~~~^~~~~~~~
+#10 2.581 /build/include/tsdb/storage/storage.h:86:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+#10 2.581    86 |         const core::AggregationRequest& aggregation) {
+#10 2.581       |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~
+#10 2.595 In file included from /build/include/tsdb/storage/internal/block_impl.h:8,
+#10 2.595                  from /build/include/tsdb/storage/block_manager.h:14,
+#10 2.595                  from /build/include/tsdb/storage/storage_impl.h:17,
+#10 2.595                  from /build/src/tsdb/storage/storage_factory.cpp:2:
+#10 2.595 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 2.595 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 2.595   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 2.595       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 2.595 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 2.595 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 2.595   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 2.595       |                           ~~~~~~~~~^~
+#10 2.624 /build/src/tsdb/storage/predictive_cache.cpp: In member function 'void tsdb::storage::PredictiveCache::record_prefetch_result(tsdb::core::SeriesID, bool)':
+#10 2.624 /build/src/tsdb/storage/predictive_cache.cpp:223:61: warning: unused parameter 'series_id' [-Wunused-parameter]
+#10 2.624   223 | void PredictiveCache::record_prefetch_result(core::SeriesID series_id, bool was_accessed) {
+#10 2.624       |                                              ~~~~~~~~~~~~~~~^~~~~~~~~
+#10 2.642 [ 45%] Built target tsdb_histogram_impl
+#10 2.686 [ 46%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/index.cpp.o
+#10 2.730 [ 48%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/sharded_index.cpp.o
+#10 2.788 [ 50%] Building CXX object src/tsdb/storage/CMakeFiles/tsdb_storage_impl.dir/internal/block_impl.cpp.o
+#10 3.304 In file included from /build/include/tsdb/storage/internal/block_impl.h:8,
+#10 3.304                  from /build/src/tsdb/storage/internal/block_impl.cpp:1:
+#10 3.304 /build/include/tsdb/storage/compression.h: In member function 'virtual uint32_t tsdb::storage::internal::RLELabelCompressor::add_label(const string&)':
+#10 3.304 /build/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+#10 3.304   361 |     uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+#10 3.304       |                        ~~~~~~~~~~~~~~~~~~~^~~~~
+#10 3.305 /build/include/tsdb/storage/compression.h: In member function 'virtual std::string tsdb::storage::internal::RLELabelCompressor::get_label(uint32_t) const':
+#10 3.305 /build/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+#10 3.305   362 |     std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+#10 3.305       |                           ~~~~~~~~~^~
+#10 3.357 /build/src/tsdb/storage/internal/block_impl.cpp: In member function 'virtual std::vector<tsdb::core::TimeSeries> tsdb::storage::internal::BlockImpl::query(const std::vector<std::pair<std::__cxx11::basic_string<char>, std::__cxx11::basic_string<char> > >&, int64_t, int64_t) const':
+#10 3.357 /build/src/tsdb/storage/internal/block_impl.cpp:82:13: warning: unused parameter 'start_time' [-Wunused-parameter]
+#10 3.357    82 |     int64_t start_time,
+#10 3.357       |     ~~~~~~~~^~~~~~~~~~
+#10 3.357 /build/src/tsdb/storage/internal/block_impl.cpp:83:13: warning: unused parameter 'end_time' [-Wunused-parameter]
+#10 3.357    83 |     int64_t end_time) const {
+#10 3.357       |     ~~~~~~~~^~~~~~~~
+#10 3.602 [ 51%] Linking CXX static library libtsdb_proto.a
+#10 3.643 [ 51%] Built target tsdb_proto
+#10 7.686 [ 53%] Linking CXX shared library libtsdb_storage_impl.so
+#10 7.750 [ 53%] Built target tsdb_storage_impl
+#10 7.761 [ 56%] Building CXX object src/CMakeFiles/tsdb_lib.dir/tsdb/common/logger.cpp.o
+#10 7.762 [ 56%] Building CXX object src/CMakeFiles/tsdb_lib.dir/tsdb/query/query.cpp.o
+#10 8.154 [ 57%] Linking CXX shared library libtsdb_lib.so
+#10 8.205 [ 57%] Built target tsdb_lib
+#10 8.217 [ 59%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/api/labels.cpp.o
+#10 8.217 [ 60%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/api/query_handler.cpp.o
+#10 8.221 [ 62%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/server/http_server.cpp.o
+#10 8.224 [ 63%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/lexer.cpp.o
+#10 8.225 [ 65%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/engine.cpp.o
+#10 8.229 [ 66%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/parser.cpp.o
+#10 8.229 [ 68%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions.cpp.o
+#10 8.231 [ 71%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/ast.cpp.o
+#10 8.231 [ 71%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/evaluator.cpp.o
+#10 8.234 [ 72%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/model/types.cpp.o
+#10 8.253 [ 74%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions/rate.cpp.o
+#10 8.401 /build/src/tsdb/prometheus/model/types.cpp:1:10: fatal error: types.h: No such file or directory
+#10 8.401     1 | #include "types.h"
+#10 8.401       |          ^~~~~~~~~
+#10 8.401 compilation terminated.
+#10 8.404 [ 75%] Building CXX object src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions/extrapolation.cpp.o
+#10 8.406 In file included from /build/src/tsdb/prometheus/promql/ast.cpp:1:
+#10 8.406 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+#10 8.406     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+#10 8.406       |          ^~~~~~~~~~~~~~~~~~
+#10 8.406 compilation terminated.
+#10 8.407 /build/src/tsdb/prometheus/promql/parser.cpp:1:10: fatal error: parser.h: No such file or directory
+#10 8.407     1 | #include "parser.h"
+#10 8.407       |          ^~~~~~~~~~
+#10 8.407 compilation terminated.
+#10 8.408 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:104: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/model/types.cpp.o] Error 1
+#10 8.408 make[3]: *** Waiting for unfinished jobs....
+#10 8.414 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:132: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/ast.cpp.o] Error 1
+#10 8.414 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:160: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/parser.cpp.o] Error 1
+#10 8.422 In file included from /build/include/tsdb/prometheus/promql/engine.h:7,
+#10 8.422                  from /build/include/tsdb/prometheus/api/query_handler.h:5,
+#10 8.422                  from /build/src/tsdb/prometheus/api/query_handler.cpp:1:
+#10 8.422 /build/include/tsdb/prometheus/promql/parser.h:4:10: fatal error: lexer.h: No such file or directory
+#10 8.422     4 | #include "lexer.h"
+#10 8.422       |          ^~~~~~~~~
+#10 8.422 compilation terminated.
+#10 8.427 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:90: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/api/query_handler.cpp.o] Error 1
+#10 8.452 In file included from /build/src/tsdb/prometheus/promql/evaluator.h:2,
+#10 8.452                  from /build/src/tsdb/prometheus/promql/evaluator.cpp:1:
+#10 8.452 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+#10 8.452     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+#10 8.452       |          ^~~~~~~~~~~~~~~~~~
+#10 8.452 In file included from /build/include/tsdb/prometheus/promql/engine.h:7,
+#10 8.452                  from /build/src/tsdb/prometheus/promql/engine.cpp:1:
+#10 8.452 /build/include/tsdb/prometheus/promql/parser.h:4:10: fatal error: lexer.h: No such file or directory
+#10 8.452     4 | #include "lexer.h"
+#10 8.452       |          ^~~~~~~~~
+#10 8.452 compilation terminated.
+#10 8.452 compilation terminated.
+#10 8.456 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:174: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/engine.cpp.o] Error 1
+#10 8.456 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:188: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/evaluator.cpp.o] Error 1
+#10 8.456 In file included from /build/src/tsdb/prometheus/api/labels.cpp:1:
+#10 8.456 /build/src/tsdb/prometheus/api/labels.h:8:10: fatal error: ../model/types.h: No such file or directory
+#10 8.456     8 | #include "../model/types.h"
+#10 8.456       |          ^~~~~~~~~~~~~~~~~~
+#10 8.456 compilation terminated.
+#10 8.463 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:76: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/api/labels.cpp.o] Error 1
+#10 8.463 In file included from /build/src/tsdb/prometheus/promql/functions.h:9,
+#10 8.463                  from /build/src/tsdb/prometheus/promql/functions.cpp:1:
+#10 8.463 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+#10 8.463     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+#10 8.463       |          ^~~~~~~~~~~~~~~~~~
+#10 8.463 compilation terminated.
+#10 8.465 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:202: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions.cpp.o] Error 1
+#10 8.466 In file included from /build/src/tsdb/prometheus/promql/functions.h:9,
+#10 8.466                  from /build/src/tsdb/prometheus/promql/functions/extrapolation.cpp:1:
+#10 8.466 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+#10 8.466     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+#10 8.466       |          ^~~~~~~~~~~~~~~~~~
+#10 8.466 compilation terminated.
+#10 8.468 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:230: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions/extrapolation.cpp.o] Error 1
+#10 8.476 In file included from /build/src/tsdb/prometheus/promql/functions.h:9,
+#10 8.476                  from /build/src/tsdb/prometheus/promql/functions/rate.cpp:1:
+#10 8.476 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+#10 8.476     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+#10 8.476       |          ^~~~~~~~~~~~~~~~~~
+#10 8.476 compilation terminated.
+#10 8.478 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:216: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions/rate.cpp.o] Error 1
+#10 13.75 make[2]: *** [CMakeFiles/Makefile2:441: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/all] Error 2
+#10 13.75 make[1]: *** [CMakeFiles/Makefile2:507: examples/prometheus_remote_storage/CMakeFiles/prometheus_remote_storage_server.dir/rule] Error 2
+#10 13.75 make: *** [Makefile:273: prometheus_remote_storage_server] Error 2
+#10 ERROR: process "/bin/sh -c make configure CMAKE_FLAGS=\"-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON\" &&     cd build && make prometheus_remote_storage_server -j$(nproc)" did not complete successfully: exit code: 2
+------
+ > [builder 6/6] RUN make configure CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON" &&     cd build && make prometheus_remote_storage_server -j$(nproc):
+8.476 In file included from /build/src/tsdb/prometheus/promql/functions.h:9,
+8.476                  from /build/src/tsdb/prometheus/promql/functions/rate.cpp:1:
+8.476 /build/src/tsdb/prometheus/promql/ast.h:5:10: fatal error: ../model/types.h: No such file or directory
+8.476     5 | #include "../model/types.h" // For potential model types like LabelMatcher
+8.476       |          ^~~~~~~~~~~~~~~~~~
+8.476 compilation terminated.
+8.478 make[3]: *** [src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/build.make:216: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/promql/functions/rate.cpp.o] Error 1
+13.75 make[2]: *** [CMakeFiles/Makefile2:441: src/tsdb/prometheus/CMakeFiles/tsdb_prometheus.dir/all] Error 2
+13.75 make[1]: *** [CMakeFiles/Makefile2:507: examples/prometheus_remote_storage/CMakeFiles/prometheus_remote_storage_server.dir/rule] Error 2
+13.75 make: *** [Makefile:273: prometheus_remote_storage_server] Error 2
+------
+Dockerfile:30
+--------------------
+  29 |     # Build the project
+  30 | >>> RUN make configure CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON" && \
+  31 | >>>     cd build && make prometheus_remote_storage_server -j$(nproc)
+  32 |     
+--------------------
+ERROR: failed to solve: process "/bin/sh -c make configure CMAKE_FLAGS=\"-DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON\" &&     cd build && make prometheus_remote_storage_server -j$(nproc)" did not complete successfully: exit code: 2
+
+View build details: docker-desktop://dashboard/build/desktop-linux/desktop-linux/q8trsn2n5fccxjokxadizwe70
+make: *** [build-mytsdb] Error 1

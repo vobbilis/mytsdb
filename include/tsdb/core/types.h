@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <mutex>
 
 namespace tsdb {
 namespace core {
@@ -87,14 +88,20 @@ public:
     TimeSeries() = default;
     explicit TimeSeries(const Labels& labels);
     
+    // Copy constructor and assignment operator needed because mutex is not copyable
+    TimeSeries(const TimeSeries& other);
+    TimeSeries& operator=(const TimeSeries& other);
+    
     void add_sample(const Sample& sample);
     void add_sample(Timestamp ts, Value val);
     
     const Labels& labels() const { return labels_; }
-    const std::vector<Sample>& samples() const { return samples_; }
+    // Return a copy for thread safety
+    std::vector<Sample> samples() const;
+    std::vector<Sample> get_samples_snapshot() const;
     
-    size_t size() const { return samples_.size(); }
-    bool empty() const { return samples_.empty(); }
+    size_t size() const;
+    bool empty() const;
     
     void clear();
     
@@ -104,6 +111,7 @@ public:
 private:
     Labels labels_;
     std::vector<Sample> samples_;
+    mutable std::mutex mutex_;
 };
 
 /**

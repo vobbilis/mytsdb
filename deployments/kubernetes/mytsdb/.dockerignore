@@ -1,0 +1,18 @@
+# Build artifacts
+build/
+*.o
+*.a
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Test data
+test_results/
+*.log
+
+# Temporary files
+*.tmp
+.DS_Store

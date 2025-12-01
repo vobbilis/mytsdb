@@ -49,21 +49,82 @@ else()
     set(HAVE_TBB FALSE)
 endif()
 
-find_package(gRPC 1.45.0 CONFIG QUIET)
-find_package(Protobuf 3.19.0 QUIET)
-if(gRPC_FOUND AND Protobuf_FOUND)
-    message(STATUS "Found gRPC and Protobuf, enabling RPC support")
-    set(HAVE_GRPC TRUE)
+# Check for gRPC and Protobuf
+find_package(gRPC QUIET)
+if(NOT gRPC_FOUND)
+    find_package(PkgConfig QUIET)
+    if(PKG_CONFIG_FOUND)
+        pkg_check_modules(GRPC grpc++)
+        if(GRPC_FOUND)
+            set(gRPC_FOUND TRUE)
+            # Map PkgConfig variables to CMake variables expected by the project
+            set(gRPC_INCLUDE_DIRS ${GRPC_INCLUDE_DIRS})
+            set(gRPC_LIBRARIES ${GRPC_LIBRARIES})
+            # Create imported target if it doesn't exist
+            if(NOT TARGET gRPC::grpc++)
+                add_library(gRPC::grpc++ INTERFACE IMPORTED)
+                set_target_properties(gRPC::grpc++ PROPERTIES
+                    INTERFACE_INCLUDE_DIRECTORIES "${GRPC_INCLUDE_DIRS}"
+                    INTERFACE_LINK_LIBRARIES "${GRPC_LIBRARIES}"
+                )
+            endif()
+        endif()
+    endif()
+endif()
+
+find_package(Protobuf QUIET)
+
+if(DEFINED HAVE_GRPC)
+    if(HAVE_GRPC)
+        if(NOT gRPC_FOUND)
+            message(FATAL_ERROR "HAVE_GRPC=ON but gRPC not found (tried find_package and PkgConfig)")
+        endif()
+        if(NOT Protobuf_FOUND)
+            message(FATAL_ERROR "HAVE_GRPC=ON but Protobuf not found")
+        endif()
+        message(STATUS "gRPC support enabled explicitly")
+    else()
+        message(STATUS "gRPC support disabled explicitly")
+    endif()
 else()
-    message(STATUS "gRPC or Protobuf not found, building without RPC support")
-    set(HAVE_GRPC FALSE)
+    if(gRPC_FOUND AND Protobuf_FOUND)
+        message(STATUS "Found gRPC and Protobuf, enabling RPC support")
+        set(HAVE_GRPC TRUE)
+    else()
+        message(STATUS "gRPC or Protobuf not found, building without RPC support")
+        set(HAVE_GRPC FALSE)
+    endif()
+endif()
+
+if(Protobuf_FOUND)
+    set(HAVE_PROTOBUF TRUE)
+else()
+    set(HAVE_PROTOBUF FALSE)
 endif()
 
 find_package(httplib QUIET)
+if(NOT httplib_FOUND)
+    if(EXISTS "/usr/include/httplib.h")
+        set(HTTPLIB_INCLUDE_DIR "/usr/include")
+    else()
+        find_path(HTTPLIB_INCLUDE_DIR httplib.h)
+    endif()
+
+    if(HTTPLIB_INCLUDE_DIR)
+        set(httplib_FOUND TRUE)
+        add_library(httplib::httplib INTERFACE IMPORTED)
+        set_target_properties(httplib::httplib PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${HTTPLIB_INCLUDE_DIR}"
+        )
+        message(STATUS "Found httplib header in ${HTTPLIB_INCLUDE_DIR}")
+    endif()
+endif()
+
 if(httplib_FOUND)
     message(STATUS "Found httplib")
     set(HAVE_HTTPLIB TRUE)
 else()
+    message(STATUS "httplib NOT found")
     set(HAVE_HTTPLIB FALSE)
 endif()
 
@@ -72,7 +133,17 @@ if(RapidJSON_FOUND)
     message(STATUS "Found RapidJSON")
     set(HAVE_RAPIDJSON TRUE)
 else()
+    message(STATUS "RapidJSON NOT found")
     set(HAVE_RAPIDJSON FALSE)
+endif()
+
+find_package(Snappy QUIET)
+if(Snappy_FOUND)
+    message(STATUS "Found Snappy")
+    set(HAVE_SNAPPY TRUE)
+else()
+    message(STATUS "Snappy not found, remote storage will use uncompressed protobuf")
+    set(HAVE_SNAPPY FALSE)
 endif()
 
 ## Test dependencies
@@ -132,6 +203,7 @@ configure_file(
 )
 
 # Subdirectories
+add_subdirectory(common)
 add_subdirectory(src)
 add_subdirectory(tools)
 
