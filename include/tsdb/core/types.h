@@ -63,14 +63,21 @@ private:
 };
 
 /**
+ * @brief Represents a set of fields (high-cardinality dimensions)
+ */
+using Fields = std::map<std::string, std::string>;
+
+/**
  * @brief Represents a single sample in a time series
  */
 class Sample {
 public:
     Sample(Timestamp ts, Value val);
+    Sample(Timestamp ts, Value val, const Fields& fields);
     
     Timestamp timestamp() const { return timestamp_; }
     Value value() const { return value_; }
+    const Fields& fields() const { return fields_; }
     
     bool operator==(const Sample& other) const;
     bool operator!=(const Sample& other) const;
@@ -78,6 +85,7 @@ public:
 private:
     Timestamp timestamp_;
     Value value_;
+    Fields fields_;
 };
 
 /**
@@ -94,6 +102,7 @@ public:
     
     void add_sample(const Sample& sample);
     void add_sample(Timestamp ts, Value val);
+    void add_sample(Timestamp ts, Value val, const Fields& fields);
     
     const Labels& labels() const { return labels_; }
     // Return a copy for thread safety

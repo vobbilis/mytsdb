@@ -12,6 +12,9 @@
 #include "tsdb/core/types.h"
 #include "tsdb/storage/internal/block_types.h"
 #include "tsdb/storage/internal/block_impl.h"
+#include "tsdb/storage/parquet/writer.hpp"
+#include "tsdb/storage/parquet/reader.hpp"
+#include "tsdb/storage/parquet/schema_mapper.hpp"
 
 namespace tsdb {
 namespace storage {
@@ -54,7 +57,10 @@ public:
     /**
      * @brief Create a new block
      */
-    core::Result<void> createBlock(int64_t start_time, int64_t end_time);
+    /**
+     * @brief Create a new block
+     */
+    core::Result<internal::BlockHeader> createBlock(int64_t start_time, int64_t end_time);
 
     /**
      * @brief Finalize a block for reading
@@ -95,6 +101,12 @@ public:
     core::Result<void> compact();
 
     /**
+     * @brief Recover blocks from disk and populate internal state
+     * @return Vector of recovered block headers
+     */
+    core::Result<std::vector<internal::BlockHeader>> recoverBlocks();
+
+    /**
      * @brief Flush pending writes to disk
      */
     core::Result<void> flush();
@@ -115,19 +127,33 @@ public:
      */
     core::Result<void> seal_and_persist_block(std::shared_ptr<internal::BlockImpl> block);
 
+    // Demote block to Parquet (Cold Tier)
+    // Returns the path to the created Parquet file
+    core::Result<std::string> demoteToParquet(const internal::BlockHeader& header);
+    
+    // Read block from Parquet (Cold Tier)
+    core::Result<std::shared_ptr<internal::BlockImpl>> readFromParquet(const internal::BlockHeader& header);
+
+    // Compact multiple Parquet files into one
+    core::Result<void> compactParquetFiles(const std::vector<std::string>& input_paths, const std::string& output_path);
+
 private:
     std::string data_dir_;
+    mutable std::shared_mutex mutex_;
+    std::map<uint64_t, internal::BlockTier::Type> block_tiers_;
+    
+    // Storage backends for different tiers
     std::unique_ptr<BlockStorage> hot_storage_;
     std::unique_ptr<BlockStorage> warm_storage_;
     std::unique_ptr<BlockStorage> cold_storage_;
-    std::shared_mutex mutex_;
-    std::map<uint64_t, internal::BlockTier::Type> block_tiers_;
 
     BlockStorage* getStorageForTier(internal::BlockTier::Type tier);
     core::Result<void> moveBlock(
         const internal::BlockHeader& header,
         internal::BlockTier::Type from_tier,
         internal::BlockTier::Type to_tier);
+
+
 };
 
 } // namespace storage

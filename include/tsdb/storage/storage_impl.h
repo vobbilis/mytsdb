@@ -12,6 +12,7 @@
 #include <atomic>
 #include <functional>
 
+#include "tsdb/core/matcher.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
 #include "tsdb/storage/block_manager.h"
@@ -108,7 +109,7 @@ public:
      * @param end_time The end time for the query range
      * @return Result object containing the matching time series data
      */
-#include "tsdb/core/matcher.h"
+
 
 // ...
 
@@ -195,6 +196,16 @@ public:
      */
     static void print_write_performance_summary();
 
+    /**
+     * @brief Execute background flush (public for testing)
+     */
+    core::Result<void> execute_background_flush(int64_t threshold_ms = 60000);
+
+    /**
+     * @brief Execute background compaction (public for testing)
+     */
+    core::Result<void> execute_background_compaction();
+
 private:
     core::Result<void> flush_nolock();
     // REMOVED: Thread safety
@@ -203,13 +214,13 @@ private:
     std::atomic<bool> initialized_;
     core::StorageConfig config_;
 
+    // Working set cache for frequently accessed data
+    std::unique_ptr<WorkingSetCache> working_set_cache_;
+
     // Object pools for reducing memory allocations
     std::unique_ptr<TimeSeriesPool> time_series_pool_;
     std::unique_ptr<LabelsPool> labels_pool_;
     std::unique_ptr<SamplePool> sample_pool_;
-    
-    // Working set cache for frequently accessed data
-    std::unique_ptr<WorkingSetCache> working_set_cache_;
 
     // New Core Components
     std::unique_ptr<ShardedIndex> index_;
@@ -286,9 +297,11 @@ private:
     void schedule_background_compaction();
     void schedule_background_cleanup();
     void schedule_background_metrics_collection();
-    core::Result<void> execute_background_compaction();
+    void schedule_background_flush();
+
     core::Result<void> execute_background_cleanup();
     core::Result<void> execute_background_metrics_collection();
+
     
     // Helper methods for predictive caching integration
     void initialize_predictive_cache();

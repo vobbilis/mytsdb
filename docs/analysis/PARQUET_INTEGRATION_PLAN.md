@@ -38,7 +38,6 @@ We will not rewrite the entire engine immediately. Instead, we will implement a 
     -   When a Block is "sealed" and "old" (e.g., > 2 hours).
     -   Instead of flushing to disk as `.block`, flush as `.parquet`.
     -   Upload to S3 (or local disk `data/parquet/`).
-3.  **Metadata:** Update `BlockManager` to track Parquet files.
 
 ### Phase 3: The Parquet Reader (Query Path)
 *Goal: Query historical data from Parquet.*

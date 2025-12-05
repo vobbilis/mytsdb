@@ -5,7 +5,8 @@
 namespace tsdb {
 namespace storage {
 
-AsyncWALShard::AsyncWALShard(const std::string& dir) : dir_(dir), running_(true) {
+AsyncWALShard::AsyncWALShard(const std::string& dir, size_t max_queue_size) 
+    : dir_(dir), max_queue_size_(max_queue_size), running_(true) {
     wal_ = std::make_unique<WriteAheadLog>(dir);
     worker_ = std::thread(&AsyncWALShard::worker_loop, this);
 }
@@ -23,7 +24,10 @@ AsyncWALShard::~AsyncWALShard() {
 
 core::Result<void> AsyncWALShard::log(const core::TimeSeries& series) {
     {
-        std::lock_guard<std::mutex> lock(queue_mutex_);
+        std::unique_lock<std::mutex> lock(queue_mutex_);
+        if (queue_.size() >= max_queue_size_) {
+            producer_cv_.wait(lock, [this] { return queue_.size() < max_queue_size_; });
+        }
         queue_.push(series);
     }
     queue_cv_.notify_one();
@@ -52,6 +56,15 @@ void AsyncWALShard::flush() {
     }
 }
 
+size_t AsyncWALShard::GetQueueSize() const {
+    std::lock_guard<std::mutex> lock(queue_mutex_);
+    return queue_.size();
+}
+
+void AsyncWALShard::Test_SetWorkerDelay(std::chrono::milliseconds delay) {
+    worker_delay_ms_ = delay.count();
+}
+
 void AsyncWALShard::worker_loop() {
     const size_t BATCH_SIZE = 1000;
     std::vector<core::TimeSeries> batch;
@@ -71,9 +84,17 @@ void AsyncWALShard::worker_loop() {
                 batch.push_back(std::move(queue_.front()));
                 queue_.pop();
             }
+            // Notify producer that space might be available
+            producer_cv_.notify_all();
         }
 
         if (batch.empty()) continue;
+        
+        // Simulate delay for testing
+        int64_t delay = worker_delay_ms_.load();
+        if (delay > 0) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(delay));
+        }
 
         TSDB_DEBUG("AsyncWALShard: Processing batch of {} items", batch.size());
 

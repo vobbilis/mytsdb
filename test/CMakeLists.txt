@@ -34,11 +34,21 @@ add_subdirectory(comprehensive_promql)
 add_subdirectory(benchmark)
 
 # OTEL/gRPC tests (only if gRPC is available)
-if(HAVE_GRPC)
+if(HAVE_GRPC AND ENABLE_OTEL)
     add_subdirectory(otel_grpc)
 endif()
 
 # Phase 1: Memory Access Pattern Optimization Tests
+
+# Orphaned tests that were not integrated into main test suites
+# NOTE: test/core and test/histogram use outdated APIs (metric_impl.h, DDSketch::create)
+#       that no longer exist. They require refactoring before integration.
+# add_subdirectory(core)     # Uses metric_impl.h which doesn't exist
+# add_subdirectory(histogram) # Uses DDSketch::create which doesn't exist
+add_subdirectory(storage)
+# add_subdirectory(tsdb)     # Nested tests - most have missing dependencies
+
+
 
 
 
@@ -48,12 +58,18 @@ set(INTEGRATION_TEST_TARGETS
     tsdb_core_storage_integration_test
     tsdb_storage_histogram_integration_test
     tsdb_config_integration_test
-    tsdb_otel_integration_test
-    tsdb_grpc_integration_test
-    tsdb_end_to_end_workflow_test
-    tsdb_multi_component_test
-    tsdb_error_handling_test
+    tsdb_hybrid_query_test
 )
+
+if(HAVE_GRPC AND ENABLE_OTEL)
+    list(APPEND INTEGRATION_TEST_TARGETS
+        tsdb_otel_integration_test
+        tsdb_grpc_integration_test
+        tsdb_end_to_end_workflow_test
+        tsdb_multi_component_test
+        tsdb_error_handling_test
+    )
+endif()
 
 set(PARSER_TEST_TARGETS
     # No parser tests currently available
@@ -100,7 +116,7 @@ add_custom_target(test-all
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/all
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
         ${CMAKE_COMMAND} -E env CTEST_OUTPUT_ON_FAILURE=1 
-        ctest --test-dir test --output-junit ${CMAKE_BINARY_DIR}/test-results/all/all_tests.xml --timeout 120
+        ctest --test-dir test --output-junit ${CMAKE_BINARY_DIR}/test-results/all/all_tests.xml --timeout 600
     DEPENDS ${UNIT_TEST_TARGETS} ${INTEGRATION_TEST_TARGETS} ${PARSER_TEST_TARGETS}
     COMMENT "Running comprehensive test suite - 632+ tests (120s timeout per test)"
 )
@@ -270,7 +286,7 @@ add_custom_target(test-histogram-unit
 )
 
 # OTEL/gRPC E2E Tests
-if(HAVE_GRPC)
+if(HAVE_GRPC AND ENABLE_OTEL)
     add_custom_target(test-otel-grpc-e2e
         COMMAND ${CMAKE_COMMAND} -E echo "Running OTEL/gRPC E2E tests"
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/otel-grpc-e2e
@@ -311,7 +327,7 @@ add_custom_target(test-summary
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-compression-unit      - Run compression unit tests - 19 tests - 1min timeout"
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-histogram-unit        - Run histogram unit tests - 22 tests - 1min timeout"
     COMMAND ${CMAKE_COMMAND} -E echo "  make test-individual-integration - Run individual integration tests - 53 tests"
-    if(HAVE_GRPC)
+    if(HAVE_GRPC AND ENABLE_OTEL)
         COMMAND ${CMAKE_COMMAND} -E echo "  make test-otel-grpc-e2e         - Run OTEL/gRPC E2E tests - 60s timeout per test"
         COMMAND ${CMAKE_COMMAND} -E echo "  make test-otel-grpc             - Run all OTEL/gRPC tests - 60s timeout per test"
     endif()

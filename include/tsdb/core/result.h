@@ -8,6 +8,7 @@
 #include <stdexcept>
 #include <vector>
 #include "tsdb/core/error.h"
+#include <iostream>
 
 namespace tsdb {
 namespace core {
@@ -35,18 +36,24 @@ namespace core {
 template<typename T>
 class Result {
 public:
-    Result(T value) : value_(std::move(value)), error_(nullptr) {}
-    Result(std::unique_ptr<Error> error) : value_(), error_(std::move(error)) {}
+    Result(T value) : value_(std::move(value)), error_msg_(std::nullopt) {}
+    
+    // Constructor for error (internal use or compatibility)
+    explicit Result(std::unique_ptr<Error> error) : value_(), error_msg_(error ? std::make_optional(std::string(error->what())) : std::nullopt) {}
+    
+    struct ErrorTag {};
+    // Constructor for error message
+    explicit Result(std::string error_msg, ErrorTag) : value_(), error_msg_(std::move(error_msg)) {}
     
     // Move constructor
     Result(Result&& other) noexcept 
-        : value_(std::move(other.value_)), error_(std::move(other.error_)) {}
+        : value_(std::move(other.value_)), error_msg_(std::move(other.error_msg_)) {}
     
     // Move assignment
     Result& operator=(Result&& other) noexcept {
         if (this != &other) {
             value_ = std::move(other.value_);
-            error_ = std::move(other.error_);
+            error_msg_ = std::move(other.error_msg_);
         }
         return *this;
     }
@@ -55,23 +62,27 @@ public:
     Result(const Result&) = delete;
     Result& operator=(const Result&) = delete;
     
-    bool ok() const { return error_ == nullptr; }
+    bool ok() const { return !error_msg_.has_value(); }
     std::string error() const { 
-        if (!error_) {
+        if (!error_msg_) {
             throw std::runtime_error("Attempting to access error of ok result");
         }
-        return error_->what();
+        return *error_msg_;
     }
     const T& value() const { return value_; }
     T&& take_value() { return std::move(value_); }
     
     static Result<T> error(const std::string& message) {
-        return Result<T>(std::make_unique<Error>(message));
+        return Result<T>(message, ErrorTag{});
+    }
+    
+    ~Result() {
+        // Logging removed
     }
     
 private:
     T value_;
-    std::unique_ptr<Error> error_;
+    std::optional<std::string> error_msg_;
 };
 
 /**
@@ -80,23 +91,30 @@ private:
 template<>
 class Result<void> {
 public:
-    Result() : error_(nullptr) {}
-    Result(std::unique_ptr<Error> error) : error_(std::move(error)) {}
+    Result() : error_msg_(std::nullopt) {}
+    explicit Result(std::unique_ptr<Error> error) : error_msg_(error ? std::make_optional(std::string(error->what())) : std::nullopt) {}
     
-    bool ok() const { return error_ == nullptr; }
+    struct ErrorTag {};
+    explicit Result(std::string error_msg, ErrorTag) : error_msg_(std::move(error_msg)) {}
+    // Keep old constructor for compatibility if needed, but disambiguate
+    explicit Result(std::string error_msg) : error_msg_(std::move(error_msg)) {} // void result doesn't have T constructor, so this is fine?
+    // Actually, Result<void> has no T constructor. So Result(string) is fine.
+    // But for consistency, let's use ErrorTag in static error() method.
+    
+    bool ok() const { return !error_msg_.has_value(); }
     std::string error() const { 
-        if (!error_) {
+        if (!error_msg_) {
             throw std::runtime_error("Attempting to access error of ok result");
         }
-        return error_->what();
+        return *error_msg_;
     }
     
     static Result<void> error(const std::string& message) {
-        return Result<void>(std::make_unique<Error>(message));
+        return Result<void>(message, ErrorTag{});
     }
     
 private:
-    std::unique_ptr<Error> error_;
+    std::optional<std::string> error_msg_;
 };
 
 // Common template instantiations declarations

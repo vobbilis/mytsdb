@@ -16,6 +16,7 @@ struct BlockHeader {
     static constexpr uint32_t VERSION = 1;
     
     uint64_t magic;      // Magic number for validation
+    uint64_t id;         // Unique Block ID
     uint32_t version;    // Block format version
     uint32_t flags;      // Block flags (compression, etc.)
     uint32_t crc32;      // CRC32 of block data

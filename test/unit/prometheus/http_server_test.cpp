@@ -60,6 +60,8 @@ TEST_F(HttpServerTest, DoubleStart) {
         server->Start();
     });
     
+    WaitForServer();
+    
     EXPECT_THROW({
         server->Start();
     }, ServerError);

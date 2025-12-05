@@ -5,12 +5,6 @@ add_executable(tsdb_integration_test_suite
     core_storage_integration_test.cpp
     storage_histogram_integration_test.cpp
     config_integration_test.cpp
-    otel_integration_test.cpp
-    grpc_integration_test.cpp
-    end_to_end_workflow_test.cpp
-    multi_component_test.cpp
-    error_handling_test.cpp
-    recovery_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp
@@ -23,8 +17,20 @@ add_executable(tsdb_integration_test_suite
     storageimpl_phases/phase2_predictive_caching_integration_test.cpp
     storageimpl_phases/comprehensive_integration_test.cpp
     storageimpl_phases/write_path_refactoring_integration_test.cpp
+    storage_persistence_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
 )
+
+if(HAVE_GRPC AND ENABLE_OTEL)
+    target_sources(tsdb_integration_test_suite PRIVATE
+        otel_integration_test.cpp
+        grpc_integration_test.cpp
+        multi_component_test.cpp
+        end_to_end_workflow_test.cpp
+        error_handling_test.cpp
+        recovery_test.cpp
+    )
+endif()
 
 # Add semantic vector integration tests when enabled
 if(TSDB_SEMVEC)
@@ -50,7 +56,28 @@ target_include_directories(tsdb_integration_test_suite
                         Threads::Threads
                 )
 
-# Individual integration test executables for specific testing
+
+
+# Storage Stability Test
+add_executable(tsdb_storage_stability_test
+    storage_stability_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_storage_stability_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_storage_stability_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_lib
+        GTest::gtest
+        GTest::gtest_main
+)
+
 add_executable(tsdb_core_storage_integration_test
     core_storage_integration_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -111,6 +138,7 @@ target_link_libraries(tsdb_config_integration_test
         GTest::gtest_main
 )
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 add_executable(tsdb_otel_integration_test
     otel_integration_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -148,7 +176,9 @@ target_link_libraries(tsdb_grpc_integration_test
         GTest::gtest
         GTest::gtest_main
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 add_executable(tsdb_end_to_end_workflow_test
     end_to_end_workflow_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -168,7 +198,9 @@ target_link_libraries(tsdb_end_to_end_workflow_test
         GTest::gtest_main
         Threads::Threads
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 add_executable(tsdb_multi_component_test
     multi_component_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -188,7 +220,9 @@ target_link_libraries(tsdb_multi_component_test
         GTest::gtest_main
         Threads::Threads
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 add_executable(tsdb_error_handling_test
     error_handling_test.cpp
     ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -201,6 +235,26 @@ target_include_directories(tsdb_error_handling_test
 )
 
 target_link_libraries(tsdb_error_handling_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_lib
+        GTest::gtest
+        GTest::gtest_main
+)
+endif()
+
+add_executable(tsdb_hybrid_query_test
+    parquet/hybrid_query_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_hybrid_query_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_hybrid_query_test
     PRIVATE
         tsdb_test_common
         tsdb_lib
@@ -277,6 +331,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
+    if(HAVE_GRPC AND ENABLE_OTEL)
     add_custom_command(TARGET tsdb_otel_integration_test POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
@@ -289,24 +344,31 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
+    endif()
+    if(HAVE_GRPC AND ENABLE_OTEL)
     add_custom_command(TARGET tsdb_end_to_end_workflow_test POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
+    endif()
+    if(HAVE_GRPC AND ENABLE_OTEL)
     add_custom_command(TARGET tsdb_multi_component_test POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
+    endif()
+    if(HAVE_GRPC AND ENABLE_OTEL)
     add_custom_command(TARGET tsdb_error_handling_test POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
             ${CMAKE_CURRENT_BINARY_DIR}/data
     )
+    endif()
 endif()
 
 # Register integration tests
@@ -341,6 +403,7 @@ gtest_discover_tests(tsdb_config_integration_test
 # Prometheus Remote Storage integration tests
 add_subdirectory(prometheus)
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 gtest_discover_tests(tsdb_otel_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
@@ -354,31 +417,92 @@ gtest_discover_tests(tsdb_grpc_integration_test
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 900   # 15 minutes timeout for gRPC integration tests
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 gtest_discover_tests(tsdb_end_to_end_workflow_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 1200  # 20 minutes timeout for end-to-end workflow tests
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 gtest_discover_tests(tsdb_multi_component_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 900   # 15 minutes timeout for multi-component tests
 )
+endif()
 
+if(HAVE_GRPC AND ENABLE_OTEL)
 gtest_discover_tests(tsdb_error_handling_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 600   # 10 minutes timeout for error handling tests
 )
+endif()
 
 gtest_discover_tests(tsdb_query_instrumentation_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 600   # 10 minutes timeout for query instrumentation tests
-) 
+)
+
+add_executable(tsdb_storage_persistence_test
+    storage_persistence_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_storage_persistence_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_storage_persistence_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+        GTest::gtest
+        GTest::gtest_main
+)
+
+gtest_discover_tests(tsdb_storage_persistence_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        TIMEOUT 600   # 10 minutes timeout for storage persistence tests
+)
+
+add_executable(tsdb_storage_demotion_test
+    storage_demotion_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_storage_demotion_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_storage_demotion_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+        GTest::gtest
+        GTest::gtest_main
+)
+
+gtest_discover_tests(tsdb_storage_demotion_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        TIMEOUT 600   # 10 minutes timeout for storage demotion tests
+)

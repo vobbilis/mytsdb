@@ -9,7 +9,7 @@
 #include <stdexcept>
 #include <map>
 #include <chrono>
-#include <iostream>
+
 
 namespace tsdb {
 namespace prometheus {

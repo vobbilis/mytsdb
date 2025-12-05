@@ -133,8 +133,25 @@ void WorkingSetCache::put(core::SeriesID series_id, std::shared_ptr<core::TimeSe
     if (it != cache_map_.end()) {
         // Update existing entry - MERGE samples
         // Instead of overwriting, we append new samples to the existing series
+        auto& existing_series = it->second->series;
+        
+        // Get the last timestamp from existing series to ensure chronological order
+        core::Timestamp last_ts = 0;
+        bool has_samples = false;
+        
+        auto current_samples = existing_series->samples();
+        if (!current_samples.empty()) {
+            last_ts = current_samples.back().timestamp();
+            has_samples = true;
+        }
+
         for (const auto& sample : series->samples()) {
-            it->second->series->add_sample(sample);
+            // Only add samples that are newer than the last sample
+            if (!has_samples || sample.timestamp() > last_ts) {
+                existing_series->add_sample(sample);
+                last_ts = sample.timestamp();
+                has_samples = true;
+            }
         }
         move_to_front(it->second);
     } else {
@@ -254,25 +271,12 @@ bool WorkingSetCache::is_full() const {
  * during concurrent access.
  */
 std::string WorkingSetCache::stats() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
     std::ostringstream oss;
     oss << "WorkingSetCache Stats:\n";
-    oss << "  Current size: " << cache_map_.size() << "/" << max_size_ << "\n";
-    oss << "  Hit count: " << hit_count_.load(std::memory_order_relaxed) << "\n";
-    oss << "  Miss count: " << miss_count_.load(std::memory_order_relaxed) << "\n";
-    
-    uint64_t total_requests = hit_count_.load(std::memory_order_relaxed) + 
-                             miss_count_.load(std::memory_order_relaxed);
-    
-    if (total_requests > 0) {
-        double hit_ratio = static_cast<double>(hit_count_.load(std::memory_order_relaxed)) / 
-                          total_requests * 100.0;
-        oss << "  Hit ratio: " << std::fixed << std::setprecision(2) << hit_ratio << "%\n";
-    } else {
-        oss << "  Hit ratio: N/A (no requests yet)\n";
-    }
-    
+    oss << "  Current size: " << size() << "/" << max_size_ << "\n";
+    oss << "  Hit count: " << hit_count() << "\n";
+    oss << "  Miss count: " << miss_count() << "\n";
+    oss << "  Hit ratio: " << std::fixed << std::setprecision(2) << hit_ratio() << "%";
     return oss.str();
 }
 

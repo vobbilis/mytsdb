@@ -66,7 +66,9 @@ public:
         
         server_thread_ = std::thread([this]() {
             if (!server_->listen(config_.listen_address.c_str(), config_.port)) {
-                throw ServerError("Failed to start server");
+                // Cannot throw from thread as it terminates the program
+                // throw ServerError("Failed to start server");
+                fprintf(stderr, "Failed to start server on %s:%d\n", config_.listen_address.c_str(), config_.port);
             }
         });
     }

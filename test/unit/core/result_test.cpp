@@ -11,14 +11,14 @@ namespace {
 TEST(ResultTest, SuccessConstruction) {
     Result<int> result(42);
     EXPECT_TRUE(result.ok());
-    EXPECT_FALSE(result.has_error());
+    EXPECT_FALSE(!result.ok());
     EXPECT_EQ(result.value(), 42);
 }
 
 TEST(ResultTest, ErrorConstruction) {
     auto result = Result<int>::error("Invalid input");
     EXPECT_FALSE(result.ok());
-    EXPECT_TRUE(result.has_error());
+    EXPECT_TRUE(!result.ok());
     EXPECT_EQ(result.error(), "Invalid input");
 }
 
@@ -62,13 +62,13 @@ TEST(ResultTest, MoveAssignment) {
 TEST(ResultTest, VoidResult) {
     Result<void> result;
     EXPECT_TRUE(result.ok());
-    EXPECT_FALSE(result.has_error());
+    EXPECT_FALSE(!result.ok());
 }
 
 TEST(ResultTest, VoidErrorResult) {
     auto result = Result<void>::error("Internal error");
     EXPECT_FALSE(result.ok());
-    EXPECT_TRUE(result.has_error());
+    EXPECT_TRUE(!result.ok());
     EXPECT_EQ(result.error(), "Internal error");
 }
 
@@ -96,9 +96,9 @@ TEST(ResultTest, ErrorCodeTypes) {
 
 TEST(ResultTest, ErrorConstructor) {
     Error error("Custom error", Error::Code::INVALID_ARGUMENT);
-    Result<int> result(error);
+    Result<int> result(std::make_unique<Error>(error));
     EXPECT_FALSE(result.ok());
-    EXPECT_TRUE(result.has_error());
+    EXPECT_TRUE(!result.ok());
     EXPECT_EQ(result.error(), "Custom error");
 }
 

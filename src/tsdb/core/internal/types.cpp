@@ -65,8 +65,11 @@ std::string Labels::to_string() const {
 Sample::Sample(Timestamp ts, Value val)
     : timestamp_(ts), value_(val) {}
 
+Sample::Sample(Timestamp ts, Value val, const Fields& fields)
+    : timestamp_(ts), value_(val), fields_(fields) {}
+
 bool Sample::operator==(const Sample& other) const {
-    return timestamp_ == other.timestamp_ && value_ == other.value_;
+    return timestamp_ == other.timestamp_ && value_ == other.value_ && fields_ == other.fields_;
 }
 
 bool Sample::operator!=(const Sample& other) const {
@@ -104,6 +107,10 @@ void TimeSeries::add_sample(const Sample& sample) {
 
 void TimeSeries::add_sample(Timestamp ts, Value val) {
     add_sample(Sample(ts, val));
+}
+
+void TimeSeries::add_sample(Timestamp ts, Value val, const Fields& fields) {
+    add_sample(Sample(ts, val, fields));
 }
 
 void TimeSeries::clear() {

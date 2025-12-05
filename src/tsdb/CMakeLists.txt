@@ -5,7 +5,8 @@ add_subdirectory(histogram)
 add_subdirectory(query)
 
 # Only add otel if we have gRPC
-if(HAVE_GRPC)
+# Only add otel if we have gRPC and OTEL enabled
+if(HAVE_GRPC AND ENABLE_OTEL)
     add_subdirectory(otel)
 endif()
 
@@ -45,7 +46,8 @@ target_link_libraries(tsdb_main INTERFACE
 )
 
 # Only link otel if we have gRPC
-if(HAVE_GRPC)
+# Only link otel if we have gRPC and OTEL enabled
+if(HAVE_GRPC AND ENABLE_OTEL)
     target_link_libraries(tsdb_main INTERFACE tsdb_otel_impl)
 endif()
 
@@ -93,21 +95,28 @@ if(HAVE_TBB)
 endif()
 
 # Link gRPC dependencies if available
+# Link gRPC dependencies if available
 if(HAVE_GRPC)
     # Define HAVE_GRPC macro for the server
     target_compile_definitions(tsdb_server PRIVATE HAVE_GRPC=1)
     
-    # Link OTEL implementation library
     target_link_libraries(tsdb_server PRIVATE 
-        tsdb_otel_impl
         gRPC::grpc++ 
         protobuf::libprotobuf
     )
-    
-    # Also include OTEL proto generated headers
-    target_include_directories(tsdb_server PRIVATE
-        ${CMAKE_SOURCE_DIR}/src/tsdb/proto/gen
-    )
+
+    if(ENABLE_OTEL)
+        # Link OTEL implementation library
+        target_link_libraries(tsdb_server PRIVATE 
+            tsdb_otel_impl
+        )
+        target_compile_definitions(tsdb_server PRIVATE ENABLE_OTEL=1)
+        
+        # Also include OTEL proto generated headers
+        target_include_directories(tsdb_server PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/tsdb/proto/gen
+        )
+    endif()
 endif()
 
 # Link Prometheus library if available

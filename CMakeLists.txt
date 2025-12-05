@@ -22,6 +22,7 @@ option(ENABLE_OTEL "Enable OpenTelemetry support" OFF)
 option(BUILD_SHARED_LIBS "Build shared libraries" ON)
 option(ENABLE_COVERAGE "Enable coverage reporting" OFF)
 option(TSDB_SEMVEC "Enable semantic vector components (compile-time only)" OFF)
+add_compile_definitions(TSDB_ENABLE_METRICS)
 
 # Dependencies
 include(GNUInstallDirs)
@@ -29,6 +30,12 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ## Required dependencies
 find_package(Threads REQUIRED)
+
+if(APPLE AND EXISTS "/opt/homebrew/opt/openssl@3")
+    set(OPENSSL_ROOT_DIR "/opt/homebrew/opt/openssl@3")
+endif()
+
+find_package(OpenSSL REQUIRED COMPONENTS SSL Crypto)
 
 # Try to find optional dependencies
 find_package(spdlog 1.9.0 QUIET)
@@ -144,6 +151,24 @@ if(Snappy_FOUND)
 else()
     message(STATUS "Snappy not found, remote storage will use uncompressed protobuf")
     set(HAVE_SNAPPY FALSE)
+endif()
+
+find_package(Arrow QUIET)
+if(Arrow_FOUND)
+    message(STATUS "Found Apache Arrow: ${Arrow_VERSION}")
+    set(HAVE_ARROW TRUE)
+else()
+    message(STATUS "Apache Arrow not found")
+    set(HAVE_ARROW FALSE)
+endif()
+
+find_package(Parquet QUIET)
+if(Parquet_FOUND)
+    message(STATUS "Found Apache Parquet: ${Parquet_VERSION}")
+    set(HAVE_PARQUET TRUE)
+else()
+    message(STATUS "Apache Parquet not found")
+    set(HAVE_PARQUET FALSE)
 endif()
 
 ## Test dependencies

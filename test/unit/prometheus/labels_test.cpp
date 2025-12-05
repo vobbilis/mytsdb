@@ -45,23 +45,22 @@ public:
         ts.add_sample(core::Sample(1234567890000, 42.0));
         result.push_back(std::move(ts));
         
-        return core::Result<std::vector<core::TimeSeries>>(std::move(result));
+        return core::Result<std::vector<core::TimeSeries>>(result);
     }
     
     core::Result<std::vector<std::string>> label_names() override {
-        return core::Result<std::vector<std::string>>(
-            std::vector<std::string>{"job", "instance", "service", "env"}
-        );
+        std::vector<std::string> names = {"job", "instance", "service", "env"};
+        return core::Result<std::vector<std::string>>(names);
     }
     
     core::Result<std::vector<std::string>> label_values(const std::string& label_name) override {
         if (label_name == "job") {
             std::vector<std::string> values = {"prometheus", "node_exporter", "mysql"};
-            return core::Result<std::vector<std::string>>(std::move(values));
+            return core::Result<std::vector<std::string>>(values);
         }
         if (label_name == "instance") {
             std::vector<std::string> values = {"localhost:9090", "localhost:9100"};
-            return core::Result<std::vector<std::string>>(std::move(values));
+            return core::Result<std::vector<std::string>>(values);
         }
         return core::Result<std::vector<std::string>>(std::vector<std::string>{});
     }
@@ -128,23 +127,15 @@ protected:
 };
 
 TEST_F(LabelsTest, DirectStorageCall) {
-    std::cout << "Starting DirectStorageCall test" << std::endl;
     auto result = storage->label_names();
-    std::cout << "storage->label_names() returned" << std::endl;
     EXPECT_TRUE(result.ok());
-    std::cout << "result.ok() passed" << std::endl;
     EXPECT_EQ(result.value().size(), 4);
-    std::cout << "DirectStorageCall complete" << std::endl;
 }
 
 TEST_F(LabelsTest, GetLabels) {
-    std::cout << "Starting GetLabels test" << std::endl;
     // Test basic label retrieval
-    std::cout << "Calling handler->GetLabels()" << std::endl;
     auto result = handler->GetLabels();
-    std::cout << "GetLabels returned" << std::endl;
     ValidateSuccessResponse(result, {"job", "instance", "service", "env"});
-    std::cout << "Validation complete" << std::endl;
 }
 
 TEST_F(LabelsTest, GetLabelValues) {

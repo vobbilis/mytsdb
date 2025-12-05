@@ -25,3 +25,12 @@ target_link_libraries(comprehensive_promql_test_harness PRIVATE
 
 # Copy test cases if we have them in a file
 # add_custom_command(...)
+
+# Register tests with ctest
+include(GoogleTest)
+gtest_discover_tests(comprehensive_promql_test_harness
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_SOURCE_DIR}/test/data"
+        TIMEOUT 120
+)

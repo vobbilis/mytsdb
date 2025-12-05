@@ -86,6 +86,22 @@ public:
      * @param bytes_deallocated Number of bytes deallocated
      */
     void recordDeallocation(size_t bytes_deallocated);
+
+    /**
+     * @brief Track a dropped sample (filtering)
+     */
+    void recordDroppedSample();
+
+    /**
+     * @brief Track a derived sample (derived metrics)
+     */
+    void recordDerivedSample();
+    
+    /**
+     * @brief Track rule check duration
+     * @param duration_ns Duration in nanoseconds
+     */
+    void recordRuleCheck(uint64_t duration_ns);
     
     /**
      * @brief Get current metrics snapshot
@@ -109,6 +125,11 @@ public:
         uint64_t bytes_decompressed = 0;
         uint64_t bytes_allocated = 0;
         uint64_t bytes_deallocated = 0;
+        
+        // Filtering & Derived Metrics
+        uint64_t dropped_samples = 0;
+        uint64_t derived_samples = 0;
+        uint64_t total_rule_check_time = 0;
         
         // Timing (in nanoseconds)
         uint64_t total_write_time = 0;
@@ -189,6 +210,11 @@ private:
     std::atomic<uint64_t> bytes_decompressed_{0};
     std::atomic<uint64_t> bytes_allocated_{0};
     std::atomic<uint64_t> bytes_deallocated_{0};
+    
+    // Filtering & Derived Metrics
+    std::atomic<uint64_t> dropped_samples_{0};
+    std::atomic<uint64_t> derived_samples_{0};
+    std::atomic<uint64_t> total_rule_check_time_{0};
     
     // Atomic timing counters
     std::atomic<uint64_t> total_write_time_{0};
@@ -320,6 +346,15 @@ private:
     
     #define TSDB_METRICS_TIMER(operation) \
         tsdb::storage::internal::ScopedTimer timer(tsdb::storage::internal::GlobalMetrics::getInstance(), operation)
+
+    #define TSDB_METRICS_DROPPED_SAMPLE() \
+        tsdb::storage::internal::GlobalMetrics::getInstance().recordDroppedSample()
+
+    #define TSDB_METRICS_DERIVED_SAMPLE() \
+        tsdb::storage::internal::GlobalMetrics::getInstance().recordDerivedSample()
+
+    #define TSDB_METRICS_RULE_CHECK(duration) \
+        tsdb::storage::internal::GlobalMetrics::getInstance().recordRuleCheck(duration)
 #else
     #define TSDB_METRICS_WRITE(bytes, duration) ((void)0)
     #define TSDB_METRICS_READ(bytes, duration) ((void)0)
@@ -330,6 +365,9 @@ private:
     #define TSDB_METRICS_ALLOCATION(bytes) ((void)0)
     #define TSDB_METRICS_DEALLOCATION(bytes) ((void)0)
     #define TSDB_METRICS_TIMER(operation) ((void)0)
+    #define TSDB_METRICS_DROPPED_SAMPLE() ((void)0)
+    #define TSDB_METRICS_DERIVED_SAMPLE() ((void)0)
+    #define TSDB_METRICS_RULE_CHECK(duration) ((void)0)
 #endif
 
 } // namespace internal

@@ -53,7 +53,17 @@ protected:
             series_list.push_back(s);
         }
 
-        EXPECT_CALL(storage, SelectSeries(testing::_, testing::_, testing::_))
+        // Matcher to check if the vector selector requests the correct metric name
+        auto name_matcher = [name](const std::vector<LabelMatcher>& matchers) {
+            for (const auto& m : matchers) {
+                if (m.name == "__name__" && m.value == name) {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        EXPECT_CALL(storage, SelectSeries(testing::Truly(name_matcher), testing::_, testing::_))
             .WillRepeatedly(testing::Return(series_list));
 
         return std::make_unique<VectorSelectorNode>(name, matchers);

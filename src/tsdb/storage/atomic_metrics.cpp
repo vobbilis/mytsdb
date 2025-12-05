@@ -86,6 +86,23 @@ void AtomicMetrics::recordDeallocation(size_t bytes_deallocated) {
     bytes_deallocated_.fetch_add(bytes_deallocated, memory_order_);
 }
 
+void AtomicMetrics::recordDroppedSample() {
+    if (!config_.enable_tracking) return;
+    dropped_samples_.fetch_add(1, memory_order_);
+}
+
+void AtomicMetrics::recordDerivedSample() {
+    if (!config_.enable_tracking) return;
+    derived_samples_.fetch_add(1, memory_order_);
+}
+
+void AtomicMetrics::recordRuleCheck(uint64_t duration_ns) {
+    if (!config_.enable_tracking) return;
+    if (config_.enable_timing && duration_ns > 0) {
+        total_rule_check_time_.fetch_add(duration_ns, memory_order_);
+    }
+}
+
 AtomicMetrics::MetricsSnapshot AtomicMetrics::getSnapshot() const {
     MetricsSnapshot snapshot;
     
@@ -105,6 +122,10 @@ AtomicMetrics::MetricsSnapshot AtomicMetrics::getSnapshot() const {
     snapshot.bytes_decompressed = bytes_decompressed_.load(memory_order_);
     snapshot.bytes_allocated = bytes_allocated_.load(memory_order_);
     snapshot.bytes_deallocated = bytes_deallocated_.load(memory_order_);
+    
+    snapshot.dropped_samples = dropped_samples_.load(memory_order_);
+    snapshot.derived_samples = derived_samples_.load(memory_order_);
+    snapshot.total_rule_check_time = total_rule_check_time_.load(memory_order_);
     
     snapshot.total_write_time = total_write_time_.load(memory_order_);
     snapshot.total_read_time = total_read_time_.load(memory_order_);
@@ -135,6 +156,10 @@ void AtomicMetrics::reset() {
     bytes_allocated_.store(0, memory_order_);
     bytes_deallocated_.store(0, memory_order_);
     
+    dropped_samples_.store(0, memory_order_);
+    derived_samples_.store(0, memory_order_);
+    total_rule_check_time_.store(0, memory_order_);
+    
     total_write_time_.store(0, memory_order_);
     total_read_time_.store(0, memory_order_);
     total_compression_time_.store(0, memory_order_);
@@ -164,6 +189,13 @@ std::string AtomicMetrics::getFormattedMetrics() const {
     oss << "  Allocations: " << snapshot.allocation_count << "\n";
     oss << "  Deallocations: " << snapshot.deallocation_count << "\n";
     oss << "  Net Memory Usage: " << formatBytes(snapshot.net_memory_usage) << "\n";
+    
+    oss << "Filtering & Derived:\n";
+    oss << "  Dropped Samples: " << snapshot.dropped_samples << "\n";
+    oss << "  Derived Samples: " << snapshot.derived_samples << "\n";
+    if (snapshot.write_count > 0) {
+        oss << "  Avg Rule Check Time: " << formatDuration(snapshot.total_rule_check_time / snapshot.write_count) << "\n";
+    }
     
     if (config_.enable_timing) {
         oss << "Performance:\n";
@@ -212,6 +244,12 @@ std::string AtomicMetrics::getJsonMetrics() const {
     oss << "    \"bytes_allocated\": " << snapshot.bytes_allocated << ",\n";
     oss << "    \"bytes_deallocated\": " << snapshot.bytes_deallocated << ",\n";
     oss << "    \"net_memory_usage\": " << snapshot.net_memory_usage << "\n";
+    oss << "  },\n";
+    
+    oss << "  \"filtering\": {\n";
+    oss << "    \"dropped_samples\": " << snapshot.dropped_samples << ",\n";
+    oss << "    \"derived_samples\": " << snapshot.derived_samples << ",\n";
+    oss << "    \"total_rule_check_time\": " << snapshot.total_rule_check_time << "\n";
     oss << "  }";
     
     if (config_.enable_timing) {

@@ -61,8 +61,8 @@ TEST_F(BlockManagementTest, BlockCreation) {
     auto create_result = block_manager_->createBlock(1000, 2000);
     ASSERT_TRUE(create_result.ok()) << "Failed to create block: " << create_result.error();
     
-    // Create block header
-    auto header = CreateTestBlockHeader(1000, 2000);
+    // Get block header
+    auto header = create_result.value();
     
     // Test block finalization
     auto finalize_result = block_manager_->finalizeBlock(header);
@@ -94,17 +94,8 @@ TEST_F(BlockManagementTest, BlockDataOperations) {
     auto create_result = block_manager_->createBlock(1000, 11000);
     ASSERT_TRUE(create_result.ok()) << "Failed to create block: " << create_result.error();
     
-    // Now we need to get the actual header that was created
-    // Since we can't easily get it from the BlockManager, let's create a header
-    // that matches what the BlockManager would create
-    internal::BlockHeader header;
-    header.magic = internal::BlockHeader::MAGIC;  // This should match what createBlock uses
-    header.version = internal::BlockHeader::VERSION;
-    header.start_time = 1000;
-    header.end_time = 11000;
-    header.flags = 0;
-    header.crc32 = 0;
-    header.reserved = 0;
+    // Get the actual header
+    auto header = create_result.value();
     
     // Write data to block
     auto write_result = block_manager_->writeData(header, data);
@@ -129,7 +120,7 @@ TEST_F(BlockManagementTest, BlockLifecycle) {
     auto create_result = block_manager_->createBlock(1000, 2000);
     ASSERT_TRUE(create_result.ok());
     
-    auto header = CreateTestBlockHeader(1000, 2000);
+    auto header = create_result.value();
     
     // Finalize block
     auto finalize_result = block_manager_->finalizeBlock(header);
@@ -181,19 +172,18 @@ TEST_F(BlockManagementTest, ConcurrentBlockOperations) {
                 int64_t start_time = 1000 + t * 1000 + i * 100;
                 int64_t end_time = start_time + 100;
                 
-                auto header = CreateTestBlockHeader(start_time, end_time);
-                
                 // Create block
                 auto create_result = block_manager_->createBlock(start_time, end_time);
                 if (create_result.ok()) {
                     success_count++;
-                }
-                
-                // Write some data
-                std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04};
-                auto write_result = block_manager_->writeData(header, data);
-                if (write_result.ok()) {
-                    success_count++;
+                    auto header = create_result.value();
+                    
+                    // Write some data
+                    std::vector<uint8_t> data = {0x01, 0x02, 0x03, 0x04};
+                    auto write_result = block_manager_->writeData(header, data);
+                    if (write_result.ok()) {
+                        success_count++;
+                    }
                 }
             }
         });
@@ -252,7 +242,7 @@ TEST_F(BlockManagementTest, BlockTimeRangeOperations) {
         auto create_result = block_manager_->createBlock(start, end);
         ASSERT_TRUE(create_result.ok()) << "Failed to create block for range " << start << "-" << end;
         
-        auto header = CreateTestBlockHeader(start, end);
+        auto header = create_result.value();
         EXPECT_EQ(header.start_time, start);
         EXPECT_EQ(header.end_time, end);
     }
@@ -277,7 +267,7 @@ TEST_F(BlockManagementTest, BlockStorageOperations) {
 TEST_F(BlockManagementTest, BlockErrorHandling) {
     // Test with invalid time ranges
     auto invalid_result = block_manager_->createBlock(2000, 1000); // End before start
-    EXPECT_TRUE(invalid_result.ok() || !invalid_result.ok()); // Should handle gracefully
+    EXPECT_TRUE(!invalid_result.ok()); // Should fail
     
     // Test with very large time ranges
     auto large_range_result = block_manager_->createBlock(0, INT64_MAX);

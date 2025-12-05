@@ -10,7 +10,7 @@ all: configure build
 BUILD_DIR := build
 
 # CMake configuration
-CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF
+CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON
 
 # Configure the project with CMake
 configure:

@@ -292,8 +292,11 @@ TEST_F(Phase1ObjectPoolIntegrationTest, MemoryAllocationEfficiency) {
     
     // Phase 1: Write operations to populate pools
     for (int i = 0; i < num_operations; ++i) {
+        if (i % 100 == 0) fprintf(stderr, "Operation %d start\n", i);
         auto series = createTestSeries("efficiency_test_" + std::to_string(i), samples_per_series);
+        if (i % 100 == 0) fprintf(stderr, "Operation %d series created\n", i);
         auto write_result = storage_->write(series);
+        if (i % 100 == 0) fprintf(stderr, "Operation %d write done\n", i);
         ASSERT_TRUE(write_result.ok()) << "Write failed for operation " << i;
     }
     

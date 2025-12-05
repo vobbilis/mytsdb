@@ -1,5 +1,7 @@
 #include "tsdb/prometheus/storage/tsdb_adapter.h"
 #include "tsdb/core/matcher.h"
+#include "tsdb/storage/read_performance_instrumentation.h"
+#include "tsdb/prometheus/promql/query_metrics.h"
 #include <regex>
 #include <iostream>
 #include <chrono>
@@ -37,7 +39,35 @@ promql::Matrix TSDBAdapter::SelectSeries(
     }
 
     // 2. Query storage (Pushdown all matchers!)
+    // Capture start stats
+    auto& perf = tsdb::storage::ReadPerformanceInstrumentation::instance();
+    auto start_stats = perf.get_stats();
+    
     auto result = storage_->query(core_matchers, start, end);
+    
+    // Capture end stats and record delta
+    auto end_stats = perf.get_stats();
+    
+    // Record storage metrics
+    uint64_t storage_time_ns = static_cast<uint64_t>((end_stats.total_time_us - start_stats.total_time_us) * 1000);
+    uint64_t samples_scanned = end_stats.total_samples_scanned - start_stats.total_samples_scanned;
+    uint64_t series_scanned = end_stats.total_blocks_accessed - start_stats.total_blocks_accessed; // Approximate series as blocks accessed for now
+    // Or better, use the result size as series count?
+    // The test expects series_scanned > 0.
+    // ReadPerformanceInstrumentation tracks blocks_accessed, not series scanned directly (though they are related).
+    // Let's use result.value().size() for series count if available.
+    
+    if (result.ok()) {
+        series_scanned = result.value().size();
+    }
+    
+    promql::QueryMetrics::GetInstance().RecordStorageRead(
+        storage_time_ns,
+        samples_scanned,
+        series_scanned,
+        0 // bytes scanned not tracked yet
+    );
+
     if (!result.ok()) {
         throw std::runtime_error("Storage query failed: " + result.error());
     }
@@ -112,8 +142,6 @@ promql::Matrix TSDBAdapter::SelectSeries(
 
     auto end_time = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time).count();
-
-
 
     return matrix;
 }
