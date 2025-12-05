@@ -412,6 +412,9 @@ The storage engine uses fine-grained sharding for critical write-path components
 -   **Hash Distribution**: Series are assigned to shards based on a hash of their labels/ID.
 -   **Independent Locking**: Each shard has its own mutex and file writer.
 -   **Benefit**: Reduces lock contention and decouples client latency from disk I/O.
+-   **Replay Safety**:
+    -   **Init Phase**: `replay_at_init()` runs lock-free to prevent deadlocks during single-threaded startup.
+    -   **Runtime Phase**: `replay_runtime()` acquires locks to prevent data races during hot restore.
 
 #### **Sharded Index**
 -   **16 Shards**: The In-Memory Index is partitioned into 16 shards.
