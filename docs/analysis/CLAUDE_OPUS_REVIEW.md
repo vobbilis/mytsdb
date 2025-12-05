@@ -450,7 +450,7 @@ std::string WorkingSetCache::stats() const {
 |-------|----------|--------|-------|
 | 1. Persisted blocks invisible | P0 | ⚠️ Acknowledged | Block catalog loading needed |
 | 2. Demotion never updates read path | P0 | ⚠️ Acknowledged | Metadata sync needed |
-| 3. PromQL cache ignores time bounds | P1 | ⚠️ Acknowledged | Cache key fix needed |
+| 3. PromQL cache ignores time bounds | P1 | ✅ **FIXED** | Time range now in cache key |
 | 4. Unbounded WAL queue | P1 | ⚠️ Acknowledged | Backpressure needed |
 | 5. Index never forgets deleted series | P2 | ⚠️ Acknowledged | Remove API needed |
 

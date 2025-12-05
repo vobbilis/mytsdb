@@ -161,7 +161,7 @@ std::string WorkingSetCache::stats() const {
 |---|-------|----------|--------|----------|
 | 1 | Persisted blocks invisible after WAL checkpoint | P0 | ⚠️ Pending | Requires block catalog at init |
 | 2 | Background demotion never updates read path | P0 | ⚠️ Pending | Metadata sync needed |
-| 3 | Range-query cache ignores time bounds | P1 | ⚠️ Pending | Cache key fix needed |
+| 3 | Range-query cache ignores time bounds | P1 | ✅ **FIXED** | Time range now in cache key |
 | 4 | Index never forgets deleted series | P2 | ⚠️ Pending | Remove API needed |
 | 5 | WAL shards unbounded queue | P1 | ⚠️ Pending | Backpressure needed |
 
