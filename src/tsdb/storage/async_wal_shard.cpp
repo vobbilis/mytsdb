@@ -35,7 +35,7 @@ core::Result<void> AsyncWALShard::log(const core::TimeSeries& series) {
 }
 
 core::Result<void> AsyncWALShard::replay(std::function<void(const core::TimeSeries&)> callback) {
-    return wal_->replay(callback);
+    return wal_->replay_at_init(callback);
 }
 
 core::Result<void> AsyncWALShard::checkpoint(int last_segment_to_keep) {

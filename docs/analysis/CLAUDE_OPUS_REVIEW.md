@@ -255,7 +255,9 @@ I have reviewed Claude Opus's analysis and cross-referenced it with the codebase
 
 1.  **Parquet Read Performance (O(N) Scan)**: Claude is **correct**. `ParquetBlock::read` performs a full scan of the file for every query, ignoring Parquet's row group skipping capabilities. This is a P1 performance issue.
 2.  **Series Class Conflation**: Claude is **correct**. The `Series` class mixes metadata and storage lifecycle, leading to unnecessary lock contention.
-3.  **WAL Replay Locking**: Claude is **correct** that the locking strategy is risky, though the impact is secondary to the fact that replay doesn't fully restore state (see below).
+3. - **[P1] WAL Replay Lock:** `WriteAheadLog::replay` called without lock in `init()`, but unsafe for runtime.
+    - **Fix:** Split into `replay_at_init()` (no lock) and `replay_runtime()` (with lock).
+    - **Status:** ✅ **FIXED**dary to the fact that replay doesn't fully restore state (see below).
 
 ## ❌ Corrections (Hallucinations)
 
