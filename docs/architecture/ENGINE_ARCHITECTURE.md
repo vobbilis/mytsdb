@@ -16,7 +16,7 @@ The query execution flow transforms a raw PromQL string into an optimized execut
 
 ```mermaid
 graph TD
-    A[Raw PromQL Query] -->|Lexer/Parser| B[Abstract Syntax Tree (AST)]
+    A[Raw PromQL Query] -->|Lexer/Parser| B["Abstract Syntax Tree (AST)"]
     B -->|Optimizer| C[Optimized Plan]
     C -->|Executor| D[Vectorized Execution]
     D -->|Storage Adapter| E[Data Retrieval]
