@@ -14,7 +14,7 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 ### Key Features
 
 - ✅ **Prometheus-Compatible** - Label-based time series identification
-- ✅ **PromQL Engine** - 100% complete (All functions, aggregation pushdown, 1000+ tests, **O(1) Cache Lookup**)
+- ✅ **PromQL Engine** - 100% complete (All functions, aggregation pushdown, 200+ tests, **O(1) Cache Lookup**)
 - ✅ **Write-Ahead Log (WAL)** - Crash recovery, durability, and **Safe Replay (Lock-free Init)**
 - ✅ **Inverted Index** - Fast label-based queries
 - ✅ **Multi-Tier Storage** - HOT/WARM/COLD tiers with automatic management
