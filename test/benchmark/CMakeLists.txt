@@ -125,4 +125,11 @@ target_link_libraries(scale_test PRIVATE
 )
 add_test(NAME benchmark_scale COMMAND scale_test)
 
+# PromQL Cache Performance
+add_executable(promql_cache_perf_bench promql_cache_benchmark.cpp)
+target_include_directories(promql_cache_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(promql_cache_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+add_test(NAME benchmark_promql_cache COMMAND promql_cache_perf_bench)
+
+
 
