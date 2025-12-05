@@ -75,11 +75,37 @@ Instead of processing one sample at a time, the engine operates on **Vectors** (
 The engine interacts with the storage layer through a strict interface, abstracting the underlying complexity of the Multi-Tier Storage (Hot/Warm/Cold).
 
 ### **Hybrid Query Path**
-The engine transparently merges data from all storage tiers:
+The engine transparently merges data from all storage tiers using a **Time-Ordered Scatter-Gather** approach:
 
-1.  **Hot Tier (L1 Cache/MemTable)**: Immediate access to the last 2 hours of data.
-2.  **Warm Tier (L2 Cache)**: Memory-mapped blocks for recent history (2h - 24h).
-3.  **Cold Tier (Parquet)**: Columnar storage for long-term history (>24h).
+1.  **Tiered Retrieval**:
+    *   **Hot Tier (L1 Cache/MemTable)**: Immediate access to the last 2 hours of data.
+    *   **Warm Tier (L2 Cache)**: Memory-mapped blocks for recent history (2h - 24h).
+    *   **Cold Tier (Parquet)**: Columnar storage for long-term history (>24h).
+
+2.  **Merging Strategy**:
+    *   The engine iterates through time-ordered blocks (`std::vector<Block>`).
+    *   **Sequential Merging**: Samples are read from each block and appended to the result vector.
+    *   **Time-Range Filtering**: Each block applies strict time-range predicates to return only relevant samples.
+    *   **Deduplication**: (Future) If blocks overlap, the engine prioritizes the "Hotter" tier (Last-Write-Wins).
+
+### **Parquet Storage Optimizations**
+The Cold Tier leverages advanced Parquet features to minimize I/O and maximize scan speed:
+
+1.  **Row Group Predicate Pushdown**:
+    *   Before reading heavy metric data, the engine scans **Row Group Tags**.
+    *   If a row group's tags do not match the query matchers (e.g., `host="server1"`), the **entire row group is skipped**.
+    *   **Benefit**: Reduces I/O by 90%+ for selective queries.
+
+2.  **Vectorized Batch Reading**:
+    *   Data is read in **Arrow RecordBatches** (e.g., 4096 rows at a time) rather than row-by-row.
+    *   This enables CPU-efficient processing and zero-copy integration with the query engine.
+
+3.  **Dictionary Encoding**:
+    *   High-cardinality string labels (e.g., `pod_name`) are dictionary-encoded.
+    *   **Benefit**: Reduces storage size and speeds up string comparisons during filtering.
+
+4.  **Columnar Projection**:
+    *   The reader extracts only the necessary columns (Timestamp, Value, Tags), skipping unused metadata columns.
 
 ### **WAL Safety & Recovery**
 The engine ensures data consistency during startup and runtime:
