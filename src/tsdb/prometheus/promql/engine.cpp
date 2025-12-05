@@ -30,41 +30,52 @@ public:
         promql::Matrix data;
     };
 
-    // Generate cache key that includes time range to prevent overwrites from disjoint ranges
-    std::string MakeCacheKey(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, 
-                             int64_t start, int64_t end) {
-        // Include time range in key to prevent cache corruption from disjoint time ranges
-        return SerializeMatchers(matchers) + "|" + std::to_string(start) + ":" + std::to_string(end);
-    }
-
     // Find any cached entry that fully covers the requested range
+    // Optimized: O(1) matcher lookup + O(m) time range search where m = entries per matcher
+    // Instead of O(n) scan over all entries
     std::pair<bool, promql::Matrix*> FindCoveringEntry(
         const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers,
         int64_t start, int64_t end) {
         
-        std::string matcher_prefix = SerializeMatchers(matchers) + "|";
+        std::string matcher_key = SerializeMatchers(matchers);
         
-        // Search for any entry with matching matchers that covers the requested range
-        for (auto& [key, entry] : cache_) {
-            if (key.rfind(matcher_prefix, 0) == 0) {  // Key starts with matcher_prefix
-                if (entry.start <= start && entry.end >= end) {
-                    return {true, &entry.data};
-                }
+        // O(1) lookup by matcher key
+        auto it = cache_.find(matcher_key);
+        if (it == cache_.end()) {
+            return {false, nullptr};
+        }
+        
+        // O(m) search through time range entries for this matcher
+        for (auto& entry : it->second) {
+            if (entry.start <= start && entry.end >= end) {
+                return {true, &entry.data};
             }
         }
         return {false, nullptr};
     }
 
     void Buffer(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) {
-        // Check if we already have a covering entry (with any time range that covers this)
+        // Check if we already have a covering entry
         auto [found, _] = FindCoveringEntry(matchers, start, end);
         if (found) {
             return;  // Already covered
         }
         
-        // Store with time-range-specific key
-        std::string key = MakeCacheKey(matchers, start, end);
-        cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
+        std::string matcher_key = SerializeMatchers(matchers);
+        
+        // Check if new range is a superset of any existing entries (can replace them)
+        auto& entries = cache_[matcher_key];
+        
+        // Remove entries that are subsets of the new range (optimization)
+        entries.erase(
+            std::remove_if(entries.begin(), entries.end(),
+                [start, end](const CacheEntry& e) {
+                    return start <= e.start && end >= e.end;
+                }),
+            entries.end());
+        
+        // Add new entry
+        entries.push_back({start, end, underlying_->SelectSeries(matchers, start, end)});
     }
 
     promql::Matrix SelectSeries(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) override {
@@ -113,9 +124,21 @@ public:
     std::vector<std::string> LabelNames() override { return underlying_->LabelNames(); }
     std::vector<std::string> LabelValues(const std::string& name) override { return underlying_->LabelValues(name); }
 
+    // Get cache statistics for debugging/monitoring
+    std::pair<size_t, size_t> CacheStats() const {
+        size_t matcher_count = cache_.size();
+        size_t total_entries = 0;
+        for (const auto& [_, entries] : cache_) {
+            total_entries += entries.size();
+        }
+        return {matcher_count, total_entries};
+    }
+
 private:
     tsdb::prometheus::storage::StorageAdapter* underlying_;
-    std::map<std::string, CacheEntry> cache_;
+    // Two-level structure: matcher_key -> vector of time-range entries
+    // O(1) matcher lookup + O(m) time range search instead of O(n) full scan
+    std::map<std::string, std::vector<CacheEntry>> cache_;
 };
 
 struct SelectorContext {
