@@ -30,66 +30,73 @@ public:
         promql::Matrix data;
     };
 
-    void Buffer(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) {
-        std::string key = SerializeMatchers(matchers);
-        auto it = cache_.find(key);
-        if (it == cache_.end()) {
-            // New entry
-            cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
-        } else {
-            // Existing entry. Check if we need to expand or replace.
-            // For simplicity and correctness, if the new range is not covered by existing,
-            // we fetch the new range. If the new range is a superset, we replace.
-            // If disjoint or partial overlap, we could merge, but replacing is safer/easier.
-            // Ideally, we want to keep the superset.
-            
-            bool covered = (it->second.start <= start && it->second.end >= end);
-            if (!covered) {
-                // Not covered. Fetch new data.
-                // Optimization: If new range covers old range, replace.
-                // If disjoint, we might overwrite and lose old data (performance penalty, but correct).
-                // To avoid losing data for disjoint ranges in the same query, we would need a list of entries.
-                // But for now, let's just overwrite to ensure correctness for the superset case.
-                cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
+    // Generate cache key that includes time range to prevent overwrites from disjoint ranges
+    std::string MakeCacheKey(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, 
+                             int64_t start, int64_t end) {
+        // Include time range in key to prevent cache corruption from disjoint time ranges
+        return SerializeMatchers(matchers) + "|" + std::to_string(start) + ":" + std::to_string(end);
+    }
+
+    // Find any cached entry that fully covers the requested range
+    std::pair<bool, promql::Matrix*> FindCoveringEntry(
+        const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers,
+        int64_t start, int64_t end) {
+        
+        std::string matcher_prefix = SerializeMatchers(matchers) + "|";
+        
+        // Search for any entry with matching matchers that covers the requested range
+        for (auto& [key, entry] : cache_) {
+            if (key.rfind(matcher_prefix, 0) == 0) {  // Key starts with matcher_prefix
+                if (entry.start <= start && entry.end >= end) {
+                    return {true, &entry.data};
+                }
             }
         }
+        return {false, nullptr};
+    }
+
+    void Buffer(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) {
+        // Check if we already have a covering entry (with any time range that covers this)
+        auto [found, _] = FindCoveringEntry(matchers, start, end);
+        if (found) {
+            return;  // Already covered
+        }
+        
+        // Store with time-range-specific key
+        std::string key = MakeCacheKey(matchers, start, end);
+        cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
     }
 
     promql::Matrix SelectSeries(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) override {
-        std::string key = SerializeMatchers(matchers);
-        auto it = cache_.find(key);
-        if (it != cache_.end()) {
-            // Check coverage
-            if (it->second.start <= start && it->second.end >= end) {
-                // Filter from cache
-                promql::Matrix result;
-                result.reserve(it->second.data.size());
+        // Look for any cached entry that covers the requested range
+        auto [found, data_ptr] = FindCoveringEntry(matchers, start, end);
+        if (found && data_ptr) {
+            // Filter from cache
+            promql::Matrix result;
+            result.reserve(data_ptr->size());
+            
+            for (const auto& series : *data_ptr) {
+                Series s;
+                s.metric = series.metric;
+                s.samples.reserve(series.samples.size());
                 
-                for (const auto& series : it->second.data) {
-                    // Series in cache matches matchers.
-                    // We just need to filter samples by time.
-                    Series s;
-                    s.metric = series.metric;
-                    s.samples.reserve(series.samples.size()); // Upper bound
-                    
-                    // Optimize: Use binary search to find the start sample
-                    auto it_start = std::lower_bound(series.samples.begin(), series.samples.end(), start,
-                        [](const tsdb::prometheus::Sample& sample, int64_t t) {
-                            return sample.timestamp() < t;
-                        });
-                    
-                    for (auto it_samp = it_start; it_samp != series.samples.end(); ++it_samp) {
-                        if (it_samp->timestamp() > end) {
-                            break;
-                        }
-                        s.samples.push_back(*it_samp);
+                // Use binary search to find the start sample
+                auto it_start = std::lower_bound(series.samples.begin(), series.samples.end(), start,
+                    [](const tsdb::prometheus::Sample& sample, int64_t t) {
+                        return sample.timestamp() < t;
+                    });
+                
+                for (auto it_samp = it_start; it_samp != series.samples.end(); ++it_samp) {
+                    if (it_samp->timestamp() > end) {
+                        break;
                     }
-                    if (!s.samples.empty()) {
-                        result.push_back(std::move(s));
-                    }
+                    s.samples.push_back(*it_samp);
                 }
-                return result;
+                if (!s.samples.empty()) {
+                    result.push_back(std::move(s));
+                }
             }
+            return result;
         }
         // Fallback
         return underlying_->SelectSeries(matchers, start, end);
