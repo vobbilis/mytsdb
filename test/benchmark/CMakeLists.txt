@@ -58,7 +58,7 @@ target_include_directories(new_vs_update_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/
 target_link_libraries(new_vs_update_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
 
 # OTEL gRPC Write Performance Benchmark (only if gRPC is available)
-if(HAVE_GRPC)
+if(HAVE_GRPC AND ENABLE_OTEL)
     add_executable(otel_write_perf_bench otel_write_performance_benchmark.cpp)
     target_include_directories(otel_write_perf_bench PRIVATE 
         ${CMAKE_SOURCE_DIR}/src 
@@ -87,3 +87,42 @@ add_test(NAME benchmark_mixed COMMAND mixed_perf_bench)
 add_test(NAME benchmark_latency COMMAND latency_perf_bench)
 add_test(NAME benchmark_concurrency COMMAND concurrency_perf_bench)
 add_test(NAME benchmark_new_vs_update COMMAND new_vs_update_perf_bench)
+
+# Parquet Performance
+if(HAVE_ARROW AND HAVE_PARQUET)
+    add_executable(parquet_perf_bench parquet/parquet_benchmark.cpp)
+    target_include_directories(parquet_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(parquet_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest Arrow::arrow_shared Parquet::parquet_shared)
+    add_test(NAME benchmark_parquet COMMAND parquet_perf_bench)
+
+    add_executable(parquet_high_cardinality_bench parquet_high_cardinality_benchmark.cpp)
+    target_include_directories(parquet_high_cardinality_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(parquet_high_cardinality_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest Arrow::arrow_shared Parquet::parquet_shared)
+    add_test(NAME benchmark_parquet_high_cardinality COMMAND parquet_high_cardinality_bench)
+endif()
+
+# Rule Manager Performance
+add_executable(rule_manager_perf_bench rule_manager_benchmark.cpp)
+target_include_directories(rule_manager_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(rule_manager_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+add_test(NAME benchmark_rule_manager COMMAND rule_manager_perf_bench)
+
+# Filtering Storage Performance
+add_executable(filtering_storage_perf_bench filtering_storage_benchmark.cpp)
+target_include_directories(filtering_storage_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(filtering_storage_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
+add_test(NAME benchmark_filtering_storage COMMAND filtering_storage_perf_bench)
+
+# Scale Test
+add_executable(scale_test ../load/scale_test.cpp)
+target_include_directories(scale_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(scale_test PRIVATE
+    tsdb_test_common
+    tsdb_lib
+    benchmark::benchmark
+    benchmark::benchmark_main
+    GTest::gtest
+)
+add_test(NAME benchmark_scale COMMAND scale_test)
+
+

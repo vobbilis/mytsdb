@@ -17,6 +17,7 @@ namespace storage {
 class Index {
 public:
     core::Result<void> add_series(core::SeriesID id, const core::Labels& labels);
+    core::Result<void> remove_series(core::SeriesID id);
     core::Result<std::vector<core::SeriesID>> find_series(const std::vector<core::LabelMatcher>& matchers);
     core::Result<core::Labels> get_labels(core::SeriesID id);
 

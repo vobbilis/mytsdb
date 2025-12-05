@@ -1,0 +1,31 @@
+# Build directories
+build/
+cmake-build-*/
+bin/
+lib/
+
+# Version control
+.git/
+.gitignore
+
+# IDE settings
+.vscode/
+.idea/
+.cursor/
+.qodo/
+
+# Deployment artifacts
+deployments/kubernetes/kind/kubeconfig
+
+# Temporary files
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test results
+test_results/
+harness_output.log
+
+# Local configuration
+.env

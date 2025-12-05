@@ -24,6 +24,42 @@ core::Result<void> Index::add_series(core::SeriesID id, const core::Labels& labe
     return core::Result<void>();
 }
 
+core::Result<void> Index::remove_series(core::SeriesID id) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    
+    // 1. Find labels for the series
+    auto it = series_labels_.find(id);
+    if (it == series_labels_.end()) {
+        // Series not found, nothing to do
+        return core::Result<void>();
+    }
+    
+    const auto& labels = it->second;
+    
+    // 2. Remove from inverted index
+    for (const auto& [key, value] : labels.map()) {
+        auto label_pair = std::make_pair(key, value);
+        auto& posting_list = postings_[label_pair];
+        
+        // Remove id from posting list
+        // Note: vector erase is O(N), but posting lists shouldn't be massive for high cardinality
+        // If they are, we might need a better structure (e.g. Roaring Bitmap)
+        auto pit = std::remove(posting_list.begin(), posting_list.end(), id);
+        if (pit != posting_list.end()) {
+            posting_list.erase(pit, posting_list.end());
+        }
+        
+        // Clean up empty posting lists?
+        if (posting_list.empty()) {
+            postings_.erase(label_pair);
+        }
+    }
+    
+    // 3. Remove from forward index
+    series_labels_.erase(it);
+    
+    return core::Result<void>();
+}
 core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<core::LabelMatcher>& matchers) {
     std::shared_lock<std::shared_mutex> lock(mutex_);
     

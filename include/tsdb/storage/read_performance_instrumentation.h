@@ -126,10 +126,15 @@ public:
         : output_us_(output_us), enabled_(enabled), start_(std::chrono::high_resolution_clock::now()) {}
     
     ~ReadScopedTimer() {
-        if (enabled_) {
+        stop();
+    }
+
+    void stop() {
+        if (enabled_ && !stopped_) {
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start_);
             output_us_ += duration.count() / 1000.0;  // Add to existing value
+            stopped_ = true;
         }
     }
     
@@ -137,6 +142,7 @@ private:
     double& output_us_;
     bool enabled_;
     std::chrono::high_resolution_clock::time_point start_;
+    bool stopped_ = false;
 };
 
 } // namespace storage

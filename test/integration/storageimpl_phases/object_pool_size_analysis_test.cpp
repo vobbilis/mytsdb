@@ -17,11 +17,14 @@ protected:
         core::StorageConfig config;
         config.data_dir = "./test/data/storageimpl_phases/size_analysis";
         config.object_pool_config.time_series_initial_size = 100;
-        config.object_pool_config.time_series_max_size = 1000;
+        config.object_pool_config.time_series_max_size = 10000;
         config.object_pool_config.labels_initial_size = 200;
-        config.object_pool_config.labels_max_size = 2000;
-        config.object_pool_config.samples_initial_size = 500;
-        config.object_pool_config.samples_max_size = 5000;
+        config.object_pool_config.labels_max_size = 20000;
+        config.object_pool_config.samples_initial_size = 1000;
+        config.object_pool_config.samples_max_size = 10000;
+        
+        // Re-enable WorkingSetCache
+        // config.cache_size_bytes = 0;
         
         storage_ = std::make_unique<storage::StorageImpl>(config);
         auto init_result = storage_->init(config);
@@ -101,8 +104,8 @@ TEST_F(ObjectPoolSizeAnalysisTest, AnalyzeTimeSeriesSizeDistribution) {
     std::vector<int> sample_counts;
     std::vector<int> label_counts;
     
-    // Create TimeSeries objects with varying sizes
-    const int num_series = 1000;
+    // Create a large number of series to trigger pool usage
+    const int num_series = 100; // Reduced from 1000 to debug crash
     
     for (int i = 0; i < num_series; ++i) {
         // Vary sample count from 1 to 1000

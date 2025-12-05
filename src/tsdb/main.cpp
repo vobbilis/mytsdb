@@ -19,7 +19,7 @@
 #include "tsdb/prometheus/auth/no_auth.h"
 #include "tsdb/server/self_monitor.h"
 
-#ifdef HAVE_GRPC
+#if defined(HAVE_GRPC) && defined(ENABLE_OTEL)
 #include "tsdb/otel/bridge.h"
 #include "tsdb/otel/query_service.h"
 #include "proto/gen/tsdb.grpc.pb.h"
@@ -27,14 +27,19 @@
 #include <grpcpp/server_builder.h>
 #endif
 
-namespace {
-std::atomic<bool> g_running{true};
+#include "tsdb/storage/filtering_storage.h"
+#include "tsdb/storage/rule_manager.h"
+#include "tsdb/storage/derived_metrics.h"
+
+// Global flag for shutdown
+std::atomic<bool> g_running(true);
 
 void SignalHandler(int signal) {
-    std::cout << "Received signal " << signal << ", shutting down..." << std::endl;
-    g_running.store(false);
+    if (signal == SIGINT || signal == SIGTERM) {
+        std::cout << "Received signal " << signal << ", shutting down..." << std::endl;
+        g_running.store(false);
+    }
 }
-}  // namespace
 
 namespace tsdb {
 
@@ -52,7 +57,20 @@ public:
         config.block_size = 1024 * 1024;  // 1MB
         config.enable_compression = true;
         
-        storage_ = std::make_shared<storage::StorageImpl>();
+        // 1. Create Base Storage (StorageImpl)
+        auto base_storage = std::make_shared<storage::StorageImpl>();
+        
+        // 2. Create Rule Manager
+        rule_manager_ = std::make_shared<storage::RuleManager>();
+        
+        // 3. Create Filtering Storage (Decorator)
+        filtering_storage_ = std::make_shared<storage::FilteringStorage>(
+            std::static_pointer_cast<storage::Storage>(base_storage), 
+            rule_manager_);
+        
+        // 4. Assign to main storage interface
+        storage_ = filtering_storage_;
+        
         auto init_result = storage_->init(config);
         if (!init_result.ok()) {
             std::cerr << "Failed to initialize storage: " << init_result.error() << std::endl;
@@ -152,6 +170,49 @@ public:
                 res = labels_handler_->GetSeries(matchers, params).ToJSON();
             });
             
+            // --- New API Endpoints for Filtering ---
+            
+            // POST /api/v1/config/drop-rules
+            http_server_->RegisterHandler("/api/v1/config/drop-rules", [this](const prometheus::Request& req, std::string& res) {
+                if (req.method != "POST") {
+                    res = "{\"status\":\"error\",\"error\":\"Method not allowed\"}";
+                    return;
+                }
+                // Simple payload: {"selector": "up{env='dev'}"}
+                // For now, just assume body IS the selector for simplicity or parse JSON if we had a parser handy.
+                // Let's assume the body contains the selector string directly for this MVP.
+                std::string selector = req.body;
+                if (selector.empty()) {
+                    res = "{\"status\":\"error\",\"error\":\"Empty selector\"}";
+                    return;
+                }
+                rule_manager_->add_drop_rule(selector);
+                res = "{\"status\":\"success\"}";
+            });
+            
+            // POST /api/v1/config/derived-metrics
+            http_server_->RegisterHandler("/api/v1/config/derived-metrics", [this](const prometheus::Request& req, std::string& res) {
+                if (req.method != "POST") {
+                    res = "{\"status\":\"error\",\"error\":\"Method not allowed\"}";
+                    return;
+                }
+                // Payload: name|query|interval_ms
+                // Very simple parsing for MVP
+                std::string body = req.body;
+                size_t p1 = body.find('|');
+                size_t p2 = body.find('|', p1 + 1);
+                if (p1 == std::string::npos || p2 == std::string::npos) {
+                    res = "{\"status\":\"error\",\"error\":\"Invalid format. Expected: name|query|interval_ms\"}";
+                    return;
+                }
+                std::string name = body.substr(0, p1);
+                std::string query = body.substr(p1 + 1, p2 - p1 - 1);
+                int64_t interval = std::stoll(body.substr(p2 + 1));
+                
+                derived_metric_manager_->add_rule(name, query, interval);
+                res = "{\"status\":\"success\"}";
+            });
+            
             http_server_->Start();
             std::cout << "Prometheus HTTP server listening on port " << http_port_ << std::endl;
             
@@ -160,7 +221,7 @@ public:
             return false;
         }
 
-#ifdef HAVE_GRPC
+#if defined(HAVE_GRPC) && defined(ENABLE_OTEL)
         // Start gRPC server
         grpc::ServerBuilder builder;
         
@@ -188,17 +249,23 @@ public:
         std::cout << "gRPC server listening on " << address_ << std::endl;
         std::cout << "OTEL metrics endpoint: " << address_ << std::endl;
 #else
-        std::cout << "TSDB server started (gRPC support not available)" << std::endl;
+        std::cout << "TSDB server started (gRPC/OTEL support not available)" << std::endl;
 #endif
         
         // Start self-monitoring
         std::cout << "[Main] Initializing self-monitoring..." << std::endl;
-        auto bg_processor = std::dynamic_pointer_cast<storage::StorageImpl>(storage_)->GetBackgroundProcessor();
+        auto bg_processor = base_storage->GetBackgroundProcessor();
         if (bg_processor) {
             std::cout << "[Main] Background processor obtained successfully" << std::endl;
             self_monitor_ = std::make_unique<server::SelfMonitor>(storage_, bg_processor);
             self_monitor_->Start();
             std::cout << "[Main] Self-monitoring started" << std::endl;
+            
+            // Initialize Derived Metric Manager
+            derived_metric_manager_ = std::make_unique<storage::DerivedMetricManager>(storage_, bg_processor);
+            derived_metric_manager_->start();
+            std::cout << "[Main] Derived Metric Manager started" << std::endl;
+            
         } else {
             std::cerr << "[Main] ERROR: Failed to get background processor!" << std::endl;
         }
@@ -208,6 +275,11 @@ public:
 
     void Stop() {
         shutdown_.store(true);
+        
+        if (derived_metric_manager_) {
+            std::cout << "Stopping derived metric manager..." << std::endl;
+            derived_metric_manager_->stop();
+        }
         
         if (self_monitor_) {
             std::cout << "Stopping self-monitor..." << std::endl;
@@ -219,7 +291,7 @@ public:
             http_server_->Stop();
         }
 
-#ifdef HAVE_GRPC
+#if defined(HAVE_GRPC) && defined(ENABLE_OTEL)
         // Shutdown gRPC server gracefully
         if (grpc_server_) {
             std::cout << "Shutting down gRPC server..." << std::endl;
@@ -272,7 +344,12 @@ private:
     std::unique_ptr<prometheus::api::QueryHandler> query_handler_;
     std::unique_ptr<prometheus::api::LabelsHandler> labels_handler_;
     
-#ifdef HAVE_GRPC
+    // New Components
+    std::shared_ptr<storage::RuleManager> rule_manager_;
+    std::shared_ptr<storage::FilteringStorage> filtering_storage_;
+    std::unique_ptr<storage::DerivedMetricManager> derived_metric_manager_;
+    
+#if defined(HAVE_GRPC) && defined(ENABLE_OTEL)
         std::unique_ptr<grpc::Server> grpc_server_;
         std::unique_ptr<otel::MetricsService> metrics_service_;
         std::unique_ptr<otel::QueryService> query_service_;

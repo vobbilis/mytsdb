@@ -181,8 +181,16 @@ TEST_F(Phase2BlockManagementIntegrationTest, BlockCreationAndLifecycle) {
     std::cout << "storage_.reset() complete" << std::endl;
     
     // Verify block files were created
-    EXPECT_TRUE(verifyBlockFilesExist()) << "No block files found after write";
+    std::cout << "Verifying block files..." << std::endl;
+    bool blocks_exist = verifyBlockFilesExist();
+    std::cout << "Block files exist: " << blocks_exist << std::endl;
+    EXPECT_TRUE(blocks_exist) << "No block files found after write";
     
+    // Re-initialize storage to read back data
+    storage_ = std::make_unique<storage::StorageImpl>(config_);
+    auto init_result = storage_->init(config_);
+    ASSERT_TRUE(init_result.ok()) << "Storage re-initialization failed: " << init_result.error();
+
     // Read back the data to verify block functionality
     auto read_result = storage_->read(series.labels(), 0, LLONG_MAX);
     ASSERT_TRUE(read_result.ok()) << "Read failed: " << read_result.error();

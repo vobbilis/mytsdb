@@ -40,6 +40,7 @@
 #include <filesystem>
 #include <thread>
 #include <chrono>
+#include "tsdb/common/logger.h"
 
 namespace tsdb {
 namespace storage {
@@ -677,15 +678,19 @@ bool CacheHierarchy::is_background_processing_running() const {
  * for coordination with the main thread.
  */
 void CacheHierarchy::background_processing_loop() {
-    while (background_running_.load(std::memory_order_acquire)) {
+    fprintf(stderr, "CacheHierarchy::background_processing_loop - Started\n");
+    while (true) {
+        // Check if we should continue before performing maintenance
+        if (!background_running_.load(std::memory_order_acquire)) {
+            break;
+        }
+        
         try {
-            // Check again before performing maintenance to avoid accessing destroyed objects
-            if (!background_running_.load(std::memory_order_acquire)) {
-                break;
-            }
             perform_maintenance();
+        } catch (const std::exception& e) {
+            TSDB_ERROR("Error in background maintenance: " + std::string(e.what()));
         } catch (...) {
-            // Ignore exceptions during maintenance to prevent crashes
+            TSDB_ERROR("Unknown error in background maintenance");
         }
         
         // Check if we should continue before sleeping
@@ -703,6 +708,7 @@ void CacheHierarchy::background_processing_loop() {
             elapsed += check_interval;
         }
     }
+    fprintf(stderr, "CacheHierarchy::background_processing_loop - Stopped\n");
 }
 
 /**
@@ -726,43 +732,21 @@ void CacheHierarchy::background_processing_loop() {
  * statistics updates.
  */
 void CacheHierarchy::perform_maintenance() {
-    // Check if we should continue before accessing caches
-    if (!background_running_.load(std::memory_order_acquire)) {
-        return;
-    }
-    
-    // Safely get all series IDs from L1 and L2
-    if (!l1_cache_) {
-        return; // Cache not initialized
-    }
-    
+    fprintf(stderr, "CacheHierarchy::perform_maintenance - Starting\n");
+    // Get all keys from L1
     std::vector<core::SeriesID> l1_series_ids;
-    std::vector<core::SeriesID> l2_series_ids;
-    
-    try {
-        // Check again before accessing cache
-        if (!background_running_.load(std::memory_order_acquire)) {
-            return;
-        }
+    if (l1_cache_) {
         l1_series_ids = l1_cache_->get_all_series_ids();
-    } catch (...) {
-        // Ignore exceptions when getting L1 series IDs
-        return;
     }
     
+    // Get all keys from L2
+    std::vector<core::SeriesID> l2_series_ids;
     if (l2_cache_) {
-        try {
-            // Check again before accessing cache
-            if (!background_running_.load(std::memory_order_acquire)) {
-                return;
-            }
-            l2_series_ids = l2_cache_->get_all_series_ids();
-        } catch (...) {
-            // Ignore exceptions when getting L2 series IDs
-        }
+        l2_series_ids = l2_cache_->get_all_series_ids();
     }
     
     // Check for promotions from L2 to L1
+    fprintf(stderr, "CacheHierarchy::perform_maintenance - Checking promotions\n");
     for (const auto& series_id : l2_series_ids) {
         // Check if we should continue before each operation
         if (!background_running_.load(std::memory_order_acquire)) {
@@ -778,6 +762,7 @@ void CacheHierarchy::perform_maintenance() {
     }
     
     // Check for demotions from L1 to L2
+    fprintf(stderr, "CacheHierarchy::perform_maintenance - Checking L1->L2 demotions\n");
     for (const auto& series_id : l1_series_ids) {
         // Check if we should continue before each operation
         if (!background_running_.load(std::memory_order_acquire)) {
@@ -793,6 +778,7 @@ void CacheHierarchy::perform_maintenance() {
     }
     
     // Check for demotions from L2 to L3
+    fprintf(stderr, "CacheHierarchy::perform_maintenance - Checking L2->L3 demotions\n");
     for (const auto& series_id : l2_series_ids) {
         // Check if we should continue before each operation
         if (!background_running_.load(std::memory_order_acquire)) {
@@ -806,6 +792,7 @@ void CacheHierarchy::perform_maintenance() {
             // Ignore exceptions during demotion
         }
     }
+    fprintf(stderr, "CacheHierarchy::perform_maintenance - Completed\n");
 }
 
 /**

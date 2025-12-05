@@ -61,11 +61,9 @@ TEST_F(ComprehensivePromQLTest, AggregationCount) {
     ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
     auto vector = result.getVector();
     ASSERT_EQ(vector.size(), 1);
-    // We expect 1000 series (50 nodes * 20 pods)
-    // But generator creates pods dynamically, roughly 1000.
-    // In BasicSelector test we saw 998 or 1000.
-    EXPECT_GE(vector[0].value, 900); 
-    EXPECT_LE(vector[0].value, 1100);
+    // We generate 200 series (40 pods × 5 services)
+    EXPECT_GE(vector[0].value, 180); 
+    EXPECT_LE(vector[0].value, 220);
 }
 
 // 6. Grouping: BY (service)

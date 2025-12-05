@@ -24,11 +24,34 @@ class BufferedStorageAdapter : public tsdb::prometheus::storage::StorageAdapter 
 public:
     BufferedStorageAdapter(tsdb::prometheus::storage::StorageAdapter* underlying) : underlying_(underlying) {}
 
+    struct CacheEntry {
+        int64_t start;
+        int64_t end;
+        promql::Matrix data;
+    };
+
     void Buffer(const std::vector<tsdb::prometheus::model::LabelMatcher>& matchers, int64_t start, int64_t end) {
         std::string key = SerializeMatchers(matchers);
-        if (cache_.find(key) == cache_.end()) {
-            // Fetch from underlying
-            cache_[key] = underlying_->SelectSeries(matchers, start, end);
+        auto it = cache_.find(key);
+        if (it == cache_.end()) {
+            // New entry
+            cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
+        } else {
+            // Existing entry. Check if we need to expand or replace.
+            // For simplicity and correctness, if the new range is not covered by existing,
+            // we fetch the new range. If the new range is a superset, we replace.
+            // If disjoint or partial overlap, we could merge, but replacing is safer/easier.
+            // Ideally, we want to keep the superset.
+            
+            bool covered = (it->second.start <= start && it->second.end >= end);
+            if (!covered) {
+                // Not covered. Fetch new data.
+                // Optimization: If new range covers old range, replace.
+                // If disjoint, we might overwrite and lose old data (performance penalty, but correct).
+                // To avoid losing data for disjoint ranges in the same query, we would need a list of entries.
+                // But for now, let's just overwrite to ensure correctness for the superset case.
+                cache_[key] = {start, end, underlying_->SelectSeries(matchers, start, end)};
+            }
         }
     }
 
@@ -36,34 +59,37 @@ public:
         std::string key = SerializeMatchers(matchers);
         auto it = cache_.find(key);
         if (it != cache_.end()) {
-            // Filter from cache
-            promql::Matrix result;
-            result.reserve(it->second.size());
-            
-            for (const auto& series : it->second) {
-                // Series in cache matches matchers.
-                // We just need to filter samples by time.
-                Series s;
-                s.metric = series.metric;
-                s.samples.reserve(series.samples.size()); // Upper bound
+            // Check coverage
+            if (it->second.start <= start && it->second.end >= end) {
+                // Filter from cache
+                promql::Matrix result;
+                result.reserve(it->second.data.size());
                 
-                // Optimize: Use binary search to find the start sample
-                auto it_start = std::lower_bound(series.samples.begin(), series.samples.end(), start,
-                    [](const tsdb::prometheus::Sample& sample, int64_t t) {
-                        return sample.timestamp() < t;
-                    });
-                
-                for (auto it = it_start; it != series.samples.end(); ++it) {
-                    if (it->timestamp() > end) {
-                        break;
+                for (const auto& series : it->second.data) {
+                    // Series in cache matches matchers.
+                    // We just need to filter samples by time.
+                    Series s;
+                    s.metric = series.metric;
+                    s.samples.reserve(series.samples.size()); // Upper bound
+                    
+                    // Optimize: Use binary search to find the start sample
+                    auto it_start = std::lower_bound(series.samples.begin(), series.samples.end(), start,
+                        [](const tsdb::prometheus::Sample& sample, int64_t t) {
+                            return sample.timestamp() < t;
+                        });
+                    
+                    for (auto it_samp = it_start; it_samp != series.samples.end(); ++it_samp) {
+                        if (it_samp->timestamp() > end) {
+                            break;
+                        }
+                        s.samples.push_back(*it_samp);
                     }
-                    s.samples.push_back(*it);
+                    if (!s.samples.empty()) {
+                        result.push_back(std::move(s));
+                    }
                 }
-                if (!s.samples.empty()) {
-                    result.push_back(std::move(s));
-                }
+                return result;
             }
-            return result;
         }
         // Fallback
         return underlying_->SelectSeries(matchers, start, end);
@@ -82,7 +108,7 @@ public:
 
 private:
     tsdb::prometheus::storage::StorageAdapter* underlying_;
-    std::map<std::string, promql::Matrix> cache_;
+    std::map<std::string, CacheEntry> cache_;
 };
 
 struct SelectorContext {
@@ -225,7 +251,22 @@ QueryResult Engine::ExecuteRange(const std::string& query, int64_t start, int64_
             }
             fetch_start -= lookback;
             
-            bufferedAdapter.Buffer(ctx.node->matchers(), fetch_start, fetch_end);
+            // Construct full matchers (include __name__ if present)
+            std::vector<tsdb::prometheus::model::LabelMatcher> matchers = ctx.node->matchers();
+            if (!ctx.node->name.empty()) {
+                bool found = false;
+                for (const auto& m : matchers) {
+                    if (m.name == "__name__") {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    matchers.emplace_back(tsdb::prometheus::model::MatcherType::EQUAL, "__name__", ctx.node->name);
+                }
+            }
+
+            bufferedAdapter.Buffer(matchers, fetch_start, fetch_end);
         }
 
         // Map to aggregate series by labels

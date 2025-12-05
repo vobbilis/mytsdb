@@ -73,43 +73,36 @@ std::string LabelQueryResult::ToJSON() const {
 }
 
 LabelsHandler::LabelsHandler(const std::shared_ptr<Storage>& storage)
-    : storage_(storage) {}
+    : storage_(storage) {
+    if (!storage_) {
+        std::cerr << "LabelsHandler initialized with null storage!" << std::endl;
+    }
+}
 
 LabelQueryResult LabelsHandler::GetLabels(const LabelQueryParams& params) {
-    std::cout << "LabelsHandler::GetLabels called" << std::endl;
     // Validate parameters
-    std::cout << "About to call params.Validate()" << std::endl;
-    bool is_valid = params.Validate();
-    std::cout << "params.Validate() returned: " << is_valid << std::endl;
-    if (!is_valid) {
-        std::cout << "Validation failed" << std::endl;
+    if (!params.Validate()) {
         return CreateErrorResponse("invalid_parameters",
                                  "Invalid query parameters");
     }
-    std::cout << "Validation passed, calling storage->label_names()" << std::endl;
     
+    if (!storage_) {
+        return CreateErrorResponse("internal_error", "Storage not initialized");
+    }
+
     try {
         auto result = storage_->label_names();
-        std::cout << "storage->label_names() returned" << std::endl;
-        std::cout << "About to call result.ok()" << std::endl;
-        bool ok = result.ok();
-        std::cout << "result.ok() returned: " << ok << std::endl;
-        if (!ok) {
+        if (!result.ok()) {
             return CreateErrorResponse("internal_error", result.error());
         }
-        std::cout << "Calling CreateSuccessResponse" << std::endl;
-        auto response = CreateSuccessResponse(std::move(result.value()));
-        std::cout << "CreateSuccessResponse returned" << std::endl;
-        return response;
+        return CreateSuccessResponse(result.take_value());
     } catch (const std::exception& e) {
-        std::cout << "Exception: " << e.what() << std::endl;
         return CreateErrorResponse("internal_error", e.what());
     }
 }
 
 LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
                                              const LabelQueryParams& params) {
-    std::cout << "LabelsHandler::GetLabelValues called for " << label_name << std::endl;
     // Validate label name
     if (!ValidateLabelName(label_name)) {
         return CreateErrorResponse("invalid_parameter",
@@ -122,14 +115,16 @@ LabelQueryResult LabelsHandler::GetLabelValues(const std::string& label_name,
                                  "Invalid query parameters");
     }
     
+    if (!storage_) {
+        return CreateErrorResponse("internal_error", "Storage not initialized");
+    }
+
     try {
-        std::cout << "Calling storage_->label_values(" << label_name << ")" << std::endl;
         auto result = storage_->label_values(label_name);
-        std::cout << "storage_->label_values returned" << std::endl;
         if (!result.ok()) {
             return CreateErrorResponse("internal_error", result.error());
         }
-        return CreateSuccessResponse(std::move(result.value()));
+        return CreateSuccessResponse(result.take_value());
     } catch (const std::exception& e) {
         return CreateErrorResponse("internal_error", e.what());
     }
@@ -149,6 +144,10 @@ LabelQueryResult LabelsHandler::GetSeries(const std::vector<std::string>& matche
                                  "Invalid query parameters");
     }
     
+    if (!storage_) {
+        return CreateErrorResponse("internal_error", "Storage not initialized");
+    }
+
     try {
 #include "tsdb/core/matcher.h"
 // ...
@@ -212,10 +211,8 @@ LabelQueryResult LabelsHandler::CreateErrorResponse(const std::string& error_typ
 }
 
 LabelQueryResult LabelsHandler::CreateSuccessResponse(std::vector<std::string> values) const {
-    std::cout << "Inside CreateSuccessResponse" << std::endl;
     LabelQueryResult result;
     result.values = std::move(values);
-    std::cout << "CreateSuccessResponse done" << std::endl;
     return result;
 }
 

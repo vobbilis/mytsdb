@@ -17,7 +17,7 @@ namespace storage {
 
 class AsyncWALShard {
 public:
-    AsyncWALShard(const std::string& dir);
+    AsyncWALShard(const std::string& dir, size_t max_queue_size = 10000);
     ~AsyncWALShard();
 
     core::Result<void> log(const core::TimeSeries& series);
@@ -27,21 +27,27 @@ public:
     // Flush pending writes (for testing)
     void flush();
 
+    // Test hooks
+    size_t GetQueueSize() const;
+    void Test_SetWorkerDelay(std::chrono::milliseconds delay);
 
 private:
     void worker_loop();
 
     std::unique_ptr<WriteAheadLog> wal_;
     std::string dir_;
+    size_t max_queue_size_;
     
     // Queue
     std::queue<core::TimeSeries> queue_;
-    std::mutex queue_mutex_;
+    mutable std::mutex queue_mutex_;
     std::condition_variable queue_cv_;
+    std::condition_variable producer_cv_; // For backpressure
     
     // Worker
     std::thread worker_;
     std::atomic<bool> running_;
+    std::atomic<int64_t> worker_delay_ms_{0}; // For testing
 };
 
 } // namespace storage

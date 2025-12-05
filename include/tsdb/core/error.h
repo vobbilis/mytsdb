@@ -3,6 +3,7 @@
 
 #include <stdexcept>
 #include <string>
+#include <iostream>
 
 namespace tsdb {
 namespace core {
@@ -29,6 +30,10 @@ public:
 
     Code code() const { return code_; }
     const char* what() const noexcept override { return std::runtime_error::what(); }
+    
+    ~Error() override {
+        std::cout << "Error destructor called: " << what() << std::endl;
+    }
 
 private:
     Code code_;

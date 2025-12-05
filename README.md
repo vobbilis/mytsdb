@@ -29,6 +29,7 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 - ✅ **gRPC API** - High-performance query service
 - ✅ **Prometheus Remote Storage** - Remote Write/Read API (18 tests passing)
 - ✅ **Authentication** - Basic, Bearer, Header, Composite (25 tests passing)
+- ✅ **Apache Parquet Storage** - Hybrid Hot/Cold architecture with ZSTD compression & Dictionary Encoding
 - ⚠️ **Semantic Vectors** - Optional advanced analytics (experimental)
 
 ---
@@ -198,10 +199,22 @@ Cache:              ~1GB (configurable)
 - ✅ gRPC/OTEL Integration
 - ✅ **Write Path Optimization** (Batching enabled)
 
-**Performance Update (v1.1):**
-- **Throughput:** 260,000 samples/sec (Single Node)
-- **Latency:** <3ms (P90)
 - **Improvement:** 45% increase in throughput, 2.6x reduction in latency.
+
+---
+
+## 🐘 Apache Parquet Storage Engine
+
+MyTSDB features a state-of-the-art **Hybrid Storage Engine** that combines the speed of in-memory blocks with the efficiency of **Apache Parquet**.
+
+### Key Capabilities
+- **Hybrid Query Path**: Seamlessly queries data across Hot (Memory) and Cold (Parquet) tiers.
+- **Columnar Efficiency**: Leverages Parquet's columnar layout for 10-50x better compression than row-based formats.
+- **Advanced Encoding**:
+  - **Dictionary Encoding**: For high-cardinality string labels.
+  - **ZSTD Compression**: Tuned for optimal read/write balance.
+- **Schema Evolution**: Supports changing dimensions (sparse columns) without exploding series cardinality.
+- **Interoperability**: Data is stored in standard Parquet files, queryable by tools like **DuckDB**, **Pandas**, or **Spark**.
 
 ---
 
@@ -294,6 +307,22 @@ service:
       receivers: [otlp]
       exporters: [prometheusremotewrite]
 ```
+
+### Key Features
+
+- **High Performance Storage**:
+  - **Hot Tier**: In-memory, compressed blocks for recent data (write-optimized).
+  - **Cold Tier**: **Apache Parquet** backed storage for historical data (read-optimized, high compression).
+  - **Hybrid Query Engine**: Seamlessly queries across both memory and disk.
+- **Advanced Compression**:
+  - Gorilla/Delta-of-Delta for timestamps and values.
+  - Dictionary Encoding and ZSTD for Parquet files.
+- **Efficient Write Path**:
+  - Optimized OTel-to-Internal conversion.
+  - Background flushing and compaction.
+- **Scalable Architecture**:
+  - Designed for high cardinality (1M+ active series).
+  - Multi-level caching (L1/L2).
 
 ### Features
 

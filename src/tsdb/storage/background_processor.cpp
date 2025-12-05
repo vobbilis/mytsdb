@@ -1,4 +1,5 @@
 #include "tsdb/storage/background_processor.h"
+#include "tsdb/common/logger.h"
 #include "tsdb/core/error.h"
 #include <algorithm>
 #include <chrono>
@@ -232,7 +233,7 @@ void BackgroundProcessor::workerThread() {
 }
 
 void BackgroundProcessor::processTask(BackgroundTask& task) {
-    active_tasks_.fetch_add(1);
+    // active_tasks_ is already incremented by getNextTask to prevent race condition
     try {
         // Check for timeout before processing
         if (isTaskTimedOut(task)) {
@@ -283,6 +284,10 @@ std::unique_ptr<BackgroundTask> BackgroundProcessor::getNextTask() {
     auto task = std::move(const_cast<std::unique_ptr<BackgroundTask>&>(task_queue_.top()));
     task_queue_.pop();
     stats_.queue_size.store(task_queue_.size());
+    
+    // Increment active tasks immediately to prevent race condition during shutdown
+    // where a task is popped but not yet processed
+    active_tasks_.fetch_add(1);
     
     return task;
 }

@@ -54,18 +54,34 @@ public:
     void append(const core::Labels& labels, const core::Sample& sample);
     void seal();  // Compress buffered data
     std::vector<uint8_t> serialize() const;  // Serialize block data for persistence
+    static std::shared_ptr<BlockImpl> deserialize(const std::vector<uint8_t>& data); // Deserialize block from memory
     const BlockHeader& header() const override;
     void flush() override;
     void close() override;
+
+    // Helper to retrieve all labels in this block (used for catalog reconstruction)
+    std::vector<core::Labels> get_all_labels() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        std::vector<core::Labels> labels;
+        labels.reserve(series_.size());
+        for (const auto& [l, _] : series_) {
+            labels.push_back(l);
+        }
+        return labels;
+    }
     
 private:
     struct SeriesData {
         // Uncompressed buffers (used during accumulation)
         std::vector<int64_t> timestamps_uncompressed;
         std::vector<double> values_uncompressed;
+        std::vector<core::Fields> fields_uncompressed; // Store fields for each sample
+        
         // Compressed data (used after sealing)
         std::vector<uint8_t> timestamps_compressed;
         std::vector<uint8_t> values_compressed;
+        // Fields are not compressed in memory yet, relying on Parquet for efficient storage
+        
         bool is_compressed;
         
         SeriesData() : is_compressed(false) {}

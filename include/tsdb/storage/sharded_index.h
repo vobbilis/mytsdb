@@ -28,6 +28,9 @@ public:
     // Add series to appropriate shard
     core::Result<void> add_series(core::SeriesID id, const core::Labels& labels);
     
+    // Remove series from appropriate shard
+    core::Result<void> remove_series(core::SeriesID id);
+    
 #include "tsdb/core/matcher.h"
 
 // ...

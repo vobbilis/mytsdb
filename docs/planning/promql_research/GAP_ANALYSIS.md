@@ -2,18 +2,23 @@
 
 **Document**: `docs/planning/promql_research/GAP_ANALYSIS.md`  
 **Created**: November 2025  
-**Last Verified**: November 27, 2025
+**Last Verified**: December 5, 2025
 **Purpose**: Comprehensive gap analysis between MyTSDB PromQL implementation and Prometheus reference  
-**Status**: Complete Assessment - 100% Compliance
+**Status**: Implementation Complete - Testing Incomplete
 
 ## Executive Summary
 
-This document provides a detailed gap analysis comparing MyTSDB's PromQL implementation with the Prometheus reference implementation. **MyTSDB has achieved 100% PromQL compatibility.**
+This document provides a detailed gap analysis comparing MyTSDB's PromQL implementation with the Prometheus reference implementation.
+
+> **⚠️ IMPORTANT UPDATE (December 5, 2025)**: Previous claims of "902 tests passing" were inaccurate.
+> Comprehensive PromQL tests are currently **FAILING** with SEGFAULTs and assertion errors.
+> See [Testing & Verification](#6-testing--verification) section for accurate status.
 
 **Key Findings**:
 - **87 out of 87 functions** implemented (100%) - Verified in source code.
-- **902 Tests Passing** (851 Unit + 51 Comprehensive) - Verified via full test suite execution.
-- All core query capabilities working (Instant, Range, Subqueries).
+- **~500 Tests Registered** with ctest (previously claimed 902)
+- **Comprehensive PromQL Tests**: 53 registered, **FAILING** (SEGFAULTs)
+- All core query capabilities implemented (Instant, Range, Subqueries).
 - Full storage integration complete with inverted index.
 - HTTP API endpoints functional and compliant.
 
@@ -28,8 +33,8 @@ This document provides a detailed gap analysis comparing MyTSDB's PromQL impleme
 | Function Library | ✅ COMPLETE | 100% | 87/87 functions implemented |
 | Storage Integration | ✅ COMPLETE | 100% | Full TSDB adapter with index support |
 | HTTP API | ✅ COMPLETE | 100% | Query + metadata endpoints |
-| Testing | ✅ COMPLETE | 100% | 902 tests (Unit + Integration) |
-| **Overall** | **✅ COMPLETE** | **100%** | **Full Compliance** |
+| Testing | ⚠️ INCOMPLETE | 60% | ~500 tests registered, comprehensive PromQL tests failing |
+| **Overall** | **⚠️ NEEDS WORK** | **95%** | **Implementation complete, tests need fixing** |
 
 ---
 
@@ -249,21 +254,52 @@ This document provides a detailed gap analysis comparing MyTSDB's PromQL impleme
 
 ## 6. Testing & Verification
 
-**Status**: ✅ **COMPLETE** (100%)
+**Status**: ⚠️ **INCOMPLETE** (60%)
+
+> **⚠️ UPDATE (December 5, 2025)**: Previous claims were inaccurate. Actual status below.
 
 ### 6.1 Test Coverage
-- **Total Tests**: 902
-- **Unit Tests**: 851 (`test/unit`)
-- **Comprehensive Tests**: 51 (`test/comprehensive_promql`)
 
-### 6.2 Validated Scenarios
+| Category | Count | Status |
+|----------|-------|--------|
+| Unit Tests (test/unit) | ~450 | ✅ Passing |
+| Integration Tests | ~40 | ✅ Passing |
+| Comprehensive PromQL Tests | 53 | ❌ **FAILING** |
+| **Total Registered** | ~500 | Mixed |
+
+### 6.2 Comprehensive PromQL Test Status
+
+The following tests in `test/comprehensive_promql/` are **FAILING**:
+
+```
+ComprehensivePromQLTest.AggregationSum - Failed
+ComprehensivePromQLTest.AggregationAvg - Failed
+ComprehensivePromQLTest.AggregationMin - Failed
+ComprehensivePromQLTest.FunctionRate - SEGFAULT
+ComprehensivePromQLTest.FunctionIncrease - SEGFAULT
+ComprehensivePromQLTest.FunctionIrate - SEGFAULT
+... (29+ tests failing)
+```
+
+### 6.3 Known Issues
+
+1. **Comprehensive PromQL tests SEGFAULT**: Tests in `test/comprehensive_promql/` crash
+2. **Orphaned tests with outdated APIs**: `test/core/`, `test/histogram/`, `test/tsdb/` use APIs that no longer exist
+3. **Test count discrepancy**: Previously claimed 902 tests, actual ~500 registered
+
+### 6.4 Validated Scenarios (Unit Tests)
 - [x] **Basic Arithmetic**: `1 + 1`, `vector + scalar`
 - [x] **Vector Matching**: `vector1 + on(label) vector2`
 - [x] **Aggregations**: `sum by (label) (rate(metric[5m]))`
 - [x] **Subqueries**: `rate(metric[5m])[30m:1m]`
-- [x] **Complex Scenarios**: Real-world query patterns
-- [x] **Function Correctness**: Verified against expected mathematical results
+- [ ] **Complex Scenarios**: Comprehensive tests failing
+- [ ] **Function Correctness**: Comprehensive tests failing
 
 ## 7. Conclusion
 
-The MyTSDB PromQL implementation is **feature-complete** and **fully verified**. No known gaps exist relative to the Prometheus reference implementation for the supported feature set. Future work will focus on performance optimization and scaling to larger datasets.
+The MyTSDB PromQL implementation is **feature-complete** at the code level with all 87 functions implemented. However, **comprehensive testing is incomplete** - the PromQL integration tests are failing with SEGFAULTs.
+
+### Next Steps
+1. Debug and fix comprehensive PromQL tests
+2. Refactor orphaned tests to use current APIs
+3. Achieve full test pass rate before claiming 100% compliance

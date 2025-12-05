@@ -88,6 +88,8 @@ public:
         return core::Result<std::vector<core::TimeSeries>>::error("Aggregation pushdown not implemented");
     }
 
+
+
     /**
      * @brief Returns all unique label names across all stored time series
      */

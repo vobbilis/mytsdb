@@ -21,7 +21,8 @@ target_sources(tsdb_lib PRIVATE
 )
 
 # Add otel sources only if we have gRPC
-if(HAVE_GRPC)
+# Add otel sources only if we have gRPC and OTEL enabled
+if(HAVE_GRPC AND ENABLE_OTEL)
     target_sources(tsdb_lib PRIVATE
         tsdb/otel/bridge.cpp
     )

@@ -12,20 +12,7 @@
 #include <limits>
 #include <thread>
 #include <chrono>
-#include "tsdb/storage/block_manager.h"
-#include "tsdb/storage/internal/block_types.h"
-#include "tsdb/core/result.h"
-#include "tsdb/core/types.h"
-#include "tsdb/storage/internal/block_impl.h"
-#include <filesystem>
-#include <fstream>
-#include <sstream>
 #include <mutex>
-#include <system_error>
-#include <map>
-#include <limits>
-#include <thread>
-#include <chrono>
 #include <iostream>
 
 namespace tsdb {
@@ -113,7 +100,7 @@ private:
         std::stringstream ss;
         ss << base_path_ << "/"
            << static_cast<int>(tier_) << "/"
-           << std::hex << header.magic << ".block";
+           << std::hex << header.id << ".block";
         return ss.str();
     }
 
@@ -151,9 +138,9 @@ BlockManager::BlockManager(const std::string& data_dir)
     }
 }
 
-core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_time) {
+core::Result<internal::BlockHeader> BlockManager::createBlock(int64_t start_time, int64_t end_time) {
     if (start_time > end_time) {
-        return core::Result<void>::error("Invalid time range: start_time > end_time");
+        return core::Result<internal::BlockHeader>::error("Invalid time range: start_time > end_time");
     }
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
@@ -161,6 +148,11 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
     try {
         internal::BlockHeader header;
         header.magic = internal::BlockHeader::MAGIC;
+        // TODO: Need a way to generate ID here if createBlock is called directly
+        // For now, assume this is only called by tests or internal logic that doesn't care about ID uniqueness across restarts?
+        // Or use a static counter here too?
+        static std::atomic<uint64_t> local_id_counter(1000000); 
+        header.id = local_id_counter++;
         header.version = internal::BlockHeader::VERSION;
         header.start_time = start_time;
         header.end_time = end_time;
@@ -170,7 +162,7 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
         
         // Check if we need to demote blocks
         if (!hot_storage_) {
-            return core::Result<void>::error("Hot storage not initialized");
+            return core::Result<internal::BlockHeader>::error("Hot storage not initialized");
         }
 
         // Create empty block in hot tier (with retry logic)
@@ -181,8 +173,8 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
         while (retry_count < max_retries) {
             auto result = hot_storage_->write(header, empty_data);
             if (result.ok()) {
-                block_tiers_[header.magic] = internal::BlockTier::Type::HOT;
-                return core::Result<void>();
+                block_tiers_[header.id] = internal::BlockTier::Type::HOT;
+                return core::Result<internal::BlockHeader>(header);
             }
             
             retry_count++;
@@ -190,13 +182,13 @@ core::Result<void> BlockManager::createBlock(int64_t start_time, int64_t end_tim
                 // Brief delay before retry
                 std::this_thread::sleep_for(std::chrono::milliseconds(1));
             } else {
-                return result; // Return the last error
+                return core::Result<internal::BlockHeader>::error(result.error()); // Return the last error
             }
         }
         
-        return core::Result<void>::error("Failed to create block after retries");
+        return core::Result<internal::BlockHeader>::error("Failed to create block after retries");
     } catch (const std::exception& e) {
-        return core::Result<void>::error("Block creation exception: " + std::string(e.what()));
+        return core::Result<internal::BlockHeader>::error("Block creation exception: " + std::string(e.what()));
     }
 }
 
@@ -207,7 +199,7 @@ core::Result<void> BlockManager::finalizeBlock(const internal::BlockHeader& head
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
     }
@@ -238,7 +230,7 @@ core::Result<void> BlockManager::deleteBlock(const internal::BlockHeader& header
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
     }
@@ -267,7 +259,7 @@ core::Result<void> BlockManager::writeData(
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
     }
@@ -288,7 +280,7 @@ core::Result<std::vector<uint8_t>> BlockManager::readData(
 
     std::shared_lock<std::shared_mutex> lock(mutex_);  // Read operation uses shared lock
     
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<std::vector<uint8_t>>::error("Block not found");
     }
@@ -308,7 +300,7 @@ core::Result<void> BlockManager::promoteBlock(const internal::BlockHeader& heade
 
     std::unique_lock<std::shared_mutex> lock(mutex_);
     
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
     }
@@ -333,7 +325,7 @@ core::Result<void> BlockManager::demoteBlock(const internal::BlockHeader& header
     }
 
     // Note: No lock needed here since this method is called from compact() which already holds the lock
-    auto it = block_tiers_.find(header.magic);
+    auto it = block_tiers_.find(header.id);
     if (it == block_tiers_.end()) {
         return core::Result<void>::error("Block not found");
     }
@@ -387,7 +379,7 @@ core::Result<void> BlockManager::moveBlock(
         return remove_result;
     }
     
-    block_tiers_[header.magic] = to_tier;
+    block_tiers_[header.id] = to_tier;
     return core::Result<void>();
 }
 
@@ -398,16 +390,22 @@ core::Result<void> BlockManager::compact() {
     std::vector<internal::BlockHeader> to_demote;
     
     // Find all blocks in hot tier
-    for (const auto& [magic, tier] : block_tiers_) {
+    for (const auto& [id, tier] : block_tiers_) {
         if (tier == internal::BlockTier::Type::HOT) {
             internal::BlockHeader header;
-            header.magic = magic;
+            header.id = id;
+            header.magic = internal::BlockHeader::MAGIC;
             header.version = internal::BlockHeader::VERSION;
             header.flags = 0;
             header.crc32 = 0;
             header.start_time = 0;
             header.end_time = 0;
             header.reserved = 0;
+            
+            if (!header.is_valid()) {
+                // Log warning but continue?
+            }
+            
             to_demote.push_back(header);
         }
     }
@@ -457,13 +455,210 @@ core::Result<void> BlockManager::seal_and_persist_block(std::shared_ptr<internal
 
         auto result = hot_storage_->write(header, block_data);
         if (result.ok()) {
-            block_tiers_[header.magic] = internal::BlockTier::Type::HOT;
+            block_tiers_[header.id] = internal::BlockTier::Type::HOT;
         }
         return result;
 
     } catch (const std::exception& e) {
         return core::Result<void>::error("Seal and persist failed: " + std::string(e.what()));
     }
+}
+
+core::Result<std::string> BlockManager::demoteToParquet(const internal::BlockHeader& header) {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+
+    auto it = block_tiers_.find(header.id);
+    if (it == block_tiers_.end()) {
+        return core::Result<std::string>::error("Block not found");
+    }
+
+    // 1. Read block data from current tier
+    auto storage = getStorageForTier(it->second);
+    auto read_result = storage->read(header);
+    if (!read_result.ok()) {
+        return core::Result<std::string>::error("Failed to read block: " + read_result.error());
+    }
+
+    // 2. Deserialize to BlockImpl
+    auto block = internal::BlockImpl::deserialize(read_result.value());
+    if (!block) {
+        return core::Result<std::string>::error("Failed to deserialize block");
+    }
+
+    // 3. Prepare Parquet Writer
+    // Construct path: data_dir/2/<id>.parquet
+    std::stringstream ss;
+    ss << data_dir_ << "/2/" << std::hex << header.id << ".parquet";
+    std::string parquet_path = ss.str();
+
+    parquet::ParquetWriter writer;
+    auto open_result = writer.Open(parquet_path, parquet::SchemaMapper::GetArrowSchema());
+    if (!open_result.ok()) {
+        return core::Result<std::string>::error("Failed to open Parquet writer: " + open_result.error());
+    }
+
+    // 4. Iterate over series and write to Parquet
+    std::vector<std::pair<std::string, std::string>> empty_matchers;
+    auto all_series = block->query(empty_matchers, header.start_time, header.end_time);
+
+    for (const auto& series : all_series) {
+        auto batch = parquet::SchemaMapper::ToRecordBatch(series.samples(), series.labels().map());
+        if (!batch) {
+             return core::Result<std::string>::error("Failed to convert series to RecordBatch");
+        }
+        auto write_result = writer.WriteBatch(batch);
+        if (!write_result.ok()) {
+            return core::Result<std::string>::error("Failed to write batch: " + write_result.error());
+        }
+    }
+
+    auto close_result = writer.Close();
+    if (!close_result.ok()) {
+        return core::Result<std::string>::error("Failed to close Parquet writer: " + close_result.error());
+    }
+
+    // 5. Update state
+    // Remove from old storage
+    storage->remove(header);
+    
+    // Update tier map to COLD
+    block_tiers_[header.id] = internal::BlockTier::Type::COLD;
+
+    return core::Result<std::string>(parquet_path);
+}
+
+core::Result<std::shared_ptr<internal::BlockImpl>> BlockManager::readFromParquet(const internal::BlockHeader& header) {
+    // 1. Open Parquet Reader
+    std::stringstream ss;
+    ss << data_dir_ << "/2/" << std::hex << header.id << ".parquet";
+    std::string parquet_path = ss.str();
+
+    parquet::ParquetReader reader;
+    auto open_result = reader.Open(parquet_path);
+    if (!open_result.ok()) {
+        return core::Result<std::shared_ptr<internal::BlockImpl>>::error("Failed to open Parquet file: " + open_result.error());
+    }
+
+    // 2. Create new BlockImpl
+    auto block = std::make_shared<internal::BlockImpl>(
+        header,
+        std::make_unique<internal::SimpleTimestampCompressor>(),
+        std::make_unique<internal::SimpleValueCompressor>(),
+        std::make_unique<internal::SimpleLabelCompressor>()
+    );
+
+    // 3. Read batches and populate block
+    while (true) {
+        std::shared_ptr<arrow::RecordBatch> batch;
+        auto read_result = reader.ReadBatch(&batch);
+        if (!read_result.ok()) {
+            return core::Result<std::shared_ptr<internal::BlockImpl>>::error("Failed to read batch: " + read_result.error());
+        }
+        if (!batch) {
+            break; // EOF
+        }
+
+        auto samples_result = parquet::SchemaMapper::ToSamples(batch);
+        if (!samples_result.ok()) {
+             return core::Result<std::shared_ptr<internal::BlockImpl>>::error("Failed to convert batch to samples: " + samples_result.error());
+        }
+        auto samples = samples_result.value();
+
+        auto tags_result = parquet::SchemaMapper::ExtractTags(batch);
+        if (!tags_result.ok()) {
+             return core::Result<std::shared_ptr<internal::BlockImpl>>::error("Failed to extract tags: " + tags_result.error());
+        }
+        core::Labels labels(tags_result.value());
+
+        for (const auto& sample : samples) {
+            block->append(labels, sample);
+        }
+    }
+
+    block->seal();
+    return core::Result<std::shared_ptr<internal::BlockImpl>>(block);
+}
+
+core::Result<void> BlockManager::compactParquetFiles(const std::vector<std::string>& input_paths, const std::string& output_path) {
+    if (input_paths.empty()) {
+        return core::Result<void>::error("No input files provided for compaction");
+    }
+
+    // 1. Open Writer
+    parquet::ParquetWriter writer;
+    // We need a schema. We can get it from the first file.
+    // Or use the standard schema from SchemaMapper.
+    auto schema = parquet::SchemaMapper::GetArrowSchema();
+    auto open_res = writer.Open(output_path, schema);
+    if (!open_res.ok()) {
+        return core::Result<void>::error("Failed to open output file: " + open_res.error());
+    }
+
+    // 2. Iterate inputs
+    for (const auto& input_path : input_paths) {
+        parquet::ParquetReader reader;
+        auto open_reader_res = reader.Open(input_path);
+        if (!open_reader_res.ok()) {
+            // If one fails, we abort.
+            // In production, we might want to skip or handle gracefully.
+            return core::Result<void>::error("Failed to open input file: " + input_path + " (" + open_reader_res.error() + ")");
+        }
+
+        while (true) {
+            std::shared_ptr<arrow::RecordBatch> batch;
+            auto read_res = reader.ReadBatch(&batch);
+            if (!read_res.ok()) {
+                return core::Result<void>::error("Failed to read batch from: " + input_path + " (" + read_res.error() + ")");
+            }
+            if (!batch) break; // EOF
+
+            auto write_res = writer.WriteBatch(batch);
+            if (!write_res.ok()) {
+                return core::Result<void>::error("Failed to write batch: " + write_res.error());
+            }
+        }
+        reader.Close();
+    }
+
+    // 3. Close Writer
+    auto close_res = writer.Close();
+    if (!close_res.ok()) {
+        return core::Result<void>::error("Failed to close output file: " + close_res.error());
+    }
+
+    return core::Result<void>();
+}
+
+core::Result<std::vector<internal::BlockHeader>> BlockManager::recoverBlocks() {
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    std::vector<internal::BlockHeader> headers;
+    
+    // Helper lambda to scan a tier directory
+    auto scan_tier = [&](internal::BlockTier::Type tier) {
+        std::string tier_dir = data_dir_ + "/" + std::to_string(static_cast<int>(tier));
+        if (!fs::exists(tier_dir)) return;
+        
+        for (const auto& entry : fs::directory_iterator(tier_dir)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".block") {
+                std::ifstream file(entry.path(), std::ios::binary);
+                if (file) {
+                    internal::BlockHeader header;
+                    file.read(reinterpret_cast<char*>(&header), sizeof(header));
+                    if (file && header.is_valid()) {
+                        // Update internal state
+                        block_tiers_[header.id] = tier;
+                        headers.push_back(header);
+                    }
+                }
+            }
+        }
+    };
+
+    // Scan HOT and COLD tiers
+    scan_tier(internal::BlockTier::Type::HOT);
+    scan_tier(internal::BlockTier::Type::COLD);
+    
+    return headers;
 }
 
 }  // namespace storage

@@ -20,6 +20,7 @@ target_sources(tsdb_storage_impl
         predictive_cache.cpp
         atomic_ref_counted.cpp
         storage_impl.cpp
+        series.cpp
         storage_factory.cpp
         wal.cpp
         sharded_wal.cpp
@@ -27,6 +28,13 @@ target_sources(tsdb_storage_impl
         index.cpp
         sharded_index.cpp
         internal/block_impl.cpp
+        parquet/schema_mapper.cpp
+        parquet/writer.cpp
+        parquet/reader.cpp
+        parquet/parquet_block.cpp
+        rule_manager.cpp
+        filtering_storage.cpp
+        derived_metrics.cpp
 )
 
 # Optional: compile semantic vector sources for early feedback when enabled
@@ -58,6 +66,7 @@ target_include_directories(tsdb_storage_impl
         $<INSTALL_INTERFACE:include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
 )
 
 # Set compile features
@@ -70,12 +79,21 @@ target_compile_features(tsdb_storage_impl
 target_link_libraries(tsdb_storage_impl
     PUBLIC
         tsdb::core_impl
+        tsdb::prometheus
         Threads::Threads
 )
 
 # Link TBB if available
 if(HAVE_TBB)
     target_link_libraries(tsdb_storage_impl PUBLIC TBB::tbb)
+endif()
+
+# Link Arrow/Parquet if available
+if(HAVE_ARROW)
+    target_link_libraries(tsdb_storage_impl PUBLIC Arrow::arrow_shared)
+endif()
+if(HAVE_PARQUET)
+    target_link_libraries(tsdb_storage_impl PUBLIC Parquet::parquet_shared)
 endif()
 
 # Install headers

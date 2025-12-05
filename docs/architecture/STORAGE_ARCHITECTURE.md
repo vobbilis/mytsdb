@@ -55,11 +55,33 @@ The TSDB storage architecture implements a multi-tier storage system designed fo
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
 │  • Disk-Based Storage (SSD/HDD)                                                │
-│  • Slower Access (10-100ms)                                                    │
-│  • Highly Compressed Data                                                      │
-│  • Block-Based Organization                                                    │
+│  • Format: **Apache Parquet** (Columnar)                                       │
+│  • Compression: **ZSTD** + **Dictionary Encoding**                             │
+│  • Read-Optimized (OLAP)                                                       │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
+
+### **Apache Parquet Cold Storage**
+
+The Cold Tier is built on **Apache Parquet**, an open-source columnar storage format. This design choice aligns MyTSDB with modern "Lakehouse" architectures (similar to InfluxDB IOx), offering significant advantages over proprietary formats:
+
+1.  **Superior Compression**:
+    -   **Columnar Layout**: Values of the same type are stored contiguously, enabling highly effective compression (RLE, Bit-Packing).
+    -   **Dictionary Encoding**: High-cardinality string labels (e.g., `pod_name`, `request_id`) are dictionary-encoded, reducing storage size by up to 90%.
+    -   **ZSTD**: We use ZSTD compression for an optimal balance of compression ratio and decompression speed.
+
+2.  **Schema Evolution**:
+    -   Parquet supports sparse columns and schema merging.
+    -   Adding new dimensions (e.g., `region=us-east`) to existing metrics does **not** require rewriting old files or creating new series IDs.
+    -   This solves the "Cardinality Curse" common in LSM-based TSDBs.
+
+3.  **Interoperability**:
+    -   Data stored in the Cold Tier is not locked in a proprietary format.
+    -   Files can be directly queried by analytical tools like **DuckDB**, **Pandas**, **Spark**, or **Presto** for ad-hoc OLAP analysis.
+
+4.  **Hybrid Query Engine**:
+    -   The query engine transparently merges results from the **Hot Tier** (Memory) and **Cold Tier** (Parquet).
+    -   Recent data is available immediately (low latency), while historical data is fetched efficiently from disk.
 
 ## 📦 **Block Management System**
 

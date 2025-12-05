@@ -22,6 +22,18 @@ core::Result<void> ShardedIndex::add_series(core::SeriesID id, const core::Label
     }
     
     return result;
+    return result;
+}
+
+core::Result<void> ShardedIndex::remove_series(core::SeriesID id) {
+    size_t shard_idx = get_shard_index(id);
+    auto result = shards_[shard_idx]->remove_series(id);
+    
+    if (result.ok()) {
+        metrics_.total_series--;
+    }
+    
+    return result;
 }
 
 core::Result<std::vector<core::SeriesID>> ShardedIndex::find_series(

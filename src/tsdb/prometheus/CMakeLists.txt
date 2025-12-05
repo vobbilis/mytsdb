@@ -93,7 +93,7 @@ endif()
 # Link libraries
 target_link_libraries(tsdb_prometheus
     PUBLIC
-        tsdb::lib
+        tsdb::core_impl
     PRIVATE
         Threads::Threads
         OpenSSL::SSL
@@ -127,7 +127,15 @@ target_compile_options(tsdb_prometheus PRIVATE
     -Wall
     -Wextra
     # Remove -Werror to allow warnings
-    -O2
+)
+
+# Install library
+install(TARGETS tsdb_prometheus
+    EXPORT tsdb-targets
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
 
  
