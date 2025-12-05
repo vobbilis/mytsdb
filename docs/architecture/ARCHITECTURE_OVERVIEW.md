@@ -42,6 +42,7 @@ The TSDB (Time Series Database) is designed as a high-performance, distributed-c
 
 ### **5. Query Layer**
 - **PromQL Engine**: Query parsing and execution
+- **Query Cache**: Two-level O(1) cache for high-cardinality workloads
 - **AST Processing**: Abstract Syntax Tree operations
 - **Query Planning**: Query optimization and planning
 
