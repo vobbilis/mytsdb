@@ -90,12 +90,18 @@ core::Result<void> WriteAheadLog::flush() {
     return core::Result<void>();
 }
 
-core::Result<void> WriteAheadLog::replay(std::function<void(const core::TimeSeries&)> callback) {
-    // CRITICAL: Do NOT lock the mutex during replay if called from init()
-    // During init(), we're single-threaded, so no need for mutex protection
-    // Locking here could cause deadlocks if the callback tries to access WAL
-    // std::lock_guard<std::mutex> lock(mutex_);  // REMOVED - causes deadlock risk
-    
+core::Result<void> WriteAheadLog::replay_at_init(std::function<void(const core::TimeSeries&)> callback) {
+    // Explicitly NO LOCK for initialization phase to avoid deadlocks
+    return replay_internal(callback);
+}
+
+core::Result<void> WriteAheadLog::replay_runtime(std::function<void(const core::TimeSeries&)> callback) {
+    // Lock REQUIRED for runtime usage
+    std::lock_guard<std::mutex> lock(mutex_);
+    return replay_internal(callback);
+}
+
+core::Result<void> WriteAheadLog::replay_internal(std::function<void(const core::TimeSeries&)> callback) {
     try {
         // Early return if WAL directory doesn't exist - no need to flush
         if (!std::filesystem::exists(wal_dir_)) {
@@ -136,8 +142,6 @@ core::Result<void> WriteAheadLog::replay(std::function<void(const core::TimeSeri
                     }
                     
                     std::string filename = entry.path().filename().string();
-                    // std::cout << "WAL Replay: Found file " << filename << std::endl;
-                    // std::cout << "WAL Replay: Found file " << filename << std::endl;
                     if (filename.length() >= 4 && filename.substr(0, 4) == "wal_") {
                         segment_files.push_back(entry.path().string());
                     }

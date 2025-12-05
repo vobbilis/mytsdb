@@ -29,6 +29,8 @@ MyTSDB’s core architecture (sharded WAL/index, PromQL engine with pushdown, ba
 | 3 | **Range-query cache ignores time bounds.** | `BufferedStorageAdapter` in `promql/engine.cpp` (≈10-95) caches matrices keyed only by serialized matchers. A subsequent query with a wider `[start,end]` reuses the narrower cache and simply filters samples by the new window, so any samples outside the original fetch disappear. | PromQL results become non-monotonic as dashboards change range -> correctness bug. |
 | 4 | **Index never forgets deleted series.** | `StorageImpl::delete_series` (≈1470-1535) erases entries from `active_series_`, caches, and block maps but never calls into `ShardedIndex` to remove postings/labels. Label APIs (`label_names`, `label_values`) continue to surface tombstoned data and memory grows monotonically. | Unbounded memory + stale metadata for label discovery. |
 | 5 | **WAL shards enqueue full `TimeSeries` copies with no backpressure.** | `AsyncWALShard::log` (`src/tsdb/storage/async_wal_shard.cpp` 19-39) copies entire `TimeSeries` objects into an unbounded queue guarded only by a mutex. Under bursty writes, RAM usage explodes and `log()` can report success long before bytes reach disk. | Potential OOM and misleading durability guarantees under load. |
+| 6 | **[P1] WAL Replay Lock** | `WriteAheadLog::replay` called without lock in `init()`, but unsafe for runtime. **Fix:** Split into `replay_at_init()` (no lock) and `replay_runtime()` (with lock). **Status:** ✅ **FIXED** | Data race / deadlock risk if replay called at runtime. |
+
 
 ---
 

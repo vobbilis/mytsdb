@@ -20,7 +20,8 @@ public:
     
     core::Result<void> log(const core::TimeSeries& series, bool flush_now = true); // Logs new samples
     core::Result<void> flush(); // Force flush to disk
-    core::Result<void> replay(std::function<void(const core::TimeSeries&)> callback); // Used on startup
+    core::Result<void> replay_at_init(std::function<void(const core::TimeSeries&)> callback); // No lock, for init only
+    core::Result<void> replay_runtime(std::function<void(const core::TimeSeries&)> callback); // With lock, for runtime recovery
     core::Result<void> checkpoint(int last_segment_to_keep); // Deletes old log files
 
 private:
@@ -33,6 +34,7 @@ private:
     bool write_to_segment(const std::vector<uint8_t>& data, bool flush_now);
     void rotate_segment();
     std::string get_segment_path(int segment);
+    core::Result<void> replay_internal(std::function<void(const core::TimeSeries&)> callback);
     core::Result<void> replay_segment(const std::string& segment_path, 
                                      std::function<void(const core::TimeSeries&)> callback);
     std::optional<core::TimeSeries> deserialize_series(const std::vector<uint8_t>& data);
