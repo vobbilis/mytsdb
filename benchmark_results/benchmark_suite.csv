@@ -1,3 +1,0 @@
-timestamp,preset,operation,duration_sec,total_samples,throughput_samples_sec,notes
-2025-12-05_15:52:43,quick,write,1.08,691200,638888,k8s_data_generator
-2025-12-05_15:53:00,quick,read,4.75,80,16.82,promql_queries
