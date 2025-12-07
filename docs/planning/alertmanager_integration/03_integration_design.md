@@ -11,6 +11,7 @@ This document outlines how to integrate Prometheus-compatible Alertmanager funct
 3. **Prometheus Compatibility**: 100% compatible with Prometheus alert rule format and Alertmanager API
 4. **Scalability**: Design for high-volume alert processing
 5. **Reliability**: Ensure alerts are not lost during failures
+6. **Feature Integration**: Native integration with Filter Rules, Aggregation Pushdown, and Derived Metrics
 
 ## Architecture Overview
 
@@ -503,6 +504,113 @@ struct AlertManagerConfig {
 - **Active Alerts**: Supports 100,000+ concurrent alerts
 - **Evaluation**: Parallelizable across rule groups
 - **Notifications**: Queue-based with backpressure
+
+## Integration with Existing Features
+
+The alerting system is designed to leverage three core features that are already implemented:
+
+### 1. Filter Rules Integration
+
+Filter rules apply at ingestion time, before alert evaluation:
+
+```cpp
+// Alert evaluation receives pre-filtered data
+class AlertEvaluationEngine {
+public:
+    // PromQL queries automatically see filtered data
+    // Drop rules reduce noise before alerting
+    Result<std::vector<Alert>> evaluateRule(const AlertRule& rule) {
+        // Queries execute against FilteringStorage
+        // Already-dropped metrics won't trigger alerts
+        auto result = promql_engine_->ExecuteInstant(rule.expr, now_ms);
+        // ...
+    }
+};
+```
+
+**Benefits:**
+- Reduce alert noise by dropping debug/test metrics at ingestion
+- Lower evaluation overhead (fewer series to scan)
+- Consistent filtering across recording rules and alert rules
+
+### 2. Aggregation Pushdown Integration
+
+Alert PromQL queries automatically benefit from aggregation pushdown:
+
+```promql
+# These alert expressions get ~785x speedup from pushdown:
+alert: HighErrorRate
+expr: sum(rate(http_errors[5m])) / sum(rate(http_requests[5m])) > 0.05
+
+alert: HighMemoryUsage  
+expr: avg(memory_usage_bytes) / avg(memory_limit_bytes) > 0.9
+
+alert: TooFewInstances
+expr: count(up{job="myservice"}) < 3
+```
+
+**Benefits:**
+- Faster alert evaluation (10ms vs 7,850ms for complex aggregations)
+- Lower CPU usage during evaluation
+- More responsive alerting
+
+### 3. Derived Metrics (Recording Rules) Integration
+
+Alerts can query pre-computed recording rules for efficiency:
+
+```yaml
+# Recording rules (DerivedMetricManager)
+groups:
+  - name: recording_rules
+    interval: 60s
+    rules:
+      - record: job:http_inprogress_requests:sum
+        expr: sum by (job) (http_inprogress_requests)
+      - record: job:http_request_duration:p99
+        expr: histogram_quantile(0.99, rate(http_request_duration_bucket[5m]))
+
+# Alert rules reference recording rules (efficient!)
+groups:
+  - name: alerting_rules
+    rules:
+      - alert: TooManyInProgressRequests
+        expr: job:http_inprogress_requests:sum > 1000  # Uses recording rule
+        for: 5m
+      - alert: HighLatency
+        expr: job:http_request_duration:p99 > 1.0     # Uses recording rule
+        for: 10m
+```
+
+**Architecture:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  Unified Rule Scheduler                      │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │         DerivedMetricManager (Recording Rules)          ││
+│  │  • Computes recording rules on schedule                 ││
+│  │  • Stores results as new time series                    ││
+│  └─────────────────────────────────────────────────────────┘│
+│                              │                               │
+│                              ▼                               │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │            AlertEvaluationEngine                        ││
+│  │  • Queries can use recording rule outputs               ││
+│  │  • Shared BackgroundProcessor infrastructure            ││
+│  │  • Same error backoff patterns                          ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Shared Infrastructure:**
+
+| Component | Recording Rules | Alert Rules |
+|-----------|-----------------|-------------|
+| Scheduler | DerivedMetricManager | AlertEvaluationEngine |
+| Worker | BackgroundProcessor | BackgroundProcessor |
+| Query Engine | PromQL Engine | PromQL Engine |
+| Error Handling | Exponential backoff | Exponential backoff |
+| State Tracking | last_execution_time | last_evaluation_time |
 
 ## Implementation Phases
 

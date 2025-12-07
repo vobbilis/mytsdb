@@ -45,6 +45,42 @@ This directory contains comprehensive research on integrating Prometheus-compati
 3. **Prometheus Compatibility**: 100% compatible with Prometheus alert rule format and Alertmanager API
 4. **Scalability**: Designed for high-volume alert processing (10,000+ rules, 100,000+ concurrent alerts)
 5. **Reliability**: Ensures alerts are not lost during failures
+6. **✨ Feature Integration**: Native integration with Filter Rules, Aggregation Pushdown, and Derived Metrics
+
+### Integration with Existing Features
+
+The alerting system will leverage three core features already implemented:
+
+#### 1. Filter Rules Integration
+- Alert rules can reference filtered metric streams
+- Drop/keep rules apply before alert evaluation
+- Reduces noise by filtering at ingestion, not alerting
+
+#### 2. Aggregation Pushdown Integration  
+- Alert PromQL queries automatically benefit from ~785x speedup
+- Complex aggregations (`sum`, `avg`, `min`, `max`, `count`) execute at storage layer
+- Reduces alert evaluation latency and CPU usage
+
+#### 3. Derived Metrics (Recording Rules) Integration
+- Alerts can query pre-computed derived metrics
+- Recording rules and alert rules share the same scheduler infrastructure
+- Alert expressions can use recording rule outputs for efficiency
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Unified Rule Processing                   │
+│  ┌─────────────────┐  ┌─────────────────┐  ┌──────────────┐│
+│  │  Filter Rules   │  │ Recording Rules │  │ Alert Rules  ││
+│  │  (Drop/Keep)    │  │ (DerivedMetrics)│  │  (Alerting)  ││
+│  └────────┬────────┘  └────────┬────────┘  └───────┬──────┘│
+│           │                    │                   │        │
+│           ▼                    ▼                   ▼        │
+│  ┌─────────────────────────────────────────────────────────┐│
+│  │              Aggregation Pushdown Engine                ││
+│  │              (~785x Query Speedup)                      ││
+│  └─────────────────────────────────────────────────────────┘│
+└─────────────────────────────────────────────────────────────┘
+```
 
 ### Architecture Highlights
 
@@ -137,6 +173,23 @@ The design provides full Prometheus Alertmanager v2 API compatibility:
 1. **Persistent Storage**: For alert history and state recovery
 2. **Template Engine**: For notification formatting (Go template syntax)
 3. **Integration Libraries**: For various notification channels
+
+### Integrated Components (Already Implemented)
+
+These features are already implemented and will be leveraged by alerting:
+
+| Component | Status | Integration ||
+|-----------|--------|-------------|
+| **Filter Rules** | ✅ Implemented | Drop/keep rules apply before alert evaluation |
+| **Aggregation Pushdown** | ✅ Implemented | Alert queries auto-benefit from ~785x speedup |
+| **Derived Metrics** | ✅ Implemented | Recording rules share scheduler infrastructure |
+| **PromQL Engine** | ✅ Implemented | 100% function coverage, O(1) cache |
+| **BackgroundProcessor** | ✅ Implemented | Task scheduling infrastructure |
+
+#### Documentation
+- [Filter Rules Guide](../examples/FILTER_RULES_GUIDE.md)
+- [Aggregation Pushdown Guide](../examples/AGGREGATION_PUSHDOWN_GUIDE.md)
+- [Derived Metrics Guide](../examples/DERIVED_METRICS_GUIDE.md)
 
 ## Performance Impact
 
