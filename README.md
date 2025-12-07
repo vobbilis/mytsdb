@@ -3,7 +3,7 @@
 **Version:** 1.0.0  
 **Status:** Production-Ready Core, Active Development  
 **Language:** C++17  
-**License:** MIT
+**License:** Apache 2.0
 
 ---
 
@@ -548,7 +548,7 @@ For more details, see [GETTING_STARTED.md](GETTING_STARTED.md).
 
 ## 📝 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+Apache License 2.0 - see [LICENSE](LICENSE) file for details.
 
 ---
 
