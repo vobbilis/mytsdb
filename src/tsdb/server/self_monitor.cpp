@@ -7,6 +7,8 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <sstream>
+#include <cmath> // For std::isinf
 
 namespace tsdb {
 namespace server {
@@ -25,10 +27,11 @@ void SelfMonitor::Start() {
     
     // Schedule periodic scrape
     std::thread([this]() {
-        std::cout << "[SelfMonitor] Thread started, will scrape every 15 seconds" << std::endl;
+        std::cout << "[SelfMonitor] Thread started, will scrape every 1 second" << std::endl;
         int iteration = 0;
         while (running_) {
-            std::this_thread::sleep_for(std::chrono::seconds(15));
+            // Scrape every 1 second for better responsiveness
+            std::this_thread::sleep_for(std::chrono::seconds(1));
             if (!running_) break;
             
             iteration++;
@@ -91,7 +94,46 @@ void SelfMonitor::ScrapeAndWrite() {
     add_metric("mytsdb_query_series_scanned_total", query_snapshot.series_scanned, "counter");
     add_metric("mytsdb_query_bytes_scanned_total", query_snapshot.bytes_scanned, "counter");
 
-    // Storage Metrics
+    add_metric("mytsdb_query_bytes_scanned_total", query_snapshot.bytes_scanned, "counter");
+
+    // Histogram Buckets (Accumulate for Prometheus LE)
+    uint64_t cumulative_count = 0;
+    for (const auto& bucket : query_snapshot.query_duration_buckets) {
+        cumulative_count += bucket.second;
+        std::string le;
+        if (std::isinf(bucket.first)) {
+            le = "+Inf";
+        } else {
+            // Avoid scientific notation/trailing zeros for cleanliness
+	          std::ostringstream out;
+	          out.precision(3); // Match bounds precision
+            out << std::fixed << bucket.first;
+            le = out.str();
+            // Trim trailing zeros if needed, or just let it be. Standard Prom usage is fine with 0.100 or 0.1.
+            // Let's use simple extraction.
+            size_t dot_pos = le.find('.');
+            if (dot_pos != std::string::npos) {
+                // Remove trailing zeros
+                le.erase(le.find_last_not_of('0') + 1, std::string::npos); 
+                // Remove trailing dot
+                if (le.back() == '.') le.pop_back();
+            }
+        }
+        
+        core::Labels labels;
+        labels.add("__name__", "mytsdb_query_duration_seconds_bucket");
+        labels.add("job", "mytsdb_self_monitor");
+        labels.add("instance", "localhost");
+        labels.add("le", le);
+        
+        core::TimeSeries ts(labels);
+        ts.add_sample(core::Sample(now, cumulative_count));
+        metrics.push_back(std::move(ts));
+    }
+    
+    // Histogram Count and Sum
+    add_metric("mytsdb_query_duration_seconds_count", query_snapshot.query_count, "counter");
+    add_metric("mytsdb_query_duration_seconds_sum", query_snapshot.total_query_time_ns / 1e9, "counter");
     add_metric("mytsdb_storage_writes_total", storage_snapshot.write_count, "counter");
     add_metric("mytsdb_storage_reads_total", storage_snapshot.read_count, "counter");
     add_metric("mytsdb_storage_cache_hits_total", storage_snapshot.cache_hits, "counter");

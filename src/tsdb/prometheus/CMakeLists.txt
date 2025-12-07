@@ -98,6 +98,7 @@ target_link_libraries(tsdb_prometheus
         Threads::Threads
         OpenSSL::SSL
         OpenSSL::Crypto
+        tsdb_histogram_impl
 )
 
 if(HAVE_HTTPLIB)

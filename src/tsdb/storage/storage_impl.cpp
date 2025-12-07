@@ -33,6 +33,7 @@
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <numeric>
 #include <set>
 #include <limits>
 #include <iomanip>
@@ -167,11 +168,15 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         return core::Result<void>::error("Storage already initialized");
     }
     
-    TSDB_INFO("StorageImpl::init() - Starting initialization");
+    TSDB_INFO("StorageImpl::init() - Starting initialization - PHASE 3 INSTRUMENTATION");
     std::cout.flush();  // Force flush to ensure output
 
     // Update config with the provided configuration
     config_ = config;
+
+    // Initialize block management state (before recovery)
+    TSDB_INFO("StorageImpl::init() - Initializing BlockManagement");
+    initialize_block_management();
 
     // Initialize the new core components
     TSDB_INFO("StorageImpl::init() - Creating ShardedIndex");
@@ -282,7 +287,11 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
                 // CRITICAL FIX: Populate global block maps
                 // This ensures that read_from_blocks_nolock works correctly even if active_series_ misses
                 // and that queries can find blocks via label_to_blocks_
-                series_blocks_[series_id].push_back(block);
+                {
+                    SeriesBlocksMap::accessor blocks_acc;
+                    series_blocks_.insert(blocks_acc, series_id);
+                    blocks_acc->second.push_back(block);
+                }
                 
                 // Update label-to-blocks mapping for fast label-based lookups
                 label_to_blocks_[labels].push_back(block);
@@ -309,6 +318,15 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         
         should_start_background_processing = cache_config.enable_background_processing;
         cache_hierarchy_ = std::make_unique<CacheHierarchy>(cache_config);
+        
+        // Wire L3 persistence callback to BlockManager for Parquet demotion
+        if (block_manager_) {
+            cache_hierarchy_->set_l3_persistence_callback(
+                [this](core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series) {
+                    return block_manager_->persistSeriesToParquet(series_id, series);
+                });
+            TSDB_INFO("StorageImpl::init() - L3 Parquet persistence callback wired");
+        }
     }
     
     // Start background processing for cache hierarchy (only if enabled)
@@ -334,8 +352,8 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
     initialize_predictive_cache();
     
     // Initialize block management
-    TSDB_INFO("StorageImpl::init() - Initializing BlockManagement");
-    initialize_block_management();
+    // TSDB_INFO("StorageImpl::init() - Initializing BlockManagement");
+    // initialize_block_management();
     
     // Enable write performance instrumentation
     WritePerformanceInstrumentation::instance().enable();
@@ -405,7 +423,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         // NOTE: WAL failures are logged but don't prevent writes - data is still written to in-memory storage
         // This allows verification to work even if WAL has issues (verification queries in-memory storage)
         {
-            ScopedTimer timer(metrics.wal_write_us, perf_enabled);
+            WriteScopedTimer timer(metrics.wal_write_us, perf_enabled);
             auto wal_result = wal_->log(series);
             if (!wal_result.ok()) {
                 TSDB_WARN("WAL write failed (continuing with in-memory write): " + wal_result.error());
@@ -417,7 +435,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         // 2. Calculate series ID
         core::SeriesID series_id;
         {
-            ScopedTimer timer(metrics.series_id_calc_us, perf_enabled);
+            WriteScopedTimer timer(metrics.series_id_calc_us, perf_enabled);
             series_id = calculate_series_id(series.labels());
         }
 
@@ -435,7 +453,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             bool created = false;
             
             {
-                ScopedTimer timer(metrics.map_insert_us, perf_enabled);
+                WriteScopedTimer timer(metrics.map_insert_us, perf_enabled);
                 // Try to insert. If key exists, returns false and accessor points to existing element.
                 // If key doesn't exist, inserts default value, returns true, and accessor points to new element.
                 created = active_series_.insert(accessor, series_id);
@@ -447,13 +465,13 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
                 
                 // This is the first time we see this series. Create it.
                 {
-                    ScopedTimer timer(metrics.index_insert_us, perf_enabled);
+                    WriteScopedTimer timer(metrics.index_insert_us, perf_enabled);
                     index_->add_series(series_id, series.labels());
                 }
                 
                 std::shared_ptr<Series> new_series;
                 {
-                    ScopedTimer timer(metrics.series_creation_us, perf_enabled);
+                    WriteScopedTimer timer(metrics.series_creation_us, perf_enabled);
                     new_series = std::make_shared<Series>(series_id, series.labels(), core::MetricType::GAUGE, Granularity());
                 }
                 
@@ -463,7 +481,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             // 4. Append samples to the series' active head block.
             bool block_is_full = false;
             {
-                ScopedTimer timer(metrics.sample_append_us, perf_enabled);
+                WriteScopedTimer timer(metrics.sample_append_us, perf_enabled);
                 for (const auto& sample : series.samples()) {
                     if (accessor->second->append(sample)) {
                         block_is_full = true;
@@ -473,7 +491,7 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
 
             // 5. Populate cache hierarchy with the written series for fast subsequent reads
             if (cache_hierarchy_) {
-                ScopedTimer timer(metrics.cache_update_us, perf_enabled);
+                WriteScopedTimer timer(metrics.cache_update_us, perf_enabled);
                 auto shared_series = std::make_shared<core::TimeSeries>(series);
                 cache_hierarchy_->put(series_id, shared_series);
             }
@@ -487,12 +505,12 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             
             if (block_is_full) {
                 {
-                    ScopedTimer timer(metrics.block_seal_us, perf_enabled);
+                    WriteScopedTimer timer(metrics.block_seal_us, perf_enabled);
                     persisted_block = accessor->second->seal_block();
                 }
                 if (persisted_block) {
                     {
-                        ScopedTimer timer(metrics.block_persist_us, perf_enabled);
+                        WriteScopedTimer timer(metrics.block_persist_us, perf_enabled);
                         auto persist_result = block_manager_->seal_and_persist_block(persisted_block);
                         if (!persist_result.ok()) {
                             TSDB_WARN("Failed to persist block for series " + std::to_string(series_id) + 
@@ -510,13 +528,14 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             // Blocks will be persisted when they're full, and WAL provides durability in the meantime.
         } // shared_lock released, accessor destroyed
         
-        // Now that BlockManager operations are complete (mutex released), acquire StorageImpl mutex
-        // to update series_blocks_ mapping
+        // Update series_blocks_ using concurrent accessor (no global lock needed!)
         if (block_persisted && persisted_block) {
             {
-                ScopedTimer timer(metrics.mutex_lock_us, perf_enabled);
-                std::unique_lock<std::shared_mutex> lock(mutex_);
-                series_blocks_[series_id].push_back(persisted_block);
+                WriteScopedTimer timer(metrics.mutex_lock_us, perf_enabled);
+                // Use concurrent_hash_map accessor - no global lock contention
+                SeriesBlocksMap::accessor blocks_accessor;
+                series_blocks_.insert(blocks_accessor, series_id);
+                blocks_accessor->second.push_back(persisted_block);
             }
         }
         
@@ -571,17 +590,26 @@ core::Result<core::TimeSeries> StorageImpl::read(
         return core::Result<core::TimeSeries>::error("Invalid time range: start_time must be less than or equal to end_time");
     }
     
+    // Instrumentation
+    ReadPerformanceInstrumentation::ReadMetrics metrics;
+    ReadPerformanceInstrumentation::SetCurrentMetrics(&metrics);
+    ReadScopedTimer total_timer(metrics.total_us);
+    
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return read_nolock(labels, start_time, end_time);
+    auto result = read_nolock(labels, start_time, end_time, metrics);
+    
+    total_timer.stop();
+    ReadPerformanceInstrumentation::instance().record_read(metrics);
+    ReadPerformanceInstrumentation::SetCurrentMetrics(nullptr);
+    
+    return result;
 }
 
 core::Result<core::TimeSeries> StorageImpl::read_nolock(
     const core::Labels& labels,
     int64_t start_time,
-    int64_t end_time) {
-    // Instrumentation
-    ReadPerformanceInstrumentation::ReadMetrics metrics;
-    ReadScopedTimer total_timer(metrics.total_us);
+    int64_t end_time,
+    ReadPerformanceInstrumentation::ReadMetrics& metrics) {
 
     // CATEGORY 2 FIX: This version assumes mutex_ is already held by caller
     // to avoid nested lock acquisition (deadlock) - std::shared_mutex does NOT support recursive locking
@@ -589,15 +617,25 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
     
     try {
         // Try cache hierarchy first for fast access (if available)
-        auto series_id = calculate_series_id(labels);
+        // Try cache hierarchy first for fast access (if available)
+        core::SeriesID series_id;
+        {
+            ReadScopedTimer id_timer(metrics.series_id_calc_us);
+            series_id = calculate_series_id(labels);
+        }
         
         // Record access pattern for predictive caching
-        record_access_pattern(labels);
+        // Record access pattern for predictive caching
+        {
+            ReadScopedTimer access_timer(metrics.access_pattern_us);
+            // record_access_pattern(labels); // DISABLED: Causing >700ms latency per query
+        }
         
         // Prefetch predicted series based on access patterns
         
         std::shared_ptr<core::TimeSeries> cached_series = nullptr;
         if (cache_hierarchy_) {
+            ReadScopedTimer cache_timer(metrics.cache_get_us);
             cached_series = cache_hierarchy_->get(series_id);
         }
         
@@ -617,9 +655,6 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
                 metrics.samples_scanned = result.size();
                 metrics.blocks_accessed = 1; // Treat cached series as 1 block
                 metrics.cache_hit = true;
-                total_timer.stop(); // Stop timer to update metrics.total_us
-                ReadPerformanceInstrumentation::instance().record_read(metrics);
-                
                 return core::Result<core::TimeSeries>(std::move(result));
             } else {
                 // Fallback if pool is not available
@@ -629,23 +664,34 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
                 metrics.samples_scanned = result.size();
                 metrics.blocks_accessed = 1; // Treat cached series as 1 block
                 metrics.cache_hit = true;
-                total_timer.stop(); // Stop timer to update metrics.total_us
-                ReadPerformanceInstrumentation::instance().record_read(metrics);
-                
                 return core::Result<core::TimeSeries>(std::move(result));
             }
         }
         
         // Cache miss - try reading from active_series_ first (in-memory data)
         SeriesMap::const_accessor accessor;
-        if (active_series_.find(accessor, series_id)) {
+        bool found = false;
+        {
+            ReadScopedTimer lookup_timer(metrics.active_series_lookup_us);
+            // DEBUG: Force block-based read to ensure sorted merging and avoid Series::Read errors
+            // found = active_series_.find(accessor, series_id);
+            found = false; 
+        }
+        
+        if (found) {
             // Found in active series - read from it
             try {
                 if (!accessor->second) {
                     TSDB_ERROR("Found null series pointer in active_series_ for id {}", series_id);
                     return core::Result<core::TimeSeries>::error("Null series pointer");
                 }
-                auto samples_result = accessor->second->Read(start_time, end_time);
+                
+                core::Result<std::vector<core::Sample>> samples_result = core::Result<std::vector<core::Sample>>::error("Not run");
+                {
+                    ReadScopedTimer read_timer(metrics.active_series_read_us);
+                    samples_result = accessor->second->Read(start_time, end_time);
+                }
+                
                 if (samples_result.ok()) {
                     
                     // Create result - samples from Series::Read() are already sorted chronologically
@@ -673,9 +719,9 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
                     // Return result even if empty (series exists but no samples in range)
                     metrics.samples_scanned = result.size();
                     metrics.blocks_accessed = 1; // Treat in-memory series as 1 block
+                    metrics.samples_scanned = result.size();
+                    metrics.blocks_accessed = 1; // Treat in-memory series as 1 block
                     metrics.cache_hit = true; // It's in memory, effectively a cache hit
-                    total_timer.stop(); // Stop timer to update metrics.total_us
-                    ReadPerformanceInstrumentation::instance().record_read(metrics);
                     return core::Result<core::TimeSeries>(std::move(result));
                 }
                 // If Read() failed, continue to try block-based read
@@ -697,25 +743,20 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
         // Use read_from_blocks_nolock() to avoid nested lock acquisition (deadlock)
         {
             ReadScopedTimer block_timer(metrics.block_lookup_us);
-            auto block_result = read_from_blocks_nolock(labels, start_time, end_time);
-            
+            auto block_result = read_from_blocks_nolock(labels, start_time, end_time, metrics);
             if (block_result.ok()) {
-                // Block-based read successful - add to cache and return (even if empty)
-                if (!block_result.value().empty()) {
-                    auto shared_series = std::make_shared<core::TimeSeries>(block_result.value());
-                    if (cache_hierarchy_) {
-                        cache_hierarchy_->put(series_id, shared_series);
-                    }
+                // Populate cache hierarchy with the result to improve future read performance
+                const auto& series = block_result.value();
+                if (cache_hierarchy_ && !series.empty()) {
+                    auto shared_series = std::make_shared<core::TimeSeries>(series);
+                    cache_hierarchy_->put(series_id, shared_series);
                 }
-                total_timer.stop(); // Stop timer to update metrics.total_us
-                ReadPerformanceInstrumentation::instance().record_read(metrics);
                 return block_result;
             }
         }
         
         // If no series was found, return empty result (not an error - series might not exist yet)
         core::TimeSeries empty_result(labels);
-        total_timer.stop(); // Stop timer to update metrics.total_us
         ReadPerformanceInstrumentation::instance().record_read(metrics);
         return core::Result<core::TimeSeries>(std::move(empty_result));
     } catch (const std::exception& e) {
@@ -779,7 +820,8 @@ core::Result<void> StorageImpl::read_samples_nolock(
              return tsdb::core::Result<void>(); // Treat as empty
         }
         
-        auto block_result = read_from_blocks_nolock(labels_result.value(), start_time, end_time);
+        ReadPerformanceInstrumentation::ReadMetrics dummy_metrics;
+        auto block_result = read_from_blocks_nolock(labels_result.value(), start_time, end_time, dummy_metrics);
         if (block_result.ok()) {
             const auto& series = block_result.value();
             for (const auto& sample : series.samples()) {
@@ -846,6 +888,9 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
     if (start_time >= end_time) {
         return core::Result<std::vector<core::TimeSeries>>::error("Invalid time range: start_time must be less than end_time");
     }
+    
+    // Set thread-local context for this query to capture deep metrics
+    ReadPerformanceInstrumentation::SetCurrentMetrics(&metrics);
     
     // DEADLOCK FIX #1: Acquire Index mutex BEFORE StorageImpl mutex to prevent lock ordering violation
     // This ensures consistent lock ordering: Index → StorageImpl (matching write() order)
@@ -929,7 +974,7 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
             // auto read_result = read_nolock(labels, start_time, end_time);
             core::Result<core::TimeSeries> read_result = core::Result<core::TimeSeries>::error("Not run");
             try {
-                 read_result = read_nolock(labels, start_time, end_time);
+                 read_result = read_nolock(labels, start_time, end_time, metrics);
             } catch (...) {
                  TSDB_ERROR("read_nolock crashed for series {}", series_id);
                  throw;
@@ -952,8 +997,32 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
         total_timer.stop(); // Stop timer to update metrics.total_us
         ReadPerformanceInstrumentation::instance().record_read(metrics);
         
+        // Log slow queries (threshold lowered for debugging)
+        if (metrics.total_us > 0.0) { // Log ALL queries for micro-benchmark verification
+            std::stringstream ss;
+            ss << "Query: ";
+            for (const auto& m : matchers) {
+                std::string op;
+                switch (m.type) {
+                    case core::MatcherType::Equal: op = "="; break;
+                    case core::MatcherType::NotEqual: op = "!="; break;
+                    case core::MatcherType::RegexMatch: op = "=~"; break;
+                    case core::MatcherType::RegexNoMatch: op = "!~"; break;
+                }
+                ss << m.name << op << m.value << " ";
+            }
+            spdlog::warn("[SLOW QUERY] Duration: {}ms (Parse: {}ms, Eval: {}ms) {}", 
+                metrics.total_us / 1000.0, 
+                metrics.index_search_us / 1000.0,
+                (metrics.total_us - metrics.index_search_us) / 1000.0,
+                ss.str());
+            spdlog::warn("  Stats: {}", metrics.to_string());
+        }
+        
+        ReadPerformanceInstrumentation::SetCurrentMetrics(nullptr);
         return core::Result<std::vector<core::TimeSeries>>(std::move(results));
     } catch (const std::exception& e) {
+        ReadPerformanceInstrumentation::SetCurrentMetrics(nullptr);
         return core::Result<std::vector<core::TimeSeries>>::error("Query failed: " + std::string(e.what()));
     }
 }
@@ -1348,8 +1417,8 @@ core::Result<void> StorageImpl::delete_series(
                 active_series_.erase(accessor);
             }
             
-            // Remove from series_blocks_
-            series_blocks_.erase(series_id);
+            // Remove from series_blocks_ (concurrent)
+            series_blocks_.erase(series_id);  // concurrent_hash_map::erase is thread-safe
             
             // Remove from cache if present
             if (cache_hierarchy_) {
@@ -1621,6 +1690,10 @@ core::Result<void> StorageImpl::close() {
     }
 
     TSDB_INFO("StorageImpl::close - Clearing data structures.");
+    
+    // Print write performance summary before clearing data
+    print_write_performance_summary();
+
     // Clear all data structures
     active_series_.clear();
     series_blocks_.clear();
@@ -1724,9 +1797,9 @@ std::string StorageImpl::stats() const {
             size_t total_compressed_size = 0;
             size_t total_uncompressed_size = 0;
             
-            // Calculate compressed and uncompressed sizes from blocks
-            for (const auto& [series_id, blocks] : series_blocks_) {
-                for (const auto& block : blocks) {
+            // Calculate compressed and uncompressed sizes from blocks (concurrent iteration)
+            for (auto it = series_blocks_.begin(); it != series_blocks_.end(); ++it) {
+                for (const auto& block : it->second) {
                     if (block) {
                         // Compressed size is the actual block size
                         total_compressed_size += block->size();
@@ -2197,9 +2270,13 @@ core::Result<void> StorageImpl::write_to_block(const core::TimeSeries& series) {
             }
         }
         
-        // Track the block for this series
+        // Track the block for this series (using concurrent accessor)
         auto series_id = calculate_series_id(series.labels());
-        series_blocks_[series_id].push_back(current_block_);
+        {
+            SeriesBlocksMap::accessor blocks_acc;
+            series_blocks_.insert(blocks_acc, series_id);
+            blocks_acc->second.push_back(current_block_);
+        }
         
         // Update block index for fast lookups
         auto index_result = update_block_index(series, current_block_);
@@ -2226,11 +2303,15 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks(
     const core::Labels& labels, int64_t start_time, int64_t end_time) {
     
     std::shared_lock<std::shared_mutex> lock(mutex_);
-    return read_from_blocks_nolock(labels, start_time, end_time);
+    ReadPerformanceInstrumentation::ReadMetrics metrics; // Local metrics for this call
+    return read_from_blocks_nolock(labels, start_time, end_time, metrics);
 }
 
 core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
-    const core::Labels& labels, int64_t start_time, int64_t end_time) {
+    const core::Labels& labels,
+    int64_t start_time,
+    int64_t end_time,
+    ReadPerformanceInstrumentation::ReadMetrics& metrics) {
     
     // CATEGORY 2 FIX: This version assumes mutex_ is already held by caller
     // to avoid nested lock acquisition (deadlock)
@@ -2251,10 +2332,17 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
         
         core::TimeSeries result(labels);
         
-        // Find blocks for this series
-        auto it = series_blocks_.find(series_id);
-        if (it == series_blocks_.end()) {
-
+        // Find blocks for this series (using concurrent accessor)
+        std::vector<std::shared_ptr<internal::BlockInternal>> blocks;
+        {
+            ReadScopedTimer lookup_timer(metrics.block_lookup_us);
+            SeriesBlocksMap::const_accessor blocks_acc;
+            if (series_blocks_.find(blocks_acc, series_id)) {
+                blocks = blocks_acc->second;
+            }
+        }
+        
+        if (blocks.empty()) {
             // No blocks found for this series
             if (pooled_result && time_series_pool_) {
                 time_series_pool_->release(std::move(pooled_result));
@@ -2262,8 +2350,25 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
             return core::Result<core::TimeSeries>(std::move(result));
         }
         
+        metrics.blocks_accessed += blocks.size();
+        
+        // Collect all samples first using zero-copy column reads
+        std::vector<int64_t> all_timestamps;
+        std::vector<double> all_values;
+        size_t total_estimated_size = 0;
+
+        // First pass: estimate size
+        for (const auto& block : blocks) {
+            if (!block) continue;
+            if (block->end_time() < start_time || block->start_time() > end_time) continue;
+            // Crude estimate, better than nothing
+            total_estimated_size += 100; 
+        }
+        all_timestamps.reserve(total_estimated_size);
+        all_values.reserve(total_estimated_size);
+        
         // Read from all blocks for this series
-        for (const auto& block : it->second) {
+        for (const auto& block : blocks) {
             if (!block) continue;
             
             // Check if block overlaps with time range
@@ -2271,13 +2376,44 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
                 continue;  // Block doesn't overlap with requested range
             }
             
-            // Read series from block
-            auto block_series = block->read(labels);
+            // Read columns directly
+            std::pair<std::vector<int64_t>, std::vector<double>> columns;
+            {
+                ReadScopedTimer read_timer(metrics.block_read_us);
+                columns = block->read_columns(labels);
+            }
             
-            // Add samples within time range
-            for (const auto& sample : block_series.samples()) {
-                if (sample.timestamp() >= start_time && sample.timestamp() <= end_time) {
-                    result.add_sample(sample);
+            const auto& block_ts = columns.first;
+            const auto& block_vals = columns.second;
+            
+            // Filter and append
+            for (size_t i = 0; i < block_ts.size(); ++i) {
+                if (block_ts[i] >= start_time && block_ts[i] <= end_time) {
+                    all_timestamps.push_back(block_ts[i]);
+                    all_values.push_back(block_vals[i]);
+                }
+            }
+        }
+        
+        // Sort samples by timestamp
+        if (!all_timestamps.empty()) {
+            // Create permutation index for sorting
+            std::vector<size_t> p(all_timestamps.size());
+            std::iota(p.begin(), p.end(), 0);
+            
+            {
+                 ReadScopedTimer sort_timer(metrics.sorting_us);
+                 std::sort(p.begin(), p.end(), [&](size_t i, size_t j) {
+                     return all_timestamps[i] < all_timestamps[j];
+                 });
+            }
+            
+            // Add sorted samples to result, skipping duplicates
+            int64_t last_ts = -1;
+            for (size_t i : p) {
+                if (result.empty() || all_timestamps[i] > last_ts) {
+                    result.add_sample(all_timestamps[i], all_values[i]);
+                    last_ts = all_timestamps[i];
                 }
             }
         }
@@ -2482,49 +2618,69 @@ core::Result<void> StorageImpl::execute_background_flush(int64_t threshold_ms) {
              }
         }
         
+        // Sort candidates by series ID to match some deterministic order?
+        // Or leave them in loop order. Use a vector of pairs for batch API.
+        std::vector<std::pair<core::Labels, std::shared_ptr<internal::BlockInternal>>> batch_candidates;
         for (const auto& [series, block] : candidates) {
-             auto result = block_manager_->demoteToParquet(block->header());
-             if (result.ok()) {
-                 std::string path = result.value();
-                 auto parquet_block = std::make_shared<parquet::ParquetBlock>(block->header(), path);
-                 
-                 // Update Series (thread-safe)
-                 series->ReplaceBlock(block, parquet_block);
-                 
-                 // Update Global Metadata (requires lock)
+            batch_candidates.push_back({series->Labels(), block});
+        }
+        
+        if (!batch_candidates.empty()) {
+            auto result = block_manager_->demoteBlocksToParquet(batch_candidates);
+            if (result.ok()) {
+                auto path_map = result.value();
+                
+                 // Update Global Metadata (requires lock) - BATCHED UPDATE
+                 // Only ONE unique lock acquisition for the whole batch!
                  {
                      std::unique_lock<std::shared_mutex> lock(mutex_);
                      
-                     // 1. Update series_blocks_
-                     auto& s_blocks = series_blocks_[series->GetID()];
-                     for (auto& b : s_blocks) {
-                         if (b == block) {
-                             b = parquet_block;
-                             break;
+                     for (const auto& [series, block] : candidates) {
+                         // Find the path for this block
+                         auto it = path_map.find(block->header().id);
+                         if (it == path_map.end()) continue; // Should not happen
+                         
+                         std::string path = it->second;
+                         auto parquet_block = std::make_shared<parquet::ParquetBlock>(block->header(), path);
+                         
+                         // Update Series (thread-safe)
+                         series->ReplaceBlock(block, parquet_block);
+                         
+                         // 1. Update series_blocks_ (concurrent accessor)
+                         {
+                             SeriesBlocksMap::accessor s_acc;
+                             if (series_blocks_.find(s_acc, series->GetID())) {
+                                 for (auto& b : s_acc->second) {
+                                     if (b == block) {
+                                         b = parquet_block;
+                                         break;
+                                     }
+                                 }
+                             }
                          }
-                     }
-                     
-                     // 2. Update label_to_blocks_
-                     auto& l_blocks = label_to_blocks_[series->Labels()];
-                     for (auto& b : l_blocks) {
-                         if (b == block) {
-                             b = parquet_block;
-                             break;
+                         
+                         // 2. Update label_to_blocks_
+                         auto& l_blocks = label_to_blocks_[series->Labels()];
+                         for (auto& b : l_blocks) {
+                             if (b == block) {
+                                 b = parquet_block;
+                                 break;
+                             }
                          }
-                     }
-                     
-                     // 3. Update block_to_series_
-                     if (block_to_series_.count(block)) {
-                         auto series_ids = block_to_series_[block];
-                         block_to_series_.erase(block);
-                         block_to_series_[parquet_block] = std::move(series_ids);
+                         
+                         // 3. Update block_to_series_
+                         if (block_to_series_.count(block)) {
+                             auto series_ids = block_to_series_[block];
+                             block_to_series_.erase(block);
+                             block_to_series_[parquet_block] = std::move(series_ids);
+                         }
+                         
+                         flushed_count++;
                      }
                  }
-                 flushed_count++;
-             } else {
-                 // Log error or ignore if already cold
-                 // TSDB_WARN("Failed to demote block: " + result.error());
-             }
+            } else {
+                TSDB_ERROR("Failed to demote blocks to parquet: " + result.error());
+            }
         }
         
         if (flushed_count > 0) {
@@ -2632,11 +2788,15 @@ core::Result<void> StorageImpl::execute_background_compaction() {
                     
                     // Update series
                     for (auto series_id : it->second) {
-                        // Update series_blocks_
-                        auto& blocks = series_blocks_[series_id];
-                        for (auto& b : blocks) {
-                            if (b == old_block) {
-                                b = new_block;
+                        // Update series_blocks_ (concurrent accessor)
+                        {
+                            SeriesBlocksMap::accessor s_acc;
+                            if (series_blocks_.find(s_acc, series_id)) {
+                                for (auto& b : s_acc->second) {
+                                    if (b == old_block) {
+                                        b = new_block;
+                                    }
+                                }
                             }
                         }
                         
@@ -2678,21 +2838,32 @@ core::Result<void> StorageImpl::execute_background_cleanup() {
         // Perform cleanup operations
         size_t cleaned_blocks = 0;
         
-        // Clean up old blocks (simplified implementation)
-        for (auto it = series_blocks_.begin(); it != series_blocks_.end();) {
-            auto& blocks = it->second;
-            blocks.erase(std::remove_if(blocks.begin(), blocks.end(), 
-                        [](const std::shared_ptr<internal::BlockInternal>& block) {
-                            // Simple cleanup logic - remove empty blocks
-                            return block && block->size() == 0;
-                        }), blocks.end());
-            
-            if (blocks.empty()) {
-                it = series_blocks_.erase(it);
-            } else {
-                ++it;
+        // Clean up old blocks - concurrent_hash_map requires different pattern
+        // First collect keys to clean, then modify via accessors
+        std::vector<core::SeriesID> keys_to_check;
+        for (auto it = series_blocks_.begin(); it != series_blocks_.end(); ++it) {
+            keys_to_check.push_back(it->first);
+        }
+        
+        std::vector<core::SeriesID> keys_to_erase;
+        for (const auto& series_id : keys_to_check) {
+            SeriesBlocksMap::accessor acc;
+            if (series_blocks_.find(acc, series_id)) {
+                auto& blocks = acc->second;
+                blocks.erase(std::remove_if(blocks.begin(), blocks.end(), 
+                            [](const std::shared_ptr<internal::BlockInternal>& block) {
+                                return block && block->size() == 0;
+                            }), blocks.end());
+                
+                if (blocks.empty()) {
+                    keys_to_erase.push_back(series_id);
+                }
+                cleaned_blocks++;
             }
-            cleaned_blocks++;
+        }
+        
+        for (const auto& key : keys_to_erase) {
+            series_blocks_.erase(key);
         }
         
         TSDB_DEBUG("Background cleanup completed");
@@ -2717,8 +2888,8 @@ core::Result<void> StorageImpl::execute_background_metrics_collection() {
         size_t total_blocks = total_blocks_created_;
         size_t active_blocks = 0;
         
-        for (const auto& [series_id, blocks] : series_blocks_) {
-            active_blocks += blocks.size();
+        for (auto it = series_blocks_.begin(); it != series_blocks_.end(); ++it) {
+            active_blocks += it->second.size();
         }
         
         // Log metrics (in production, this would be sent to monitoring system)

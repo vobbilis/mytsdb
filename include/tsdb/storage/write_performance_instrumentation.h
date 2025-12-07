@@ -9,6 +9,7 @@
 #include <iostream>
 #include <iomanip>
 #include <sstream>
+#include "tsdb/storage/atomic_metrics.h"
 
 namespace tsdb {
 namespace storage {
@@ -184,11 +185,61 @@ public:
         otel_point_conversion_total_us_ += metrics.otel_point_conversion_us;
         
         // Debug output removed for production
+        
+        // Record to GlobalMetrics for self-monitoring
+        tsdb::storage::internal::GlobalMetrics::getInstance().recordWrite(
+            metrics.num_samples * 16, // Approximate bytes (timestamp+value)
+            static_cast<uint64_t>(metrics.total_us * 1000) // Convert us to ns
+        );
     }
     
     void print_summary() {
-        // Debug output removed for production - metrics still collected internally
-        (void)enabled_;  // Suppress unused warning
+        auto stats = get_stats();
+        size_t total_writes = stats.new_series_count + stats.update_series_count;
+        if (total_writes == 0) {
+            std::cout << "Write Performance Summary: No writes recorded." << std::endl;
+            return;
+        }
+
+        double total_time_ms = (stats.new_series_total_us + stats.update_series_total_us) / 1000.0;
+        double avg_time_us = (stats.new_series_total_us + stats.update_series_total_us) / total_writes;
+
+        std::cout << "\n=== Write Performance Summary ===" << std::endl;
+        std::cout << "Total Writes: " << total_writes << " (New: " << stats.new_series_count 
+                  << ", Update: " << stats.update_series_count << ")" << std::endl;
+        std::cout << "Total Time: " << std::fixed << std::setprecision(2) << total_time_ms << " ms" << std::endl;
+        std::cout << "Avg Time per Write: " << avg_time_us << " us" << std::endl;
+        
+        std::cout << "\n--- Component Breakdown (Avg per Write) ---" << std::endl;
+        auto print_metric = [&](const char* name, double total_us) {
+            std::cout << std::left << std::setw(25) << name << ": " 
+                      << std::right << std::setw(8) << (total_us / total_writes) << " us ("
+                      << std::setw(5) << (total_us / (stats.new_series_total_us + stats.update_series_total_us) * 100.0) << "%)" << std::endl;
+        };
+
+        print_metric("WAL Write", stats.wal_write_total_us);
+        print_metric("Series ID Calc", stats.series_id_calc_total_us);
+        print_metric("Map Insert (Lock)", stats.map_insert_total_us);
+        print_metric("Index Insert", stats.index_insert_total_us);
+        print_metric("Series Creation", stats.series_creation_total_us);
+        print_metric("Sample Append", stats.sample_append_total_us);
+        print_metric("Block Seal", stats.block_seal_total_us);
+        print_metric("Block Persist", stats.block_persist_total_us);
+        print_metric("Cache Update", stats.cache_update_total_us);
+        print_metric("Mutex Wait", stats.mutex_lock_total_us);
+        
+        std::cout << "\n--- OTEL/gRPC Overhead (Avg per Write) ---" << std::endl;
+        print_metric("gRPC Handling", stats.grpc_handling_total_us);
+        print_metric("OTEL Conversion", stats.otel_conversion_total_us);
+        
+        std::cout << "\n--- OTEL Conversion Breakdown (Avg per Write) ---" << std::endl;
+        print_metric("  Resource Processing", stats.otel_resource_processing_total_us);
+        print_metric("  Scope Processing", stats.otel_scope_processing_total_us);
+        print_metric("  Metric Processing", stats.otel_metric_processing_total_us);
+        print_metric("  Label Conversion", stats.otel_label_conversion_total_us);
+        print_metric("  Point Conversion", stats.otel_point_conversion_total_us);
+        
+        std::cout << "=================================\n" << std::endl;
     }
     
     struct WriteStats {
@@ -282,15 +333,12 @@ private:
     double otel_point_conversion_total_us_ = 0.0;
 };
 
-/**
- * @brief RAII timer for measuring operation duration
- */
-class ScopedTimer {
+class WriteScopedTimer {
 public:
-    ScopedTimer(double& output_us, bool enabled = true)
+    WriteScopedTimer(double& output_us, bool enabled = true)
         : output_us_(output_us), enabled_(enabled), start_(std::chrono::high_resolution_clock::now()) {}
     
-    ~ScopedTimer() {
+    ~WriteScopedTimer() {
         if (enabled_) {
             auto end = std::chrono::high_resolution_clock::now();
             auto duration = std::chrono::duration_cast<std::chrono::nanoseconds>(end - start_);

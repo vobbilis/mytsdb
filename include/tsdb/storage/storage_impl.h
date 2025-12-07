@@ -31,6 +31,7 @@
 #include "tsdb/storage/internal/block_impl.h"
 #include "tsdb/storage/sharded_wal.h"
 #include "tsdb/storage/sharded_index.h"
+#include "tsdb/storage/read_performance_instrumentation.h"
 #include <tbb/concurrent_hash_map.h>
 
 namespace tsdb {
@@ -85,7 +86,8 @@ public:
     core::Result<core::TimeSeries> read_nolock(
         const core::Labels& labels,
         int64_t start_time,
-        int64_t end_time);
+        int64_t end_time,
+        ReadPerformanceInstrumentation::ReadMetrics& metrics);
 
     /**
      * @brief Reads samples for a series without acquiring mutex (internal use)
@@ -245,9 +247,10 @@ private:
     // Predictive caching components
     std::unique_ptr<PredictiveCache> predictive_cache_;
     
-    // Block management components
+    // Block management components - using concurrent_hash_map to avoid global lock
     std::shared_ptr<internal::BlockInternal> current_block_;
-    std::map<core::SeriesID, std::vector<std::shared_ptr<internal::BlockInternal>>> series_blocks_;
+    using SeriesBlocksMap = tbb::concurrent_hash_map<core::SeriesID, std::vector<std::shared_ptr<internal::BlockInternal>>>;
+    SeriesBlocksMap series_blocks_;
     std::atomic<uint64_t> next_block_id_;
     
     // Block indexing for fast lookups
@@ -268,7 +271,8 @@ private:
                                                    int64_t start_time, int64_t end_time);
     // No-lock version for use when mutex is already held (prevents nested lock acquisition)
     core::Result<core::TimeSeries> read_from_blocks_nolock(const core::Labels& labels, 
-                                                          int64_t start_time, int64_t end_time);
+                                                          int64_t start_time, int64_t end_time,
+                                                          ReadPerformanceInstrumentation::ReadMetrics& metrics);
     
     // Block compaction and indexing
     core::Result<void> check_and_trigger_compaction();

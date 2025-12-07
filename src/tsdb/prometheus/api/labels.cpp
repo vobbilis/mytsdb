@@ -11,7 +11,7 @@ namespace prometheus {
 namespace api {
 
 namespace {
-    const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_]*");
+    const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_.]*");
     const std::regex kMatcherRegex(R"(\{([^{}]+)\})");
     const int64_t kMaxTimeRange = 86400000;  // 24 hours in milliseconds
 }

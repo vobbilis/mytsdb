@@ -6,7 +6,7 @@ namespace tsdb {
 namespace prometheus {
 
 namespace {
-    const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_]*");
+    const std::regex kLabelNameRegex("[a-zA-Z_][a-zA-Z0-9_.]*");
     const std::regex kMetricNameRegex("[a-zA-Z_:][a-zA-Z0-9_:]*");
     const int64_t kMinTimestamp = 0;  // Unix epoch
     const int64_t kMaxTimestamp = 253402300799999;  // Year 9999

@@ -670,6 +670,284 @@ TEST_F(CacheHierarchyTest, CleanConfigIsolationTest) {
     EXPECT_NEAR(cache.hit_ratio(), 66.67, 0.1);
 }
 
+// ============================================================================
+// L3 Parquet Demotion Tests
+// ============================================================================
+
+TEST_F(CacheHierarchyTest, L3DemotionWithoutCallback) {
+    CLEAN_CONFIG;
+    CacheHierarchy cache(config);
+    
+    // Add a series
+    auto series = create_test_series(1);
+    cache.put(1, series);
+    
+    // Try to demote to L3 without callback set - should fail
+    EXPECT_FALSE(cache.demote(1, 3));
+    
+    // Series should still be in cache
+    EXPECT_NE(cache.get(1), nullptr);
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionWithCallback) {
+    CLEAN_CONFIG;
+    CacheHierarchy cache(config);
+    
+    // Track callback invocations
+    std::vector<std::pair<core::SeriesID, std::shared_ptr<core::TimeSeries>>> demoted_series;
+    
+    // Set L3 persistence callback
+    cache.set_l3_persistence_callback([&demoted_series](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        demoted_series.push_back({id, s});
+        return true;  // Simulate successful persistence
+    });
+    
+    // Add a series to L1
+    auto series = create_test_series(1, 50);
+    cache.put(1, series);
+    
+    // Ensure series is in cache
+    EXPECT_NE(cache.get(1), nullptr);
+    
+    // Demote to L3
+    EXPECT_TRUE(cache.demote(1, 3));
+    
+    // Callback should have been invoked
+    ASSERT_EQ(demoted_series.size(), 1);
+    EXPECT_EQ(demoted_series[0].first, 1);
+    EXPECT_EQ(demoted_series[0].second->samples().size(), 50);
+    
+    // Series should be removed from cache
+    EXPECT_EQ(cache.get(1), nullptr);
+    
+    // Demotions counter should increase
+    auto stats = cache.stats();
+    EXPECT_TRUE(stats.find("Demotions: 1") != std::string::npos);
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionCallbackFailure) {
+    CLEAN_CONFIG;
+    CacheHierarchy cache(config);
+    
+    // Set callback that returns failure
+    cache.set_l3_persistence_callback([](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        return false;  // Simulate persistence failure
+    });
+    
+    // Add a series
+    auto series = create_test_series(1);
+    cache.put(1, series);
+    
+    // Demote should fail (callback returns false)
+    EXPECT_FALSE(cache.demote(1, 3));
+    
+    // Series should still be in cache
+    EXPECT_NE(cache.get(1), nullptr);
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionMultipleSeries) {
+    CLEAN_CONFIG;
+    config.l1_max_size = 10;
+    CacheHierarchy cache(config);
+    
+    std::atomic<int> callback_count{0};
+    
+    cache.set_l3_persistence_callback([&callback_count](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        callback_count++;
+        return true;
+    });
+    
+    // Add multiple series
+    for (int i = 1; i <= 5; ++i) {
+        auto series = create_test_series(i, 100);
+        cache.put(i, series);
+    }
+    
+    // Demote all to L3
+    for (int i = 1; i <= 5; ++i) {
+        EXPECT_TRUE(cache.demote(i, 3));
+    }
+    
+    // All callbacks should have been called
+    EXPECT_EQ(callback_count, 5);
+    
+    // All should be removed from cache
+    for (int i = 1; i <= 5; ++i) {
+        EXPECT_EQ(cache.get(i), nullptr);
+    }
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionNonExistentSeries) {
+    CLEAN_CONFIG;
+    CacheHierarchy cache(config);
+    
+    bool callback_called = false;
+    cache.set_l3_persistence_callback([&callback_called](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        callback_called = true;
+        return true;
+    });
+    
+    // Try to demote non-existent series
+    EXPECT_FALSE(cache.demote(999, 3));
+    
+    // Callback should not have been called
+    EXPECT_FALSE(callback_called);
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionPreservesData) {
+    CLEAN_CONFIG;
+    CacheHierarchy cache(config);
+    
+    std::shared_ptr<core::TimeSeries> persisted_series;
+    
+    cache.set_l3_persistence_callback([&persisted_series](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        persisted_series = s;
+        return true;
+    });
+    
+    // Add a series with specific data
+    core::Labels::Map labels_map{{"name", "test_metric"}, {"job", "test_job"}};
+    auto series = std::make_shared<core::TimeSeries>(core::Labels(labels_map));
+    for (int i = 0; i < 100; ++i) {
+        series->add_sample(1000 + i * 15000, 42.0 + i * 0.5);  // 15s intervals
+    }
+    cache.put(1, series);
+    
+    // Demote to L3
+    EXPECT_TRUE(cache.demote(1, 3));
+    
+    // Verify callback received correct data
+    ASSERT_NE(persisted_series, nullptr);
+    EXPECT_EQ(persisted_series->samples().size(), 100);
+    EXPECT_EQ(persisted_series->labels().get("name").value(), "test_metric");
+    EXPECT_EQ(persisted_series->labels().get("job").value(), "test_job");
+    
+    // Verify sample integrity
+    const auto& samples = persisted_series->samples();
+    EXPECT_EQ(samples[0].timestamp(), 1000);
+    EXPECT_NEAR(samples[0].value(), 42.0, 0.01);
+    EXPECT_EQ(samples[99].timestamp(), 1000 + 99 * 15000);
+    EXPECT_NEAR(samples[99].value(), 42.0 + 99 * 0.5, 0.01);
+}
+
+// ============================================================================
+// L3 Demotion Performance Tests
+// ============================================================================
+
+TEST_F(CacheHierarchyTest, L3DemotionPerformanceSingleSeries) {
+    CLEAN_CONFIG;
+    config.l1_max_size = 1000;
+    CacheHierarchy cache(config);
+    
+    cache.set_l3_persistence_callback([](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        return true;  // Fast no-op callback
+    });
+    
+    // Create a large series (10K samples)
+    auto series = create_test_series(1, 10000);
+    cache.put(1, series);
+    
+    // Measure demotion time
+    auto start = std::chrono::high_resolution_clock::now();
+    EXPECT_TRUE(cache.demote(1, 3));
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    auto duration_us = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+    
+    // Should complete within 1ms for in-memory operations
+    EXPECT_LT(duration_us, 1000) << "Single series demotion took " << duration_us << "us";
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionPerformanceBatch) {
+    CLEAN_CONFIG;
+    config.l1_max_size = 1000;
+    CacheHierarchy cache(config);
+    
+    std::atomic<int> demoted_count{0};
+    cache.set_l3_persistence_callback([&demoted_count](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        demoted_count++;
+        return true;
+    });
+    
+    const int num_series = 100;
+    const int samples_per_series = 1000;
+    
+    // Add many series
+    for (int i = 1; i <= num_series; ++i) {
+        auto series = create_test_series(i, samples_per_series);
+        cache.put(i, series);
+    }
+    
+    // Measure batch demotion time
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 1; i <= num_series; ++i) {
+        EXPECT_TRUE(cache.demote(i, 3));
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    // All should be demoted
+    EXPECT_EQ(demoted_count, num_series);
+    
+    // Should complete within 100ms for 100 series
+    EXPECT_LT(duration_ms, 100) << "Batch demotion of " << num_series << " series took " << duration_ms << "ms";
+    
+    // Calculate throughput
+    double throughput = (double)num_series * samples_per_series / (duration_ms > 0 ? duration_ms : 1) * 1000.0;
+    std::cout << "L3 Demotion throughput: " << throughput << " samples/sec" << std::endl;
+}
+
+TEST_F(CacheHierarchyTest, L3DemotionConcurrent) {
+    CLEAN_CONFIG;
+    config.l1_max_size = 1000;
+    CacheHierarchy cache(config);
+    
+    std::atomic<int> callback_count{0};
+    std::mutex callback_mutex;
+    
+    cache.set_l3_persistence_callback([&callback_count, &callback_mutex](core::SeriesID id, std::shared_ptr<core::TimeSeries> s) {
+        std::lock_guard<std::mutex> lock(callback_mutex);
+        callback_count++;
+        return true;
+    });
+    
+    // Add series
+    const int num_series = 50;
+    for (int i = 1; i <= num_series; ++i) {
+        auto series = create_test_series(i, 100);
+        cache.put(i, series);
+    }
+    
+    // Concurrent demotion from multiple threads
+    const int num_threads = 4;
+    std::vector<std::thread> threads;
+    
+    auto worker = [&cache, num_series, num_threads](int thread_id) {
+        for (int i = thread_id + 1; i <= num_series; i += num_threads) {
+            cache.demote(i, 3);
+        }
+    };
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (int t = 0; t < num_threads; ++t) {
+        threads.emplace_back(worker, t);
+    }
+    
+    for (auto& t : threads) {
+        t.join();
+    }
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    // All should be demoted (though some may fail if already demoted)
+    EXPECT_EQ(callback_count, num_series);
+    
+    std::cout << "Concurrent L3 demotion (" << num_threads << " threads): " << duration_ms << "ms" << std::endl;
+}
+
 } // namespace test
 } // namespace storage
 } // namespace tsdb 

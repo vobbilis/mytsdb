@@ -274,5 +274,141 @@ TEST_F(BlockManagementTest, BlockErrorHandling) {
     EXPECT_TRUE(large_range_result.ok() || !large_range_result.ok()); // Should handle gracefully
 }
 
+// ============================================================================
+// L3 Parquet Demotion Tests
+// ============================================================================
+
+// Helper to create a test time series
+std::shared_ptr<core::TimeSeries> CreateTestTimeSeries(core::SeriesID id, int num_samples = 100) {
+    core::Labels::Map labels_map{
+        {"__name__", "test_metric"},
+        {"series_id", std::to_string(id)},
+        {"job", "test_job"},
+        {"instance", "localhost:9090"}
+    };
+    auto series = std::make_shared<core::TimeSeries>(core::Labels(labels_map));
+    for (int i = 0; i < num_samples; ++i) {
+        series->add_sample(1000 + i * 15000, 42.0 + i * 0.1);  // 15s intervals
+    }
+    return series;
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_Basic) {
+    // Create a test series
+    auto series = CreateTestTimeSeries(1, 100);
+    
+    // Persist to Parquet
+    bool result = block_manager_->persistSeriesToParquet(1, series);
+    EXPECT_TRUE(result) << "persistSeriesToParquet failed";
+    
+    // Verify Parquet file was created
+    std::filesystem::path parquet_path = test_dir_ / "2" / "1.parquet";
+    EXPECT_TRUE(std::filesystem::exists(parquet_path)) 
+        << "Parquet file not created at: " << parquet_path;
+    
+    // Verify file has reasonable size
+    if (std::filesystem::exists(parquet_path)) {
+        auto file_size = std::filesystem::file_size(parquet_path);
+        EXPECT_GT(file_size, 0) << "Parquet file is empty";
+        EXPECT_LT(file_size, 1024 * 1024) << "Parquet file unexpectedly large for 100 samples";
+        std::cout << "Parquet file size: " << file_size << " bytes for 100 samples" << std::endl;
+    }
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_EmptySeries) {
+    // Create an empty series
+    core::Labels::Map labels_map{{"__name__", "empty_metric"}};
+    auto series = std::make_shared<core::TimeSeries>(core::Labels(labels_map));
+    
+    // Should fail for empty series
+    bool result = block_manager_->persistSeriesToParquet(2, series);
+    EXPECT_FALSE(result) << "persistSeriesToParquet should fail for empty series";
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_NullSeries) {
+    // Should fail for null series
+    bool result = block_manager_->persistSeriesToParquet(3, nullptr);
+    EXPECT_FALSE(result) << "persistSeriesToParquet should fail for null series";
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_LargeSeries) {
+    // Create a large series (10K samples)
+    auto series = CreateTestTimeSeries(4, 10000);
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    bool result = block_manager_->persistSeriesToParquet(4, series);
+    auto end = std::chrono::high_resolution_clock::now();
+    
+    EXPECT_TRUE(result) << "persistSeriesToParquet failed for large series";
+    
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    std::cout << "Persist 10K samples to Parquet: " << duration_ms << "ms" << std::endl;
+    
+    // Should complete within 1 second
+    EXPECT_LT(duration_ms, 1000) << "persistSeriesToParquet too slow for 10K samples";
+    
+    // Verify file was created
+    std::filesystem::path parquet_path = test_dir_ / "2" / "4.parquet";
+    EXPECT_TRUE(std::filesystem::exists(parquet_path));
+    
+    if (std::filesystem::exists(parquet_path)) {
+        auto file_size = std::filesystem::file_size(parquet_path);
+        std::cout << "Parquet file size: " << file_size << " bytes for 10K samples" << std::endl;
+        std::cout << "Compression ratio: " << (10000.0 * 16 / file_size) << "x" << std::endl;
+    }
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_Performance) {
+    const int num_series = 100;
+    const int samples_per_series = 1000;
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    for (int i = 1; i <= num_series; ++i) {
+        auto series = CreateTestTimeSeries(i, samples_per_series);
+        bool result = block_manager_->persistSeriesToParquet(i, series);
+        EXPECT_TRUE(result) << "Failed at series " << i;
+    }
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
+    
+    double total_samples = (double)num_series * samples_per_series;
+    double throughput = total_samples / (duration_ms > 0 ? duration_ms : 1) * 1000.0;
+    
+    std::cout << "\n=== L3 Parquet Performance ===" << std::endl;
+    std::cout << "Series: " << num_series << std::endl;
+    std::cout << "Samples/series: " << samples_per_series << std::endl;
+    std::cout << "Total samples: " << total_samples << std::endl;
+    std::cout << "Time: " << duration_ms << "ms" << std::endl;
+    std::cout << "Throughput: " << throughput << " samples/sec" << std::endl;
+    
+    // Should achieve at least 10K samples/sec write throughput to Parquet
+    EXPECT_GT(throughput, 10000) << "Parquet write throughput too low";
+    
+    // Count created files
+    int file_count = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(test_dir_ / "2")) {
+        if (entry.path().extension() == ".parquet") {
+            file_count++;
+        }
+    }
+    EXPECT_EQ(file_count, num_series) << "Expected " << num_series << " Parquet files";
+}
+
+TEST_F(BlockManagementTest, PersistSeriesToParquet_MultipleCalls) {
+    // Persist same series multiple times - each call should create/overwrite
+    auto series = CreateTestTimeSeries(10, 50);
+    
+    for (int i = 0; i < 5; ++i) {
+        bool result = block_manager_->persistSeriesToParquet(10, series);
+        EXPECT_TRUE(result) << "persistSeriesToParquet failed on call " << i;
+    }
+    
+    // File should still exist
+    std::filesystem::path parquet_path = test_dir_ / "2" / "a.parquet";  // hex 10 = 'a'
+    EXPECT_TRUE(std::filesystem::exists(parquet_path));
+}
+
 } // namespace storage
 } // namespace tsdb 

@@ -36,6 +36,13 @@ std::string AggregateOpToString(TokenType op) {
 Evaluator::Evaluator(int64_t timestamp, int64_t lookback_delta, storage::StorageAdapter* storage)
     : timestamp_(timestamp), lookback_delta_(lookback_delta), storage_(storage) {}
 
+Evaluator::Evaluator(int64_t start, int64_t end, int64_t step, int64_t lookback_delta, storage::StorageAdapter* storage)
+    : timestamp_(start), start_(start), end_(end), step_(step), lookback_delta_(lookback_delta), storage_(storage) {
+    if (step_ <= 0) {
+        throw std::invalid_argument("Step must be positive");
+    }
+}
+
 Value Evaluator::Evaluate(const ExprNode* node) {
     ScopedQueryTimer timer(ScopedQueryTimer::Type::EVAL);
     if (!node) {
@@ -66,6 +73,318 @@ Value Evaluator::Evaluate(const ExprNode* node) {
         default:
             throw std::runtime_error("Unknown expression node type");
     }
+}
+
+Value Evaluator::EvaluateRange(const ExprNode* node) {
+    if (!node) return Value{};
+    if (step_ <= 0) {
+        throw std::runtime_error("EvaluateRange requires positive step");
+    }
+
+    switch (node->type()) {
+        // Optimized nodes
+        case ExprNode::Type::VECTOR_SELECTOR:
+            return EvaluateRangeVectorSelector(static_cast<const VectorSelectorNode*>(node));
+        
+        // Pass-through nodes (structural)
+        case ExprNode::Type::PAREN:
+            return EvaluateRange(static_cast<const ParenExprNode*>(node)->expr.get());
+        
+        // Literals are constant over time
+        case ExprNode::Type::NUMBER_LITERAL:
+        case ExprNode::Type::STRING_LITERAL:
+            return EvaluateRangeLiteral(node);
+
+        case ExprNode::Type::AGGREGATE:
+            return EvaluateRangeAggregate(static_cast<const AggregateExprNode*>(node));
+        case ExprNode::Type::CALL:
+            return EvaluateRangeCall(static_cast<const CallNode*>(node));
+
+        // TODO: Implement optimized versions for these
+        case ExprNode::Type::BINARY:
+        case ExprNode::Type::MATRIX_SELECTOR:
+        case ExprNode::Type::SUBQUERY:
+        case ExprNode::Type::UNARY:
+        default:
+            return EvaluateRangeDefault(node);
+    }
+}
+
+Value Evaluator::EvaluateRangeDefault(const ExprNode* node) {
+    // Fallback: Loop over steps
+    struct LabelSetComparator {
+        bool operator()(const LabelSet& a, const LabelSet& b) const {
+            return a.labels() < b.labels();
+        }
+    };
+    std::map<LabelSet, Series, LabelSetComparator> seriesMap;
+
+    for (int64_t t = start_; t <= end_; t += step_) {
+        timestamp_ = t;
+        Value val = Evaluate(node);
+
+        if (val.isVector()) {
+            const Vector& vec = val.getVector();
+            for (const auto& sample : vec) {
+                auto& series = seriesMap[sample.metric];
+                if (series.metric.labels().empty()) {
+                        series.metric = sample.metric;
+                }
+                series.samples.emplace_back(t, sample.value);
+            }
+        } else if (val.isScalar()) {
+            const Scalar& scalar = val.getScalar();
+            LabelSet emptyLabels;
+            auto& series = seriesMap[emptyLabels];
+            series.metric = emptyLabels;
+            series.samples.emplace_back(t, scalar.value);
+        }
+    }
+
+    Matrix resultMatrix;
+    resultMatrix.reserve(seriesMap.size());
+    for (auto& pair : seriesMap) {
+        resultMatrix.push_back(std::move(pair.second));
+    }
+    return Value(resultMatrix);
+}
+
+Value Evaluator::EvaluateRangeLiteral(const ExprNode* node) {
+    // Scalar/String literal is the same value at every step
+     Matrix resultMatrix;
+     Series s;
+     // Helper to get value
+     double val = 0;
+     if (node->type() == ExprNode::Type::NUMBER_LITERAL) {
+         val = static_cast<const NumberLiteralNode*>(node)->value;
+     } else {
+         // String literal in range query? Usually not valid result unless top-level allows it?
+         // Prometheus range query returns matrix. Series can't hold strings (yet, sample has double).
+         // Fallback to default which might handle it (EvaluateStringLiteral returns Value(String)).
+         // But here we need Matrix.
+         // Let's defer to Default for String.
+         return EvaluateRangeDefault(node);
+     }
+     
+     s.metric = LabelSet{}; // Empty labels for scalar
+     s.samples.reserve((end_ - start_) / step_ + 1);
+     for (int64_t t = start_; t <= end_; t += step_) {
+         s.samples.emplace_back(t, val);
+     }
+     resultMatrix.push_back(std::move(s));
+     return Value(resultMatrix);
+}
+
+Value Evaluator::EvaluateRangeAggregate(const AggregateExprNode* node) {
+    // 1. Evaluate child expression
+    Value childResult = EvaluateRange(node->expr.get());
+    
+    if (childResult.type != ValueType::MATRIX) {
+        return EvaluateRangeDefault(node);
+    }
+
+    const Matrix& inputMatrix = childResult.getMatrix();
+    
+    // 2. Prepare output structure using standard Map for series consolidation
+    struct LabelSetComparator {
+        bool operator()(const LabelSet& a, const LabelSet& b) const {
+            return a.labels() < b.labels();
+        }
+    };
+    std::map<LabelSet, Series, LabelSetComparator> outputSeriesMap;
+
+    // 3. Iterate via time steps
+    // To avoid O(N*M) lookups, we use iterators for each input series.
+    std::vector<std::vector<tsdb::prometheus::Sample>::const_iterator> iterators;
+    iterators.reserve(inputMatrix.size());
+    for (const auto& s : inputMatrix) {
+        iterators.push_back(s.samples.begin());
+    }
+
+    for (int64_t t = start_; t <= end_; t += step_) {
+        timestamp_ = t; // Important for param evaluation in AggregateVector
+        
+        // Collect samples for this timestamp
+        Vector inputVector;
+
+        inputVector.reserve(inputMatrix.size());
+
+        for (size_t i = 0; i < inputMatrix.size(); ++i) {
+            auto& it = iterators[i];
+            const auto& series = inputMatrix[i];
+            
+            // Advance iterator to >= t
+            while (it != series.samples.end() && it->timestamp() < t) {
+                it++;
+            }
+            
+            // Check if match
+            if (it != series.samples.end() && it->timestamp() == t) {
+                // Found sample
+                Sample s;
+                s.metric = series.metric;
+                s.value = it->value();
+                s.timestamp = t;
+                inputVector.push_back(s);
+            }
+        }
+        
+        // 4. Perform Aggregation
+        if (inputVector.empty()) {
+             // Some aggregations produce result even for empty input? (e.g. count? no, strictly no vector -> no result, except vector(0)?)
+             // PromQL: aggregation over empty vector is empty vector.
+             // Exception: vector(time())?
+             continue;
+        }
+
+        Value aggregated = AggregateVector(inputVector, node);
+        if (aggregated.isVector()) {
+             const Vector& resVec = aggregated.getVector();
+             for (const auto& s : resVec) {
+                  auto& series = outputSeriesMap[s.metric];
+                  if (series.metric.labels().empty()) {
+                      series.metric = s.metric;
+                  }
+                  series.samples.emplace_back(t, s.value);
+             }
+        }
+    }
+    
+    // Convert to Matrix
+    Matrix resultMatrix;
+    resultMatrix.reserve(outputSeriesMap.size());
+    for (auto& pair : outputSeriesMap) {
+        resultMatrix.push_back(std::move(pair.second));
+    }
+    return Value(resultMatrix);
+}
+Value Evaluator::EvaluateRangeVectorSelector(const VectorSelectorNode* node) {
+    // 1. Calculate full fetch range
+    // We need [start - lookback, end]
+    // Each step t needs [t - lookback, t]
+    // So union is [start - lookback, end]
+    
+    int64_t fetch_start = start_ - lookback_delta_;
+    int64_t fetch_end = end_;
+    
+    if (node->offset() > 0) {
+        fetch_start -= node->offset();
+        fetch_end -= node->offset();
+    }
+    
+    // 2. Prepare matchers
+    std::vector<model::LabelMatcher> matchers = node->matchers();
+    if (!node->name.empty()) {
+        bool found = false;
+        for (const auto& m : matchers) {
+            if (m.name == "__name__") {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            matchers.emplace_back(model::MatcherType::EQUAL, "__name__", node->name);
+        }
+    }
+
+    // 3. Bulk Fetch
+    // SelectSeries returns a Matrix (list of Series) containing all raw samples in the range.
+    Matrix rawData = storage_->SelectSeries(matchers, fetch_start, fetch_end);
+    
+    // 4. Resample / Align to Steps
+    // For each series, we produce a result Series with samples at step times.
+    Matrix resultMatrix;
+    resultMatrix.reserve(rawData.size());
+
+    int64_t offset = node->offset() * 1000; // convert to ms if needed? offset() returns seconds usually? 
+    // In EvaluateVectorSelector loop: `end -= vector_selector->offset()`
+    // Usually offset is seconds. Wait, in EvaluateMatrixSelector, `parsedRangeSeconds * 1000`.
+    // Let's assume offset() is whatever unit storage expects. 
+    // In `EvaluateVectorSelector` logic:
+    // int64_t end = timestamp_; 
+    // if (vector_selector->offset() > 0) end -= vector_selector->offset();
+    // In Engine::ExecuteRange: `fetch_start -= ctx.node->offset()`. 
+    // `offset()` seems to be milliseconds in Engine logic?
+    // Let's check `VectorSelectorNode` definition in `ast.h` if possible, but assuming consistent usage.
+    // Engine `CollectSelectors` uses `offset()`.
+    
+    for (const auto& rawSeries : rawData) {
+        Series resSeries;
+        resSeries.metric = rawSeries.metric;
+        resSeries.samples.reserve((end_ - start_) / step_ + 1);
+        
+        // For each step t, find the latest sample in [t - lookback - offset, t - offset]
+        // Optimization: Walk through raw samples as we advance t
+        
+        auto it = rawSeries.samples.begin();
+        
+        for (int64_t t = start_; t <= end_; t += step_) {
+            int64_t ref_t = t - node->offset();
+            int64_t window_start = ref_t - lookback_delta_;
+            int64_t window_end = ref_t; // inclusive?
+            // EvaluateVectorSelector uses: `it_samp->timestamp() > end` break. So end is inclusive boundary usually?
+            // Instant query: latest sample <= t.
+            // AND sample must be > t - lookback. (Staleness)
+            
+            // Advance iterator to window_start (we need samples > window_start)
+            // But actually we want the LAST sample <= window_end.
+            // So we can scan forward until sample > window_end. The one before that is the candidate.
+            
+            // 1. Advance to potentially relevant samples
+            // We can check samples starting from current `it`.
+            
+            // Find candidate: last sample where timestamp <= window_end
+            const tsdb::prometheus::Sample* candidate = nullptr;
+            
+            // Optimization: Since t increases, the window moves forward.
+            // We don't strictly need to discard samples < window_start immediately if we just keep track of candidate.
+            // But we must check the candidate's timestamp >= window_start check later.
+            
+            while (it != rawSeries.samples.end() && it->timestamp() <= window_end) {
+                candidate = &(*it);
+                ++it;
+            }
+            
+            // Now candidate is the last sample <= window_end (if any)
+            // But wait, `it` might be far ahead if we had a large gap?
+            // If we increment `it`, we might skip it for the next step?
+            // No, because next step `window_end` is larger. `it` is already > previous `window_end`.
+            // So `it` is the first sample > previous `window_end`.
+            // The new `window_end` is larger, so we continue scanning from `it`.
+            // The `candidate` from previous step is NOT necessarily the candidate for this step 
+            // IF we strictly advanced `it`. 
+            // Wait, if `it` advanced past `window_end`, `candidate` was set.
+            // For next step, `window_end` increases. We start from `it`.
+            // If `it` > new `window_end`, then no NEW samples entered the window.
+            // But the OLD candidate might still be valid (if it's still > new `window_start`).
+            // So we need to keep track of the *potential* candidate.
+            
+            // Actually, `it` should point to the first sample > current `window_end`.
+            // So for next step, we continue from `it` until > next `window_end`.
+            // The candidate is the element before `it`.
+            
+            if (it != rawSeries.samples.begin()) {
+                // There is at least one sample <= window_end seen so far.
+                // The candidate is strictly `it - 1`.
+                auto temp_candidate = std::prev(it);
+                
+                // Check staleness: must be > window_start
+                if (temp_candidate->timestamp() > window_start) {
+                    // Valid match
+                    // Wait, Prometheus has "staleness" check. Default implementation is lookback.
+                    // If sample is within lookback, it's valid.
+                    // (Note: there's also specific Staleness marker handling, but basic lookback is primary here).
+                    resSeries.samples.emplace_back(t, temp_candidate->value());
+                }
+            }
+        }
+        
+        if (!resSeries.samples.empty()) {
+            resultMatrix.push_back(std::move(resSeries));
+        }
+    }
+    
+    return Value(resultMatrix);
 }
 
 Value Evaluator::EvaluateNumberLiteral(const NumberLiteralNode* node) {
@@ -120,62 +439,61 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
                 }
                 
                 if (supported) {
-                
-                // Execute pushdown query
-                try {
-                    // Calculate time range same as EvaluateVectorSelector
-                    int64_t end = timestamp_;
-                    int64_t start = timestamp_ - lookback_delta_;
-                    
-                    if (vector_selector->offset() > 0) {
-                        end -= vector_selector->offset();
-                        start -= vector_selector->offset();
-                    }
+                    // Execute pushdown query
+                    try {
+                        // Calculate time range same as EvaluateVectorSelector
+                        int64_t end = timestamp_;
+                        int64_t start = timestamp_ - lookback_delta_;
+                        
+                        if (vector_selector->offset() > 0) {
+                            end -= vector_selector->offset();
+                            start -= vector_selector->offset();
+                        }
 
-                    // Prepare matchers (include __name__ if present)
-                    std::vector<model::LabelMatcher> matchers = vector_selector->matchers();
-                    if (!vector_selector->name.empty()) {
-                        bool found = false;
-                        for (const auto& m : matchers) {
-                            if (m.name == "__name__") {
-                                found = true;
-                                break;
+                        // Prepare matchers (include __name__ if present)
+                        std::vector<model::LabelMatcher> matchers = vector_selector->matchers();
+                        if (!vector_selector->name.empty()) {
+                            bool found = false;
+                            for (const auto& m : matchers) {
+                                if (m.name == "__name__") {
+                                    found = true;
+                                    break;
+                                }
+                            }
+                            if (!found) {
+                                matchers.emplace_back(model::MatcherType::EQUAL, "__name__", vector_selector->name);
                             }
                         }
-                        if (!found) {
-                            matchers.emplace_back(model::MatcherType::EQUAL, "__name__", vector_selector->name);
-                        }
-                    }
 
-                    auto matrix = storage_->SelectAggregateSeries(
-                        matchers,
-                        start,
-                        end,
-                        req
-                    );
-                    
-                    // Convert Matrix to Vector
-                    Vector result_vector;
-                    for (const auto& series : matrix) {
-                        // Each series should have exactly one sample for the timestamp
-                        if (!series.samples.empty()) {
-                            Sample s;
-                            s.metric = series.metric;
-                            s.value = series.samples.back().value();
-                            s.timestamp = series.samples.back().timestamp();
-                            result_vector.push_back(s);
+                        auto matrix = storage_->SelectAggregateSeries(
+                            matchers,
+                            start,
+                            end,
+                            req
+                        );
+                        
+                        // Convert Matrix to Vector
+                        Vector result_vector;
+                        for (const auto& series : matrix) {
+                            // Each series should have exactly one sample for the timestamp
+                            if (!series.samples.empty()) {
+                                Sample s;
+                                s.metric = series.metric;
+                                s.value = series.samples.back().value();
+                                s.timestamp = series.samples.back().timestamp();
+                                result_vector.push_back(s);
+                            }
                         }
+                        return Value(result_vector);
+                    } catch (const std::exception& e) {
+                        // Fallback to normal execution if pushdown fails
                     }
-                    return Value(result_vector);
-                } catch (const std::exception& e) {
-                    // Fallback to normal execution if pushdown fails
                 }
             }
         }
     }
-    }
 
-    auto start = std::chrono::high_resolution_clock::now();
+    // Fallback: Default execution
     
     // 1. Evaluate the inner expression
     Value inner_value = Evaluate(node->expr.get());
@@ -186,6 +504,13 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
     
     const Vector& input_vector = inner_value.getVector();
     
+    // 2. Delegate to helper
+    Value result = AggregateVector(input_vector, node);
+    
+    return result;
+}
+
+Value Evaluator::AggregateVector(const Vector& input_vector, const AggregateExprNode* node) {
     // 2. Group samples
     // Map from result labels (signature) to list of values
     struct Group {
@@ -224,23 +549,6 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
                     // However, usually we only group by labels that exist.
                     // If we don't add it to result_labels, it won't be in the key.
                     // This seems correct.
-                    // But wait, if we have {job="api", instance="1"} and {job="api", instance="2"}
-                    // Group by (job) -> result_labels for both is {job="api"}.
-                    // Key is {job="api"}.ToString().
-                    // They should map to the same group.
-                    // The test failure said expected 2 groups, got 1.
-                    // Test data:
-                    // s1: job="api", instance="1"
-                    // s2: job="api", instance="2"
-                    // s3: job="db", instance="1"
-                    // Group by (job).
-                    // s1 -> {job="api"}
-                    // s2 -> {job="api"}
-                    // s3 -> {job="db"}
-                    // Should be 2 groups: api and db.
-                    // If it got 1 group, maybe s3 also mapped to api? Or s1/s2 mapped to db?
-                    // Or maybe ToString() is broken?
-                    // Or maybe GetLabelValue is broken?
                 }
             }
         }
@@ -257,13 +565,16 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
     
     // Evaluate parameter if present (for topk, bottomk, quantile, count_values)
     double param_value = 0;
+    std::string param_string;
+
     if (node->param) {
+        // Evaluate parameter in current context (timestamp_)
         Value param_result = Evaluate(node->param.get());
         if (node->op() == TokenType::COUNT_VALUES) {
              if (!param_result.isString()) {
                  throw std::runtime_error("count_values parameter must be a string");
              }
-             // We'll access the string value inside the loop
+             param_string = param_result.getString().value;
         } else {
             if (param_result.isScalar()) {
                 param_value = param_result.getScalar().value;
@@ -324,18 +635,6 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
             }
             continue; // Skip default push_back
         } else if (node->op() == TokenType::COUNT_VALUES) {
-            std::string label_name;
-            if (node->param) {
-                Value param_result = Evaluate(node->param.get());
-                if (param_result.isString()) {
-                    label_name = param_result.getString().value;
-                } else {
-                    throw std::runtime_error("count_values parameter must be a string");
-                }
-            } else {
-                throw std::runtime_error("count_values requires a label name parameter");
-            }
-
             std::map<double, int> value_counts;
             for (const auto& s : group.samples) {
                 value_counts[s.value]++;
@@ -345,13 +644,11 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
                 LabelSet new_labels = group.labels;
                 // Simple string conversion. For production, use better formatting (e.g. remove trailing zeros)
                 std::string val_str = std::to_string(val);
-                // Remove trailing zeros for integer-like values if needed, but std::to_string produces 1.000000
-                // Let's try to make it cleaner if it's integer
                 if (val == static_cast<int64_t>(val)) {
                     val_str = std::to_string(static_cast<int64_t>(val));
                 }
                 
-                new_labels.AddLabel(label_name, val_str);
+                new_labels.AddLabel(param_string, val_str);
                 result_vector.push_back(Sample{new_labels, timestamp_, static_cast<double>(count)});
             }
             continue;
@@ -382,11 +679,6 @@ Value Evaluator::EvaluateAggregate(const AggregateExprNode* node) {
         
         result_vector.push_back(Sample{group.labels, timestamp_, result_value});
     }
-    
-    // 5. Return result
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
-    
     
     return Value(result_vector);
 }
@@ -828,6 +1120,131 @@ Value Evaluator::EvaluateSubquery(const SubqueryExprNode* node) {
 Value Evaluator::EvaluateUnary(const UnaryExprNode* node) {
     (void)node;
     throw std::runtime_error("Unary expressions not implemented yet");
+}
+
+// Helper for rate calculation (adapted from rate.cpp)
+// Helper for rate calculation (adapted from rate.cpp)
+static double CalculateRateHelper(const std::vector<const tsdb::prometheus::Sample*>& samples, bool is_counter, bool is_rate) {
+    if (samples.size() < 2) {
+        return 0.0;
+    }
+
+    double result_value = 0.0;
+    
+    // Duration from first to last sample
+    double duration = (samples.back()->timestamp() - samples.front()->timestamp()) / 1000.0;
+    
+    if (duration == 0) return 0.0;
+
+    if (!is_counter) {
+        result_value = samples.back()->value() - samples.front()->value();
+    } else {
+        double value = 0.0;
+        for (size_t i = 1; i < samples.size(); ++i) {
+            double prev = samples[i-1]->value();
+            double curr = samples[i]->value();
+            
+            if (curr < prev) {
+                 value += prev; 
+                 value += curr;
+            } else {
+                value += (curr - prev);
+            }
+        }
+        result_value = value;
+    }
+
+    if (is_rate) {
+        return result_value / duration;
+    } else {
+        return result_value;
+    }
+}
+
+Value Evaluator::EvaluateRangeCall(const CallNode* node) {
+    if (node->func_name() != "rate" && node->func_name() != "increase" && node->func_name() != "irate") {
+        return EvaluateRangeDefault(node);
+    }
+    
+    if (node->arguments().empty() || node->arguments()[0]->type() != ExprNode::Type::MATRIX_SELECTOR) {
+        return EvaluateRangeDefault(node);
+    }
+    
+    const MatrixSelectorNode* matrixNode = static_cast<const MatrixSelectorNode*>(node->arguments()[0].get());
+    int64_t range = matrixNode->range_duration().count();
+    
+    // 1. Calculate fetch range
+    int64_t fetchStart = start_ - range;
+    int64_t fetchEnd = end_;
+    
+    if (matrixNode->vectorSelector->offset() > 0) {
+        fetchStart -= matrixNode->vectorSelector->offset();
+        fetchEnd -= matrixNode->vectorSelector->offset();
+    }
+    
+    // 2. Fetch all series
+    auto rawSeries = storage_->SelectSeries(matrixNode->vectorSelector->matchers(), fetchStart, fetchEnd);
+    
+    // 3. Prepare result
+    Matrix resultMatrix;
+    resultMatrix.reserve(rawSeries.size());
+    
+    bool is_counter = true; // rate/increase usually on counters
+    bool is_rate = (node->func_name() == "rate" || node->func_name() == "irate");
+    
+    for (const auto& series : rawSeries) {
+        Series resSeries;
+        resSeries.metric = series.metric;
+        resSeries.metric.RemoveLabel("__name__");
+        resSeries.samples.reserve((end_ - start_) / step_ + 1);
+        
+        auto it = series.samples.begin();
+        
+        for (int64_t t = start_; t <= end_; t += step_) {
+            int64_t evalT = t;
+            if (matrixNode->vectorSelector->offset() > 0) evalT -= matrixNode->vectorSelector->offset();
+            
+            int64_t windowStart = evalT - range;
+            int64_t windowEnd = evalT;
+            
+            while (it != series.samples.end() && it->timestamp() < windowStart) {
+                it++;
+            }
+            
+            std::vector<const tsdb::prometheus::Sample*> windowSamples;
+            auto windowIt = it;
+            while (windowIt != series.samples.end() && windowIt->timestamp() <= windowEnd) {
+                windowSamples.push_back(&(*windowIt));
+                windowIt++;
+            }
+            
+            double value = 0;
+            if (node->func_name() == "irate") {
+                 if (windowSamples.size() >= 2) {
+                     const auto* last = windowSamples.back();
+                     const auto* prev = windowSamples[windowSamples.size()-2];
+                     double dur = (last->timestamp() - prev->timestamp()) / 1000.0;
+                     if (dur > 0) {
+                         double delta = last->value() - prev->value();
+                         if (delta < 0) delta = last->value(); // Reset
+                         value = delta / dur;
+                     }
+                 }
+            } else {
+                 value = CalculateRateHelper(windowSamples, is_counter, is_rate);
+            }
+            
+            if (windowSamples.size() >= 2) {
+                resSeries.samples.emplace_back(t, value);
+            }
+        }
+        
+        if (!resSeries.samples.empty()) {
+            resultMatrix.push_back(std::move(resSeries));
+        }
+    }
+    
+    return Value(resultMatrix);
 }
 
 Value Evaluator::EvaluateVectorSelector(const VectorSelectorNode* node) {

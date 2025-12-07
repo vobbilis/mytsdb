@@ -1,0 +1,55 @@
+
+=== K8s Combined Benchmark ===
+Preset: quick
+Total Pods: 12
+Total Time Series: 240
+Write Workers: 0
+Read Workers: 4
+Write Duration: 10s
+Read Duration: 10s
+
+=== Phase 1: Write Warm-up ===
+Warm-up writes: 0 samples
+
+=== Phase 2: Combined Write+Read ===
+[10s] Writes: 0 samples/sec, Reads: 14.5 queries/sec (217 samples/sec)
+
+=== Phase 3: Read Cool-down ===
+Cool-down queries: 72
+
+========================================
+         BENCHMARK RESULTS
+========================================
+
+--- Write Performance ---
+Total Samples: 0
+Throughput: 0 samples/sec
+Latency p50: 0.00 ms
+Latency p99: 0.00 ms
+Latency max: 0.00 ms
+
+--- Read Performance ---
+Total Queries: 155
+Total Samples: 2409
+Throughput (Queries): 15.5 queries/sec
+Throughput (Samples): 241 samples/sec
+Latency p50: 24.34 ms
+Latency p99: 5381.25 ms
+Latency max: 6032.76 ms
+
+--- Hot Queries (Target 80%) ---
+Count: 180
+Latency p50: 13.48 ms
+Latency p99: 5713.32 ms
+
+--- Cold Queries (Target 20%) ---
+Count: 47
+Latency p50: 328.38 ms
+Latency p99: 828.72 ms
+
+--- SLA Compliance ---
+Write p99 < 100ms: PASS
+Read p50 < 50ms:   PASS
+Read p99 < 500ms:  FAIL
+========================================
+

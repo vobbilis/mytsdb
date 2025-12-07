@@ -85,22 +85,28 @@ void PredictiveCache::record_access(core::SeriesID series_id) {
 
 void PredictiveCache::detect_patterns() {
     const auto& sequence = global_access_sequence_;
+    if (sequence.empty()) return;
     
-    // Look for patterns of different lengths
-    for (size_t pattern_length = 2; pattern_length <= std::min(sequence.size(), config_.max_pattern_length); ++pattern_length) {
-        for (size_t start = 0; start <= sequence.size() - pattern_length; ++start) {
-            std::vector<core::SeriesID> pattern(sequence.begin() + start, sequence.begin() + start + pattern_length);
-            std::string pattern_key = pattern_to_string(pattern);
-            
-            auto it = detected_patterns_.find(pattern_key);
-            if (it != detected_patterns_.end()) {
-                it->second.occurrences++;
-                it->second.last_seen = std::chrono::steady_clock::now();
-                it->second.confidence = calculate_confidence(it->second);
-            } else {
-                detected_patterns_[pattern_key] = AccessPattern(pattern, 1);
-                detected_patterns_[pattern_key].confidence = calculate_confidence(detected_patterns_[pattern_key]);
-            }
+    // OPTIMIZATION: Only look for patterns ending at the newly added element (the last one)
+    // This reduces complexity from O(N^2) to O(MaxPatternLength) per insertion
+    
+    size_t max_len = std::min(sequence.size(), config_.max_pattern_length);
+    
+    for (size_t pattern_length = 2; pattern_length <= max_len; ++pattern_length) {
+        // Extract pattern ending at sequence.end()
+        auto start_it = sequence.end() - pattern_length;
+        std::vector<core::SeriesID> pattern(start_it, sequence.end());
+        
+        std::string pattern_key = pattern_to_string(pattern);
+        
+        auto it = detected_patterns_.find(pattern_key);
+        if (it != detected_patterns_.end()) {
+            it->second.occurrences++;
+            it->second.last_seen = std::chrono::steady_clock::now();
+            it->second.confidence = calculate_confidence(it->second);
+        } else {
+            detected_patterns_[pattern_key] = AccessPattern(pattern, 1);
+            detected_patterns_[pattern_key].confidence = calculate_confidence(detected_patterns_[pattern_key]);
         }
     }
 }

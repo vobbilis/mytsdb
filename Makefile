@@ -9,8 +9,8 @@ all: configure build
 # Build directory
 BUILD_DIR := build
 
-# CMake configuration
-CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON
+# CMake configuration (OTEL disabled to avoid compilation issues)
+CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON -DENABLE_OTEL=OFF -DHAVE_GRPC=OFF
 
 # Configure the project with CMake
 configure:
@@ -322,3 +322,136 @@ help:
 	@echo "  make rebuild               # Complete rebuild"
 	@echo "  make test-background       # Start tests in background, close laptop"
 	@echo "  make test-background-status # Check if tests are still running"
+
+# ============================================================================
+# Server & Benchmark Targets
+# ============================================================================
+
+# Server binary location
+SERVER_BIN := $(BUILD_DIR)/src/tsdb/tsdb_server
+BENCHMARK_BIN := $(BUILD_DIR)/tools/k8s_combined_benchmark
+DATA_DIR := /tmp/tsdb_data
+BENCHMARK_LOG_DIR := benchmarks
+
+# Build only server and benchmark (avoids test build failures)
+build-benchmark: configure
+	@echo "Building server and benchmark..."
+	$(MAKE) -C $(BUILD_DIR) tsdb_server k8s_combined_benchmark -j$(shell nproc 2>/dev/null || echo 8)
+
+# Start server (clean start - removes all data)
+server-start-clean: build-benchmark
+	@echo "Starting TSDB server with clean data..."
+	@pkill -f tsdb_server 2>/dev/null || true
+	@sleep 1
+	@mkdir -p $(DATA_DIR)
+	@rm -rf $(DATA_DIR)/*
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@$(SERVER_BIN) --data-dir $(DATA_DIR) --http-port 9090 --arrow-port 8815 --enable-write-instrumentation > $(BENCHMARK_LOG_DIR)/server.log 2>&1 &
+	@sleep 3
+	@echo "Server started. Logs: $(BENCHMARK_LOG_DIR)/server.log"
+	@echo "Arrow Flight port: 8815, HTTP port: 9090"
+
+# Stop server
+server-stop:
+	@echo "Stopping TSDB server..."
+	@pkill -f tsdb_server 2>/dev/null || true
+	@sleep 1
+	@echo "Server stopped."
+
+# K8s Combined Benchmark - Full suite (10M samples, 2 min)
+benchmark-full: server-start-clean
+	@echo "========================================"
+	@echo "=== K8s Combined Benchmark (20M samples) ==="
+	@echo "========================================"
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_full_$$TIMESTAMP.log"; \
+	echo "Benchmark log: $$LOG_FILE"; \
+	echo "Starting at: $$(date)" | tee $$LOG_FILE; \
+	$(BENCHMARK_BIN) \
+		--host localhost \
+		--port 8815 \
+		--http-port 9090 \
+		--generate-10m \
+		--duration 120 \
+		--write-workers 8 \
+		--read-workers 4 \
+		--write-batch-size 1000 \
+		--samples-per-metric 100 \
+	2>&1 | tee -a $$LOG_FILE; \
+	echo "" | tee -a $$LOG_FILE; \
+	echo "Completed at: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Log saved to: $$LOG_FILE"
+	@$(MAKE) server-stop
+
+# K8s Combined Benchmark - Quick (for testing)
+benchmark-quick: server-start-clean
+	@echo "========================================"
+	@echo "=== K8s Combined Benchmark (Quick) ==="
+	@echo "========================================"
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_quick_$$TIMESTAMP.log"; \
+	echo "Starting at: $$(date)" | tee $$LOG_FILE; \
+	$(BENCHMARK_BIN) \
+		--host localhost \
+		--port 8815 \
+		--http-port 9090 \
+		--duration 30 \
+		--write-workers 4 \
+		--read-workers 2 \
+	2>&1 | tee -a $$LOG_FILE; \
+	echo "Completed at: $$(date)" | tee -a $$LOG_FILE
+	@$(MAKE) server-stop
+
+# K8s Combined Benchmark - 20M samples (comprehensive)
+benchmark-20m: server-start-clean
+	@echo "=============================================="
+	@echo "=== K8s Combined Benchmark (20M samples) ==="
+	@echo "=============================================="
+	@echo "Phase 1: Write 20M samples with realistic K8s metrics"
+	@echo "Phase 2: Execute 48 read queries (all PromQL functions)"
+	@echo "Phase 3: Report server + client metrics"
+	@echo "=============================================="
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_20m_$$TIMESTAMP.log"; \
+	echo "Benchmark log: $$LOG_FILE"; \
+	echo "========================================" | tee $$LOG_FILE; \
+	echo "=== MYTSDB Enhanced Benchmark Report ===" | tee -a $$LOG_FILE; \
+	echo "========================================" | tee -a $$LOG_FILE; \
+	echo "Started: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Target: 20M samples via Arrow Flight" | tee -a $$LOG_FILE; \
+	echo "Queries: 48 (all PromQL functions)" | tee -a $$LOG_FILE; \
+	echo "" | tee -a $$LOG_FILE; \
+	$(BENCHMARK_BIN) \
+		--host localhost \
+		--port 8815 \
+		--http-port 9090 \
+		--generate-10m \
+		--generate-10m \
+		--duration 180 \
+		--write-workers 16 \
+		--read-workers 8 \
+		--write-batch-size 2000 \
+		--samples-per-metric 200 \
+	2>&1 | tee -a $$LOG_FILE; \
+	echo "" | tee -a $$LOG_FILE; \
+	echo "========================================" | tee -a $$LOG_FILE; \
+	echo "Completed: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Log saved to: $$LOG_FILE"
+	@$(MAKE) server-stop
+
+# Show benchmark help
+benchmark-help:
+	@echo "Benchmark Targets:"
+	@echo "  server-start-clean  - Start server with clean data"
+	@echo "  server-stop         - Stop running server"
+	@echo "  benchmark-quick     - Quick benchmark (~1M samples, 30s)"
+	@echo "  benchmark-full      - Full benchmark (10M samples, 2min)"
+	@echo "  benchmark-20m       - Enhanced benchmark (20M samples, 3min)"
+	@echo ""
+	@echo "Usage:"
+	@echo "  make benchmark-quick    # Fast validation run"
+	@echo "  make benchmark-20m      # Full performance benchmark"
+

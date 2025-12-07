@@ -1,0 +1,105 @@
+Starting at: Sat Dec  6 15:40:19 PST 2025
+
+=== K8s Combined Benchmark ===
+Preset: quick
+Total Pods: 12
+Total Time Series: 240
+Write Workers: 4
+Read Workers: 2
+Write Duration: 30s
+Read Duration: 30s
+Clean Start: no
+Generate 10M: no
+
+=== Phase 1: Write Warm-up ===
+Warm-up writes: 9079060 samples
+
+=== Phase 2: Combined Write+Read ===
+[10s] Writes: 1.64651e+06 samples/sec, Reads: 332.3 queries/sec (35.4 samples/sec)
+[20s] Writes: 1.41292e+06 samples/sec, Reads: 290.35 queries/sec (31.1 samples/sec)
+[30s] Writes: 1.44819e+06 samples/sec, Reads: 248.167 queries/sec (27.2667 samples/sec)
+
+=== Phase 3: Read Cool-down ===
+Cool-down queries: 417
+
+========================================
+         BENCHMARK RESULTS
+========================================
+
+--- Write Performance ---
+Total Samples: 43708620
+Throughput: 1456954 samples/sec
+Latency p50: 0.23 ms
+Latency p99: 93.52 ms
+Latency max: 278.19 ms
+
+--- Read Performance ---
+Total Queries: 7502
+Total Samples: 829
+Throughput (Queries): 250.1 queries/sec
+Throughput (Samples): 28 samples/sec
+Latency p50: 0.85 ms
+Latency p99: 86.18 ms
+Latency max: 309.25 ms
+
+--- Hot Queries (Target 80%) ---
+Count: 6290
+Latency p50: 0.79 ms
+Latency p99: 81.44 ms
+
+--- Cold Queries (Target 20%) ---
+Count: 1629
+Latency p50: 2.64 ms
+Latency p99: 93.95 ms
+
+--- SLA Compliance ---
+Write p99 < 50ms:  FAIL
+Read p50 < 50ms:   PASS
+Read p99 < 50ms:   FAIL
+========================================
+
+
+============================================================
+         SERVER-SIDE METRICS (Auto-Queried)
+============================================================
+
+--- Query Metrics ---
+  Total Queries:     5.6K
+  Query Errors:      0
+  Avg Query Time:    0.09 ms
+  Total Parse Time:  63.20 ms
+  Total Eval Time:   4.633 s
+  Total Exec Time:   57.134 s
+  Storage Read Time: 96.232 s
+  Samples Scanned:   20
+  Series Scanned:    0
+
+--- Write Metrics ---
+  Mutex Wait:        59.00 ms (0.1%)
+  Sample Append:     20.015 s
+  WAL Write:         0.00 ms
+  Series ID Calc:    284.80 ms
+  Index Insert:      880.24 ms
+  Block Seal:        1.170 s
+  Block Persist:     82.561 s
+  Cache Update:      759.02 ms
+
+--- Read Metrics ---
+  Total Reads:       48.4K
+  Avg Read Time:     1.05 ms
+  Index Search:      37.492 s
+  Block Lookup:      0.82 ms
+  Block Read I/O:    0.00 ms
+  Decompression:     0.00 ms
+  Cache Hits:        858
+
+--- Storage Metrics ---
+  Writes:            0
+  Reads:             0
+  Cache Hit Rate:    0.0%
+  Bytes Written:     0 B
+  Bytes Read:        0 B
+  Memory Usage:      0.0 MB
+
+============================================================
+Completed at: Sat Dec  6 15:40:56 PST 2025

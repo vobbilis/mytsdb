@@ -1,133 +1,227 @@
 # Engine Architecture
 
-## 🧠 **System Overview**
+## 🧠 System Overview
 
-MyTSDB's engine is a high-performance, vectorized query processing system designed to execute PromQL (Prometheus Query Language) queries with extreme efficiency. It decouples **Compute** (Query Engine) from **Storage** (Data Layer), allowing for independent scaling and optimization.
+MyTSDB is a **high-performance, Prometheus-compatible time series database** achieving:
+- **2M+ writes/sec** with < 65ms P99 latency
+- **550+ reads/sec** with < 56ms P99 latency
+- **0.1% mutex contention** (down from 83% through lock-free design)
 
-The engine follows a **Volcano Iterator Model** with vectorized execution, enabling it to process millions of samples per second with minimal overhead.
+The engine decouples **Compute** (Query Engine) from **Storage** (Data Layer) with systematic optimizations at every level.
 
 ---
 
-## 🏗️ **Query Engine Architecture**
+## ⚡ Write Path Architecture
 
-### **1. PromQL Processing Pipeline**
+The write path is optimized for **maximum throughput** with **minimal contention**.
 
-The query execution flow transforms a raw PromQL string into an optimized execution plan:
+### Lock-Free Data Flow
 
-```mermaid
-graph TD
-    A[Raw PromQL Query] -->|Lexer/Parser| B["Abstract Syntax Tree (AST)"]
-    B -->|Optimizer| C[Optimized Plan]
-    C -->|Executor| D[Vectorized Execution]
-    D -->|Storage Adapter| E[Data Retrieval]
-    E -->|Result Builder| F[Final Response]
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      WRITE REQUEST                               │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ShardedWAL (Lock-Free)                                          │
+│  ┌─────────┬─────────┬─────────┬─────────┐                      │
+│  │ Shard 0 │ Shard 1 │ Shard 2 │ Shard N │  hash(labels) % N    │
+│  │ AsyncQ  │ AsyncQ  │ AsyncQ  │ AsyncQ  │                      │
+│  └─────────┴─────────┴─────────┴─────────┘                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  ShardedIndex (Concurrent)                                       │
+│  ┌─────────┬─────────┬─────────┬─────────┐                      │
+│  │ Shard 0 │ Shard 1 │ Shard 2 │ Shard N │                      │
+│  │InvIndex │InvIndex │InvIndex │InvIndex │                      │
+│  └─────────┴─────────┴─────────┴─────────┘                      │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  active_series_: tbb::concurrent_hash_map                        │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  SeriesID → Series (in-memory buffer)                     │   │
+│  │  • Accessor-based updates (no global lock)               │   │
+│  │  • Per-series locking                                     │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  series_blocks_: tbb::concurrent_hash_map                        │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │  SeriesID → vector<BlockPtr>                              │   │
+│  │  • Lock-free block assignment (Phase 4b Fix)             │   │
+│  │  • 83% → 0.1% contention reduction                       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-1.  **Parsing**: The `PromQLParser` converts the query string into an AST.
-2.  **Optimization**: The `QueryPlanner` analyzes the AST to identify optimization opportunities (e.g., aggregation pushdown, time-range pruning).
-3.  **Execution**: The `Evaluator` executes the plan using a pull-based iterator model.
+### Key Optimizations
 
-### **2. Buffered Storage Adapter**
+| Component | Technology | Benefit |
+|-----------|------------|---------|
+| **WAL** | `ShardedWAL` + `AsyncWALShard` | Lock-free durability |
+| **Index** | `ShardedIndex` | Concurrent label lookups |
+| **Series Map** | `tbb::concurrent_hash_map` | Zero global contention |
+| **Block Map** | `tbb::concurrent_hash_map` | **83% → 0.1% contention** |
 
-The `BufferedStorageAdapter` is the critical bridge between the Query Engine and the Storage Layer. It implements intelligent caching and data pre-fetching.
+### Write Performance Metrics
 
-#### **PromQL Query Cache (O(1) Lookup)**
-
-To handle high-cardinality workloads (1M+ active series), the adapter uses a sophisticated two-level cache structure:
-
-*   **Level 1: Matcher Map (O(1))**
-    *   Key: Serialized Label Matchers (e.g., `{job="api", method="GET"}`)
-    *   Value: Vector of Time Ranges
-    *   **Benefit**: Constant-time lookup regardless of total cache size.
-
-*   **Level 2: Time Range Vector (O(M))**
-    *   Stores `(Start, End)` intervals for the specific matcher.
-    *   **Benefit**: Efficiently handles disjoint time ranges (e.g., dashboard refreshes).
-
-**Performance Impact:**
-*   **Legacy**: O(N) linear scan -> ~550µs latency (at N=10k)
-*   **Optimized**: O(1) map lookup -> **~0.48µs latency**
-*   **Speedup**: **>1000x** improvement for high-cardinality queries.
-
-### **3. Aggregation Pushdown**
-
-For heavy aggregations (e.g., `sum(rate(http_requests[5m]))`), the engine pushes the computation down to the storage layer when possible.
-
-*   **Mechanism**: The `StorageImpl` exposes specialized iterators that pre-aggregate data at the block level.
-*   **Supported Operators**: `SUM`, `COUNT`, `MIN`, `MAX`, `AVG`.
-*   **Benefit**: Reduces data transfer from Storage to Engine by orders of magnitude (e.g., 1000 raw samples -> 1 aggregated point).
+```
+Metric                    Value
+─────────────────────────────────────
+Throughput                2,002,400 samples/sec
+P50 Latency               0.23 ms
+P99 Latency               65 ms
+Mutex Wait                0.1% (was 83%)
+Sample Append             3.2s total
+Block Persist             9.4s total
+```
 
 ---
 
-## ⚡ **Execution Model**
+## 📖 Read Path Architecture
 
-### **Vectorized Processing**
-Instead of processing one sample at a time, the engine operates on **Vectors** (batches) of samples. This maximizes CPU cache locality and allows for SIMD optimizations.
+The read path is optimized for **vectorized, zero-copy data access**.
 
-### **Concurrency**
-*   **Query Level**: Multiple queries are executed concurrently via a thread pool.
-*   **Shard Level**: Queries touching multiple shards are scattered-gathered in parallel.
+### Hybrid Query Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      PromQL QUERY                                │
+│  sum(rate(http_requests_total{job="api"}[5m]))                  │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  PromQL Parser + Optimizer                                       │
+│  • AST construction                                              │
+│  • Time-range pruning                                            │
+│  • Aggregation pushdown decision                                 │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  BufferedStorageAdapter (O(1) Cache)                             │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ Matcher Cache: {job="api"} → [TimeRanges]                │   │
+│  │ Lookup: O(1) vs O(N) → 1000x speedup                     │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+                              ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  StorageImpl.read_from_blocks_nolock()                           │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │ 1. series_blocks_.find(accessor, series_id)              │   │
+│  │ 2. For each block:                                        │   │
+│  │    • block->read_columns()  // Zero-copy!                │   │
+│  │    • Direct vector<int64_t>, vector<double> access       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+                              │
+            ┌─────────────────┴─────────────────┐
+            ▼                                   ▼
+┌──────────────────────┐          ┌───────────────────────────────┐
+│  HOT TIER (Memory)   │          │  COLD TIER (Parquet)          │
+│  • BlockImpl         │          │  • ParquetBlock               │
+│  • Gorilla compress  │          │  • ZSTD + Dictionary          │
+│  • shared_mutex      │          │  • Arrow RecordBatch          │
+└──────────────────────┘          └───────────────────────────────┘
+```
+
+### Zero-Copy Read Path
+
+The critical optimization is avoiding `Sample` object creation:
+
+```cpp
+// OLD: Object-heavy path (slow)
+for (auto& sample : block->read()) {
+    result.add_sample(sample);  // Object allocation
+}
+
+// NEW: Zero-copy columnar path (fast)
+auto [timestamps, values] = block->read_columns(labels);
+// Direct vector access - no Sample objects created
+```
+
+### Read Performance Metrics
+
+```
+Metric                    Value
+─────────────────────────────────────
+Throughput                550+ queries/sec
+P50 Latency               2 ms
+P99 Latency               56 ms
+Index Search              1.2s total
+Cache Hits                465/run
+```
 
 ---
 
-## 💾 **Storage Integration**
+## 💾 Storage Tiers
 
-The engine interacts with the storage layer through a strict interface, abstracting the underlying complexity of the Multi-Tier Storage (Hot/Warm/Cold).
+### Multi-Tier Architecture
 
-### **Hybrid Query Path**
-The engine transparently merges data from all storage tiers using a **Time-Ordered Scatter-Gather** approach:
+| Tier | Storage | Compression | Access | Age |
+|------|---------|-------------|--------|-----|
+| **HOT** | `BlockImpl` (Memory) | Gorilla | Immediate | < 2h |
+| **WARM** | Sealed Blocks | Delta-of-Delta | Fast | 2h - 24h |
+| **COLD** | `ParquetBlock` (Disk) | ZSTD + Dict | Columnar | > 24h |
 
-1.  **Tiered Retrieval**:
-    *   **Hot Tier (L1 Cache/MemTable)**: Immediate access to the last 2 hours of data.
-    *   **Warm Tier (L2 Cache)**: Memory-mapped blocks for recent history (2h - 24h).
-    *   **Cold Tier (Parquet)**: Columnar storage for long-term history (>24h).
+### Parquet Optimizations
 
-2.  **Merging Strategy**:
-    *   The engine iterates through time-ordered blocks (`std::vector<Block>`).
-    *   **Sequential Merging**: Samples are read from each block and appended to the result vector.
-    *   **Time-Range Filtering**: Each block applies strict time-range predicates to return only relevant samples.
-    *   **Deduplication**: (Future) If blocks overlap, the engine prioritizes the "Hotter" tier (Last-Write-Wins).
-
-### **Parquet Storage Optimizations**
-The Cold Tier leverages advanced Parquet features to minimize I/O and maximize scan speed:
-
-1.  **Row Group Predicate Pushdown**:
-    *   Before reading heavy metric data, the engine scans **Row Group Tags**.
-    *   If a row group's tags do not match the query matchers (e.g., `host="server1"`), the **entire row group is skipped**.
-    *   **Benefit**: Reduces I/O by 90%+ for selective queries.
-
-2.  **Vectorized Batch Reading**:
-    *   Data is read in **Arrow RecordBatches** (e.g., 4096 rows at a time) rather than row-by-row.
-    *   This enables CPU-efficient processing and zero-copy integration with the query engine.
-
-3.  **Dictionary Encoding**:
-    *   High-cardinality string labels (e.g., `pod_name`) are dictionary-encoded.
-    *   **Benefit**: Reduces storage size and speeds up string comparisons during filtering.
-
-4.  **Columnar Projection**:
-    *   The reader extracts only the necessary columns (Timestamp, Value, Tags), skipping unused metadata columns.
-
-### **WAL Safety & Recovery**
-The engine ensures data consistency during startup and runtime:
-
-*   **Init Phase**: `replay_at_init()` replays the Write-Ahead Log (WAL) without locks to prevent deadlocks during single-threaded startup.
-*   **Runtime Phase**: `replay_runtime()` uses strict locking to safely restore data during hot restarts or failure recovery.
+1. **Time-Based Partitioning**: `data/YYYY/MM/DD/` structure
+2. **Row Group Optimization**: Batch demotion prevents fragmentation
+3. **Dictionary Encoding**: High-cardinality labels compressed
+4. **Predicate Pushdown**: Skip irrelevant row groups
 
 ---
 
-## 📊 **Performance Characteristics**
+## 🔬 Self-Monitoring
 
-| Component | Metric | Value |
-|-----------|--------|-------|
-| **Query Latency** | P99 (Cached) | < 5ms |
-| **Cache Lookup** | Latency | **< 0.5µs** (O(1)) |
-| **Throughput** | QPS | > 10,000 QPS |
-| **Aggregation** | Speedup | ~785x (Pushdown) |
+MyTSDB exports **35+ internal metrics** via Prometheus API at `:9090/api/v1/query`:
+
+### Key Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `mytsdb_write_mutex_lock_seconds_total` | Mutex contention (target: < 1%) |
+| `mytsdb_write_sample_append_seconds_total` | I/O time |
+| `mytsdb_query_duration_seconds_bucket` | Query latency histogram |
+| `mytsdb_read_index_search_seconds_total` | Index performance |
+
+### Automated Benchmarking
+
+The `k8s_combined_benchmark` tool automatically queries all metrics:
+
+```bash
+./build/tools/k8s_combined_benchmark --preset quick --duration 5
+# Outputs all server-side metrics at end of run
+```
 
 ---
 
-## 🔮 **Future Improvements**
+## 📊 Performance Summary
 
-1.  **Distributed Query Execution**: Scatter-gather across multiple nodes.
-2.  **Cost-Based Optimizer**: More intelligent selection of pushdown vs. pull-up.
-3.  **JIT Compilation**: Compile PromQL expressions to machine code for extreme performance.
+| Metric | Baseline | Current | Improvement |
+|--------|----------|---------|-------------|
+| Read P99 | 1.8s | **56ms** | **32x faster** |
+| Write Throughput | 226K/s | **2M/s** | **8.8x faster** |
+| Mutex Contention | 83% | **0.1%** | **830x reduction** |
+| QPS | 21 | **550** | **26x faster** |
+
+---
+
+## 🔮 Future Improvements
+
+1. **Async Block Persistence** - Remove 9.4s Block Persist bottleneck
+2. **SIMD Aggregations** - Vectorized sum/avg/count
+3. **Distributed Sharding** - Multi-node query scatter-gather
+4. **JIT Expression Compilation** - PromQL to native code
+

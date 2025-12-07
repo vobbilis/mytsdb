@@ -3,6 +3,7 @@
 
 #include <map>
 #include <mutex>
+#include <shared_mutex>
 #include <fstream>
 #include "block_internal.h"
 #include "tsdb/storage/compression.h"
@@ -48,6 +49,7 @@ public:
         int64_t end_time) const override;
     
     // BlockInternal interface
+    std::pair<std::vector<int64_t>, std::vector<double>> read_columns(const core::Labels& labels) const override;
     void write(const core::TimeSeries& series) override;
     const BlockHeader& get_header() const { return header_; }
     void update_time_range(int64_t ts);
@@ -61,7 +63,7 @@ public:
 
     // Helper to retrieve all labels in this block (used for catalog reconstruction)
     std::vector<core::Labels> get_all_labels() const {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::shared_lock<std::shared_mutex> lock(mutex_);
         std::vector<core::Labels> labels;
         labels.reserve(series_.size());
         for (const auto& [l, _] : series_) {
@@ -92,7 +94,7 @@ private:
     std::unique_ptr<TimestampCompressor> ts_compressor_;
     std::unique_ptr<ValueCompressor> val_compressor_;
     std::unique_ptr<LabelCompressor> label_compressor_;
-    mutable std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
     bool dirty_;
     bool sealed_;
     

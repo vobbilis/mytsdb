@@ -59,6 +59,7 @@ void RegisterHyperbolicFunctions(FunctionRegistry& registry);
 void RegisterOverTimeAggregations(FunctionRegistry& registry);
 void RegisterRemainingAggregations(FunctionRegistry& registry);
 void RegisterRemainingUtilityFunctions(FunctionRegistry& registry);
+void RegisterHistogramFunctions(FunctionRegistry& registry);
 
 } // namespace promql
 } // namespace prometheus

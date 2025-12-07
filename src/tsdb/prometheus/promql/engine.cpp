@@ -299,57 +299,13 @@ QueryResult Engine::ExecuteRange(const std::string& query, int64_t start, int64_
             bufferedAdapter.Buffer(matchers, fetch_start, fetch_end);
         }
 
-        // Map to aggregate series by labels
-        struct LabelSetComparator {
-            bool operator()(const LabelSet& a, const LabelSet& b) const {
-                return a.labels() < b.labels();
-            }
-        };
-        std::map<LabelSet, Series, LabelSetComparator> seriesMap;
-
-        // Loop through time steps
-        int stepCount = 0;
-        for (int64_t t = start; t <= end; t += step) {
-            stepCount++;
-            if (stepCount % 100 == 0) {
-                std::cout << "[RANGE QUERY] Processed " << stepCount << " steps..." << std::endl;
-            }
-            
-            // Use BufferedStorageAdapter in Evaluator
-            Evaluator evaluator(t, options_.lookback_delta.count(), &bufferedAdapter);
-            ScopedQueryTimer eval_timer(ScopedQueryTimer::Type::EXEC);
-            Value val = evaluator.Evaluate(ast.get());
-            eval_timer.Stop();
-            
-            if (val.isVector()) {
-                const Vector& vec = val.getVector();
-                for (const auto& sample : vec) {
-                    // Find or create series
-                    auto& series = seriesMap[sample.metric];
-                    if (series.metric.labels().empty()) {
-                         series.metric = sample.metric;
-                    }
-                    // Append sample
-                    series.samples.emplace_back(t, sample.value);
-                }
-            } else if (val.isScalar()) {
-                const Scalar& scalar = val.getScalar();
-                // Scalar result creates a series with no labels
-                LabelSet emptyLabels;
-                auto& series = seriesMap[emptyLabels];
-                series.metric = emptyLabels;
-                series.samples.emplace_back(t, scalar.value);
-            }
-        }
-
-        // Convert map to Matrix
-        Matrix resultMatrix;
-        resultMatrix.reserve(seriesMap.size());
-        for (auto& pair : seriesMap) {
-            resultMatrix.push_back(std::move(pair.second));
-        }
-
-        return QueryResult{Value(resultMatrix), {}, ""};
+        // Use BufferedStorageAdapter in Evaluator
+        Evaluator evaluator(start, end, step, options_.lookback_delta.count(), &bufferedAdapter);
+        ScopedQueryTimer eval_timer(ScopedQueryTimer::Type::EXEC);
+        Value val = evaluator.EvaluateRange(ast.get());
+        eval_timer.Stop();
+        
+        return QueryResult{val, {}, ""};
 
     } catch (const std::exception& e) {
         return QueryResult{Value{}, {}, std::string("Execution error: ") + e.what()};

@@ -120,7 +120,84 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     }
 
     return arrow::RecordBatch::Make(schema, samples.size(), arrays);
+    return arrow::RecordBatch::Make(schema, samples.size(), arrays);
 }
+
+std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
+    const std::vector<int64_t>& timestamps,
+    const std::vector<double>& values,
+    const std::map<std::string, std::string>& tags
+) {
+    if (timestamps.size() != values.size()) {
+        return nullptr;
+    }
+
+    // 1. Build Schema (Simplified, no fields support for now in this path)
+    arrow::FieldVector fields;
+    fields.push_back(arrow::field("timestamp", arrow::int64(), false));
+    fields.push_back(arrow::field("value", arrow::float64(), false));
+    
+    // Tags map
+    auto key_field = arrow::field("key", arrow::utf8(), false);
+    auto item_field = arrow::field("value", arrow::utf8(), true);
+    auto tags_type = arrow::map(arrow::utf8(), arrow::utf8());
+    fields.push_back(arrow::field("tags", tags_type, true));
+
+    // No dynamic fields in this path yet
+    
+    auto schema = arrow::schema(fields);
+
+    // 2. Builders
+    arrow::Int64Builder timestamp_builder;
+    arrow::DoubleBuilder value_builder;
+    
+    auto pool = arrow::default_memory_pool();
+    arrow::MapBuilder tags_builder(pool, 
+        std::make_shared<arrow::StringBuilder>(pool), 
+        std::make_shared<arrow::StringBuilder>(pool)
+    );
+    arrow::StringBuilder* key_builder = static_cast<arrow::StringBuilder*>(tags_builder.key_builder());
+    arrow::StringBuilder* item_builder = static_cast<arrow::StringBuilder*>(tags_builder.item_builder());
+
+    // Reserve space
+    size_t count = timestamps.size();
+    (void)timestamp_builder.Reserve(count);
+    (void)value_builder.Reserve(count);
+    (void)tags_builder.Reserve(count);
+
+    // 3. Append Data
+    // Optimization: Bulk append for timestamps and values?
+    // arrow::Int64Builder::AppendValues exists!
+    (void)timestamp_builder.AppendValues(timestamps);
+    (void)value_builder.AppendValues(values);
+
+    // Tags must be repeated for each row
+    for (size_t i = 0; i < count; ++i) {
+        (void)tags_builder.Append(); 
+        for (const auto& [k, v] : tags) {
+            (void)key_builder->Append(k);
+            (void)item_builder->Append(v);
+        }
+    }
+
+    // 4. Finish Arrays
+    std::vector<std::shared_ptr<arrow::Array>> arrays;
+    
+    std::shared_ptr<arrow::Array> timestamp_array;
+    (void)timestamp_builder.Finish(&timestamp_array);
+    arrays.push_back(timestamp_array);
+
+    std::shared_ptr<arrow::Array> value_array;
+    (void)value_builder.Finish(&value_array);
+    arrays.push_back(value_array);
+
+    std::shared_ptr<arrow::Array> tags_array;
+    (void)tags_builder.Finish(&tags_array);
+    arrays.push_back(tags_array);
+    
+    return arrow::RecordBatch::Make(schema, count, arrays);
+}
+
 
 core::Result<std::vector<core::Sample>> SchemaMapper::ToSamples(std::shared_ptr<arrow::RecordBatch> batch) {
     if (!batch) {

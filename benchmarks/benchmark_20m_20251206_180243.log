@@ -1,0 +1,133 @@
+========================================
+=== MYTSDB Enhanced Benchmark Report ===
+========================================
+Started: Sat Dec  6 18:02:43 PST 2025
+Target: 20M samples via Arrow Flight
+Queries: 48 (all PromQL functions)
+
+
+=== K8s Combined Benchmark ===
+Preset: quick
+Total Pods: 12
+Total Time Series: 240
+Write Workers: 16
+Read Workers: 8
+Write Duration: 180s
+Read Duration: 180s
+Clean Start: no
+Generate 10M: yes
+
+=== Phase 0: Generating 10M Samples ===
+Generating 10000000 samples...
+Generated 3832980 / 10000000 (3812120 samples/sec)Generated 6996400 / 10000000 (3485537 samples/sec)Generated 9979460 / 10000000 (3316126 samples/sec)Generated 12528960 / 10000000 (3124078 samples/sec)
+Generation complete.
+
+=== Phase 1: Write Warm-up ===
+Warm-up writes: 51740380 samples
+
+=== Phase 2: Combined Write+Read ===
+[10s] Writes: 1640460 samples/sec, Reads: 259 queries/sec (25 samples/sec)
+[20s] Writes: 1657032 samples/sec, Reads: 237 queries/sec (23 samples/sec)
+[30s] Writes: 1628385 samples/sec, Reads: 223 queries/sec (22 samples/sec)
+[40s] Writes: 1690693 samples/sec, Reads: 210 queries/sec (21 samples/sec)
+[50s] Writes: 1692012 samples/sec, Reads: 197 queries/sec (21 samples/sec)
+[60s] Writes: 1671324 samples/sec, Reads: 190 queries/sec (22 samples/sec)
+[70s] Writes: 1640931 samples/sec, Reads: 183 queries/sec (22 samples/sec)
+[80s] Writes: 1632579 samples/sec, Reads: 177 queries/sec (22 samples/sec)
+[90s] Writes: 1602255 samples/sec, Reads: 170 queries/sec (21 samples/sec)
+[100s] Writes: 1581287 samples/sec, Reads: 161 queries/sec (21 samples/sec)
+[110s] Writes: 1562815 samples/sec, Reads: 155 queries/sec (21 samples/sec)
+[120s] Writes: 1546255 samples/sec, Reads: 151 queries/sec (21 samples/sec)
+[130s] Writes: 1544972 samples/sec, Reads: 149 queries/sec (21 samples/sec)
+[140s] Writes: 1535934 samples/sec, Reads: 145 queries/sec (21 samples/sec)
+[150s] Writes: 1530843 samples/sec, Reads: 142 queries/sec (19 samples/sec)
+[160s] Writes: 1520508 samples/sec, Reads: 138 queries/sec (18 samples/sec)
+[170s] Writes: 1519979 samples/sec, Reads: 135 queries/sec (17 samples/sec)
+[180s] Writes: 1518662 samples/sec, Reads: 132 queries/sec (16 samples/sec)
+
+=== Phase 3: Read Cool-down ===
+Cool-down queries: 3134
+
+========================================
+         BENCHMARK RESULTS
+========================================
+
+--- Write Performance ---
+Total Samples: 283962940
+Throughput: 1577572 samples/sec
+Latency p50: 0.23 ms
+Latency p99: 507.32 ms
+Latency max: 1934.06 ms
+
+--- Read Performance ---
+Total Queries: 24731
+Total Samples: 2881
+Throughput (Queries): 137.4 queries/sec
+Throughput (Samples): 16 samples/sec
+Latency p50: 1.83 ms
+Latency p99: 715.13 ms
+Latency max: 1396.36 ms
+
+--- Hot Queries (Target 80%) ---
+Count: 22213
+Latency p50: 1.48 ms
+Latency p99: 617.55 ms
+
+--- Cold Queries (Target 20%) ---
+Count: 5652
+Latency p50: 12.68 ms
+Latency p99: 830.06 ms
+
+--- SLA Compliance ---
+Write p99 < 50ms:  FAIL
+Read p50 < 50ms:   PASS
+Read p99 < 50ms:   FAIL
+========================================
+
+
+============================================================
+         SERVER-SIDE METRICS (Auto-Queried)
+============================================================
+
+--- Query Metrics ---
+  Total Queries:     20.1K
+  Query Errors:      0
+  Avg Query Time:    0.98 ms
+  Total Parse Time:  665.63 ms
+  Total Eval Time:   120.858 s
+  Total Exec Time:   1596.091 s
+  Storage Read Time: 10599.781 s
+  Samples Scanned:   0
+  Series Scanned:    3.0K
+
+--- Write Metrics ---
+  Mutex Wait:        416.92 ms (0.0%)
+  Sample Append:     161.926 s
+  WAL Write:         13.488 s
+  Series ID Calc:    2.457 s
+  Index Insert:      45.650 s
+  Block Seal:        12.075 s
+  Block Persist:     2907.065 s
+  Cache Update:      41.765 s
+
+--- Read Metrics ---
+  Total Reads:       162.1K
+  Avg Read Time:     8.64 ms
+  Index Search:      1215.900 s
+  Block Lookup:      5.099 s
+  Block Read I/O:    0.01 ms
+  Decompression:     0.03 ms
+  Cache Hits:        3.1K
+
+--- Storage Metrics ---
+  Writes:            1.25M
+  Reads:             162.1K
+  Cache Hit Rate:    1.9%
+  Bytes Written:     5679.65M B
+  Bytes Read:        0 B
+  Memory Usage:      0.0 MB
+
+============================================================
+
+========================================
+Completed: Sat Dec  6 18:06:42 PST 2025

@@ -210,9 +210,11 @@ public:
 
     /**
      * @brief Convert OpenTelemetry metrics to TSDB format
+     * 
+     * Optimized to accept RepeatedPtrField directly to avoid copying.
      */
     virtual core::Result<void> ConvertMetrics(
-        const opentelemetry::proto::metrics::v1::MetricsData& metrics_data) = 0;
+        const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) = 0;
 };
 
 /**

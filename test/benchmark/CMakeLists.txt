@@ -131,5 +131,11 @@ target_include_directories(promql_cache_perf_bench PRIVATE ${CMAKE_SOURCE_DIR}/s
 target_link_libraries(promql_cache_perf_bench PRIVATE tsdb_test_common tsdb_lib benchmark::benchmark benchmark::benchmark_main GTest::gtest)
 add_test(NAME benchmark_promql_cache COMMAND promql_cache_perf_bench)
 
+# E2E Query Benchmark (for read performance optimization validation)
+add_executable(e2e_query_benchmark e2e_query_benchmark.cpp)
+target_include_directories(e2e_query_benchmark PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(e2e_query_benchmark PRIVATE tsdb_test_common tsdb_lib GTest::gtest GTest::gtest_main)
+add_test(NAME benchmark_e2e_query COMMAND e2e_query_benchmark)
+
 
 

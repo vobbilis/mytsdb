@@ -15,7 +15,7 @@
 #include <chrono>
 
 #include "tsdb/prometheus/promql/engine.h"
-#include "tsdb/prometheus/storage/storage_adapter.h"
+#include "tsdb/prometheus/storage/adapter.h"
 #include "tsdb/prometheus/model/types.h"
 
 namespace tsdb {
@@ -35,7 +35,7 @@ public:
         // Return a simple series with samples in the requested range
         Matrix result;
         Series s;
-        s.metric.Set("__name__", "test_metric");
+        s.metric.AddLabel("__name__", "test_metric");
         
         // Add one sample per minute in the range
         for (int64_t ts = start; ts <= end; ts += 60000) {
@@ -64,7 +64,7 @@ protected:
     std::unique_ptr<MockStorageAdapter> mock_;
     
     std::vector<model::LabelMatcher> MakeMatchers(const std::string& name) {
-        return {{model::MatchType::EQUAL, "__name__", name}};
+        return {{model::MatcherType::EQUAL, "__name__", name}};
     }
 };
 

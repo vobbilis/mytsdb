@@ -24,6 +24,14 @@ public:
         const std::map<std::string, std::string>& tags
     );
 
+    // Converts vectors to Arrow RecordBatch (Zero-Copy friendly)
+    static std::shared_ptr<arrow::RecordBatch> ToRecordBatch(
+        const std::vector<int64_t>& timestamps,
+        const std::vector<double>& values,
+        const std::map<std::string, std::string>& tags
+    );
+
+
     // Converts Arrow RecordBatch to internal samples
     static core::Result<std::vector<core::Sample>> ToSamples(
         std::shared_ptr<arrow::RecordBatch> batch);

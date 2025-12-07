@@ -76,12 +76,12 @@ std::string BridgeImpl::stats() const {
 }
 
 core::Result<void> BridgeImpl::ConvertMetrics(
-    const opentelemetry::proto::metrics::v1::MetricsData& metrics_data) {
+    const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) {
     try {
-        for (const auto& resource_metrics : metrics_data.resource_metrics()) {
+        for (const auto& resource_metric : resource_metrics) {
             // Convert resource-level attributes (e.g., service.name)
             core::Labels::Map resource_labels;
-            for (const auto& kv : resource_metrics.resource().attributes()) {
+            for (const auto& kv : resource_metric.resource().attributes()) {
                 std::string value;
                 switch (kv.value().value_case()) {
                     case opentelemetry::proto::common::v1::AnyValue::kStringValue:
@@ -102,7 +102,7 @@ core::Result<void> BridgeImpl::ConvertMetrics(
                 resource_labels[kv.key()] = std::move(value);
             }
             
-            for (const auto& scope_metrics : resource_metrics.scope_metrics()) {
+            for (const auto& scope_metrics : resource_metric.scope_metrics()) {
                 // Convert instrumentation scope attributes
                 core::Labels::Map scope_labels;
                 for (const auto& kv : scope_metrics.scope().attributes()) {

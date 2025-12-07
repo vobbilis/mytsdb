@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <mutex>
 #include <memory>
+#include "tsdb/histogram/histogram.h"
 
 namespace tsdb {
 namespace prometheus {
@@ -22,6 +23,9 @@ struct QueryMetricsSnapshot {
     uint64_t samples_scanned = 0;
     uint64_t series_scanned = 0;
     uint64_t bytes_scanned = 0;
+    
+    // Histogram Buckets (Upper Bound -> Count)
+    std::vector<std::pair<double, uint64_t>> query_duration_buckets;
 };
 
 class QueryMetrics {
@@ -38,7 +42,7 @@ public:
     void Reset();
 
 private:
-    QueryMetrics() = default;
+    QueryMetrics();
 
     std::atomic<uint64_t> query_count_{0};
     std::atomic<uint64_t> query_errors_{0};
@@ -50,6 +54,9 @@ private:
     std::atomic<uint64_t> samples_scanned_{0};
     std::atomic<uint64_t> series_scanned_{0};
     std::atomic<uint64_t> bytes_scanned_{0};
+    
+    std::mutex histogram_mutex_;
+    std::unique_ptr<histogram::Histogram> query_duration_histogram_;
 };
 
 class ScopedQueryTimer {

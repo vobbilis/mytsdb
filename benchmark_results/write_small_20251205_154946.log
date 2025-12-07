@@ -1,0 +1,14 @@
+Connected to Arrow Flight server at localhost:8815
+
+=== Large-Scale K8s Data Generator ===
+Regions: 1 (us-east-1)
+Zones/Region: 2
+Clusters/Zone: 1
+Namespaces/Cluster: 5
+Services/Namespace: 5
+Pods/Service: 3
+Total Pods: 150
+Metrics/Container: 50
+Days of Data: 3
+Estimated Samples: 259200000 (~259M)
+

@@ -40,6 +40,7 @@ public:
     void close() override;
 
     // BlockInternal interface
+    std::pair<std::vector<int64_t>, std::vector<double>> read_columns(const core::Labels& labels) const override;
     void write(const core::TimeSeries& series) override;
     const internal::BlockHeader& header() const override;
     

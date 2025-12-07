@@ -211,5 +211,110 @@ TEST_F(ComprehensivePromQLTest, FunctionCountValues) {
     EXPECT_TRUE(has_val);
 }
 
+// --- NEW: Basic Over-Time Aggregations ---
+
+TEST_F(ComprehensivePromQLTest, FunctionSumOverTime) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("sum_over_time(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    // Sum should be greater than any individual sample
+    EXPECT_GT(vector[0].value, 0);
+}
+
+TEST_F(ComprehensivePromQLTest, FunctionAvgOverTime) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("avg_over_time(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    EXPECT_GT(vector[0].value, 0);
+}
+
+TEST_F(ComprehensivePromQLTest, FunctionMinOverTime) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("min_over_time(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    EXPECT_GE(vector[0].value, 0);  // Counter starts at 0 or positive
+}
+
+TEST_F(ComprehensivePromQLTest, FunctionMaxOverTime) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("max_over_time(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    EXPECT_GT(vector[0].value, 0);  // Max should be the highest sample
+}
+
+TEST_F(ComprehensivePromQLTest, FunctionCountOverTime) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("count_over_time(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    EXPECT_GT(vector[0].value, 0);  // Should be number of samples
+}
+
+// --- NEW: Counter Helpers ---
+
+TEST_F(ComprehensivePromQLTest, FunctionResets) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("resets(http_requests_total[1h])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    EXPECT_GE(vector[0].value, 0);  // Counter resets (0 if no resets)
+}
+
+TEST_F(ComprehensivePromQLTest, FunctionIdelta) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("idelta(http_requests_total[5m])", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    // May have results or not depending on sample count
+    // Just verify it executes without error
+}
+
+// --- NEW: Timestamp Function ---
+
+TEST_F(ComprehensivePromQLTest, FunctionTimestamp) {
+    int64_t query_time = GetQueryTime();
+    auto result = ExecuteQuery("timestamp(http_requests_total)", query_time);
+    
+    ASSERT_EQ(result.type, tsdb::prometheus::promql::ValueType::VECTOR);
+    auto vector = result.getVector();
+    EXPECT_GT(vector.size(), 0);
+    // Timestamp should be in seconds (Unix epoch)
+    EXPECT_GT(vector[0].value, 1700000000.0);  // After 2023-11-14
+}
+
+// --- NEW: Histogram Quantile ---
+
+TEST_F(ComprehensivePromQLTest, FunctionHistogramQuantile) {
+    // This requires histogram data with "le" labels
+    // For now just verify the function is registered and callable
+    // In a real test, you'd need to ingest histogram bucket data first
+    int64_t query_time = GetQueryTime();
+    
+    // Try to call histogram_quantile - even with no matching data,
+    // it should execute without error
+    auto result = ExecuteQuery("histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))", query_time);
+    
+    // May return empty vector if no histogram data exists
+    ASSERT_TRUE(result.type == tsdb::prometheus::promql::ValueType::VECTOR || 
+                result.type == tsdb::prometheus::promql::ValueType::SCALAR);
+}
+
 } // namespace comprehensive
 } // namespace tsdb

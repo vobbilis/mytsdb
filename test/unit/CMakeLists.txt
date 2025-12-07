@@ -256,6 +256,7 @@ if(HAVE_RAPIDJSON)
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remaining_functions_test.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remote/test_converter.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/prometheus/auth/test_authenticators.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql/vectorized_evaluator_test.cpp
         ${CMAKE_SOURCE_DIR}/test/unit/result_minimal_test.cpp
         ${CMAKE_SOURCE_DIR}/test/main.cpp
     )
@@ -336,10 +337,36 @@ if(HAVE_RAPIDJSON)
             GTest::gmock
     )
 
+    # Performance Benchmark
+    add_executable(tsdb_promql_benchmark
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql/range_benchmark_test.cpp
+    )
+    
+    target_include_directories(tsdb_promql_benchmark
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/include
+    )
+    
+    target_link_libraries(tsdb_promql_benchmark
+        PRIVATE
+            tsdb_prometheus
+            benchmark::benchmark
+    )
+
 add_executable(tsdb_wal_backpressure_test
     storage/wal_backpressure_test.cpp
 )
 target_link_libraries(tsdb_wal_backpressure_test
+    PRIVATE
+    tsdb_test_common
+    tsdb_storage_impl
+)
+
+add_executable(tsdb_pruning_test
+    storage/parquet/pruning_test.cpp
+)
+target_link_libraries(tsdb_pruning_test
     PRIVATE
     tsdb_test_common
     tsdb_storage_impl

@@ -1,0 +1,51 @@
+[2025-12-05 15:49:17] ==========================================
+[2025-12-05 15:49:17] K8s Realistic Benchmark Suite
+[2025-12-05 15:49:17] ==========================================
+[2025-12-05 15:49:17] Preset: quick
+[2025-12-05 15:49:17] Queries: 50
+[2025-12-05 15:49:17] Output: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/benchmark_results/k8s_benchmark_20251205_154917.csv
+[2025-12-05 15:49:17] 
+[2025-12-05 15:49:18] Checking server connectivity...
+[2025-12-05 15:49:18] Arrow Flight: OK (localhost:8815)
+[2025-12-05 15:49:18] HTTP/PromQL: OK (localhost:9090)
+[2025-12-05 15:49:18] 
+[2025-12-05 15:49:18] ==========================================
+[2025-12-05 15:49:18] WRITE BENCHMARK: quick
+[2025-12-05 15:49:18] ==========================================
+[2025-12-05 15:49:18] Starting k8s_data_generator with --quick...
+Connected to Arrow Flight server at localhost:8815
+
+=== Large-Scale K8s Data Generator ===
+Regions: 1 (us-east-1)
+Zones/Region: 1
+Clusters/Zone: 1
+Namespaces/Cluster: 2
+Services/Namespace: 3
+Pods/Service: 2
+Total Pods: 12
+Metrics/Container: 10
+Days of Data: 1
+Estimated Samples: 691200 (~0M)
+
+Region us-east-1 complete (1/1)
+
+=== Generation Complete ===
+Total Samples: 691200
+Time: 0 seconds
+Rate: 0 samples/sec
+[2025-12-05 15:49:19] Write completed: 0 samples in .884274000s = 0 samples/sec
+[2025-12-05 15:49:19] 
+[2025-12-05 15:49:21] ==========================================
+[2025-12-05 15:49:21] READ BENCHMARK: quick (50 queries)
+[2025-12-05 15:49:21] ==========================================
+[2025-12-05 15:49:22] Completed 20/50 queries...
+[2025-12-05 15:49:23] Completed 40/50 queries...
+[2025-12-05 15:49:23] Read completed: 18 queries in 2.719788000s = 6.61 queries/sec
+[2025-12-05 15:49:23] Latency p50: 1.966000ms, p99: 2.925000ms, max: 2.925000ms
+[2025-12-05 15:49:23] 
+[2025-12-05 15:49:23] ==========================================
+[2025-12-05 15:49:23] BENCHMARK SUMMARY
+[2025-12-05 15:49:23] ==========================================
+[2025-12-05 15:49:24] 
+[2025-12-05 15:49:24] Results saved to: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/benchmark_results/k8s_benchmark_20251205_154917.csv
+[2025-12-05 15:49:24] Log saved to: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/benchmark_results/k8s_benchmark_20251205_154917.log

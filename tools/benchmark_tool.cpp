@@ -33,15 +33,18 @@ public:
         // metrics_stub_ removed, created per thread
     }
 
-    void run_write_benchmark(int num_series, int samples_per_series) {
+    void run_write_benchmark(int num_series, int samples_per_series, int num_workers, int batch_size) {
         std::cout << "Starting Realistic K8s Write Benchmark..." << std::endl;
         std::cout << "  Target Series: " << num_series << std::endl;
         std::cout << "  Samples/Series: " << samples_per_series << std::endl;
+        std::cout << "  Workers: " << num_workers << std::endl;
+        std::cout << "  Batch Size: " << batch_size << " metrics/request" << std::endl;
 
         auto start = std::chrono::high_resolution_clock::now();
         
         std::atomic<int> success_count{0};
         std::atomic<int> fail_count{0};
+        std::atomic<int> total_samples{0};
         
         // Configuration for simulation
         const int num_nodes = 50;
@@ -50,7 +53,7 @@ public:
         const std::vector<std::string> services = {"api-server", "db-proxy", "cache", "worker"};
         
         // Use multiple threads for writing
-        int num_threads = 10;
+        int num_threads = num_workers;
         std::vector<std::thread> threads;
         int nodes_per_thread = std::max(1, num_nodes / num_threads);
         
@@ -66,6 +69,28 @@ public:
                 std::uniform_real_distribution<> cpu_dist(0.1, 4.0);
                 std::uniform_int_distribution<> mem_dist(100 * 1024 * 1024, 1024 * 1024 * 1024);
                 
+                // Batched request - accumulate metrics
+                ExportMetricsServiceRequest batch_request;
+                int metrics_in_batch = 0;
+                int samples_in_batch = 0;
+                
+                auto send_batch = [&]() {
+                    if (metrics_in_batch == 0) return;
+                    
+                    ClientContext context;
+                    ExportMetricsServiceResponse response;
+                    if (stub->Export(&context, batch_request, &response).ok()) {
+                        success_count++;
+                        total_samples += samples_in_batch;
+                    } else {
+                        fail_count++;
+                    }
+                    
+                    batch_request.Clear();
+                    metrics_in_batch = 0;
+                    samples_in_batch = 0;
+                };
+                
                 for (int n = start_node; n < end_node; ++n) {
                     std::string node_name = "node-" + std::to_string(n);
                     std::string zone = "us-west-1" + std::string(1, 'a' + (n % 3));
@@ -76,13 +101,13 @@ public:
                         std::string svc = services[p % services.size()];
                         std::string pod_name = svc + "-" + std::to_string(n) + "-" + std::to_string(p);
                         
-                        // 1. container_cpu_usage_seconds_total
-                        {
-                            ExportMetricsServiceRequest request;
-                            auto* rm = request.add_resource_metrics();
+                        // Helper to add a metric to batch
+                        auto add_metric = [&](const std::string& metric_name, 
+                                             std::function<void(opentelemetry::proto::metrics::v1::NumberDataPoint*, int)> fill_point) {
+                            auto* rm = batch_request.add_resource_metrics();
                             auto* sm = rm->add_scope_metrics();
                             auto* metric = sm->add_metrics();
-                            metric->set_name("container_cpu_usage_seconds_total");
+                            metric->set_name(metric_name);
                             auto* gauge = metric->mutable_gauge();
                             
                             for (int j = 0; j < samples_per_series; ++j) {
@@ -90,71 +115,50 @@ public:
                                 auto sample_time = now - std::chrono::minutes(samples_per_series - j);
                                 point->set_time_unix_nano(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                     sample_time.time_since_epoch()).count());
-                                point->set_as_double(cpu_dist(gen) + (j * 0.01)); // Monotonic-ish
-                                
+                                fill_point(point, j);
+                            }
+                            
+                            metrics_in_batch++;
+                            samples_in_batch += samples_per_series;
+                            
+                            if (metrics_in_batch >= batch_size) {
+                                send_batch();
+                            }
+                        };
+                        
+                        // 1. container_cpu_usage_seconds_total
+                        add_metric("container_cpu_usage_seconds_total", 
+                            [&](opentelemetry::proto::metrics::v1::NumberDataPoint* point, int j) {
+                                point->set_as_double(cpu_dist(gen) + (j * 0.01));
                                 auto* a1 = point->add_attributes(); a1->set_key("pod"); a1->mutable_value()->set_string_value(pod_name);
                                 auto* a2 = point->add_attributes(); a2->set_key("namespace"); a2->mutable_value()->set_string_value(ns);
                                 auto* a3 = point->add_attributes(); a3->set_key("node"); a3->mutable_value()->set_string_value(node_name);
                                 auto* a4 = point->add_attributes(); a4->set_key("container"); a4->mutable_value()->set_string_value("main");
-                            }
-                            
-                            ClientContext context;
-                            ExportMetricsServiceResponse response;
-                            if (stub->Export(&context, request, &response).ok()) success_count++; else fail_count++;
-                        }
+                            });
                         
                         // 2. container_memory_usage_bytes
-                        {
-                            ExportMetricsServiceRequest request;
-                            auto* rm = request.add_resource_metrics();
-                            auto* sm = rm->add_scope_metrics();
-                            auto* metric = sm->add_metrics();
-                            metric->set_name("container_memory_usage_bytes");
-                            auto* gauge = metric->mutable_gauge();
-                            
-                            for (int j = 0; j < samples_per_series; ++j) {
-                                auto* point = gauge->add_data_points();
-                                auto sample_time = now - std::chrono::minutes(samples_per_series - j);
-                                point->set_time_unix_nano(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                    sample_time.time_since_epoch()).count());
+                        add_metric("container_memory_usage_bytes",
+                            [&](opentelemetry::proto::metrics::v1::NumberDataPoint* point, int) {
                                 point->set_as_double(mem_dist(gen));
-                                
                                 auto* a1 = point->add_attributes(); a1->set_key("pod"); a1->mutable_value()->set_string_value(pod_name);
                                 auto* a2 = point->add_attributes(); a2->set_key("namespace"); a2->mutable_value()->set_string_value(ns);
                                 auto* a3 = point->add_attributes(); a3->set_key("node"); a3->mutable_value()->set_string_value(node_name);
-                            }
-                             ClientContext context;
-                            ExportMetricsServiceResponse response;
-                            if (stub->Export(&context, request, &response).ok()) success_count++; else fail_count++;
-                        }
+                            });
                         
                         // 3. http_requests_total
-                        {
-                            ExportMetricsServiceRequest request;
-                            auto* rm = request.add_resource_metrics();
-                            auto* sm = rm->add_scope_metrics();
-                            auto* metric = sm->add_metrics();
-                            metric->set_name("http_requests_total");
-                            auto* gauge = metric->mutable_gauge();
-                            
-                            for (int j = 0; j < samples_per_series; ++j) {
-                                auto* point = gauge->add_data_points();
-                                auto sample_time = now - std::chrono::minutes(samples_per_series - j);
-                                point->set_time_unix_nano(std::chrono::duration_cast<std::chrono::nanoseconds>(
-                                    sample_time.time_since_epoch()).count());
+                        add_metric("http_requests_total",
+                            [&](opentelemetry::proto::metrics::v1::NumberDataPoint* point, int j) {
                                 point->set_as_double(j * 10.0);
-                                
                                 auto* a1 = point->add_attributes(); a1->set_key("service"); a1->mutable_value()->set_string_value(svc);
                                 auto* a2 = point->add_attributes(); a2->set_key("status"); a2->mutable_value()->set_string_value("200");
                                 auto* a3 = point->add_attributes(); a3->set_key("method"); a3->mutable_value()->set_string_value("GET");
                                 auto* a4 = point->add_attributes(); a4->set_key("pod"); a4->mutable_value()->set_string_value(pod_name);
-                            }
-                            ClientContext context;
-                            ExportMetricsServiceResponse response;
-                            if (stub->Export(&context, request, &response).ok()) success_count++; else fail_count++;
-                        }
+                            });
                     }
                 }
+                
+                // Send remaining metrics
+                send_batch();
             });
         }
         
@@ -167,9 +171,10 @@ public:
 
         std::cout << "Write Benchmark Completed:" << std::endl;
         std::cout << "  Time: " << duration.count() << " ms" << std::endl;
-        std::cout << "  Success: " << success_count << " requests (series)" << std::endl;
+        std::cout << "  Success: " << success_count << " requests" << std::endl;
         std::cout << "  Failed: " << fail_count << " requests" << std::endl;
-        double rate = (double)(success_count * samples_per_series) / (duration.count() / 1000.0);
+        std::cout << "  Total Samples: " << total_samples << std::endl;
+        double rate = (double)total_samples / (duration.count() / 1000.0);
         std::cout << "  Rate: " << rate << " samples/sec" << std::endl;
     }
 
@@ -183,6 +188,23 @@ public:
         std::vector<double> latencies;
         std::mutex latencies_mutex;
 
+        // Pre-generate some realistic queries
+        std::vector<std::string> query_templates = {
+            // 1. Simple selector
+            "container_memory_usage_bytes{namespace=\"default\"}",
+            // 2. Rate of HTTP requests
+            "rate(http_requests_total[1m])",
+            // 3. Aggregation: Sum by service
+            "sum by (service) (rate(http_requests_total[5m]))",
+            // 4. Aggregation: CPU usage by node
+            "sum by (node) (container_cpu_usage_seconds_total)",
+            // 5. Specific pod lookup (randomized in worker)
+            "container_cpu_usage_seconds_total{pod=\"POD_NAME\"}"
+        };
+
+        const std::vector<std::string> services = {"api-server", "db-proxy", "cache", "worker"};
+        const int num_nodes = 50;
+
         auto worker = [&]() {
             httplib::Client cli(http_address_);
             // Increase timeout for stress tests
@@ -190,19 +212,51 @@ public:
             
             std::random_device rd;
             std::mt19937 gen(rd());
-            std::uniform_int_distribution<> dis(0, num_series - 1);
+            std::uniform_int_distribution<> query_dist(0, query_templates.size() - 1);
+            std::uniform_int_distribution<> node_dist(0, num_nodes - 1);
+            std::uniform_int_distribution<> svc_dist(0, services.size() - 1);
+            // Estimate pods per node based on series count (approx logic from write phase)
+            int pods_per_node = num_series / (num_nodes * 3); 
+            std::uniform_int_distribution<> pod_dist(0, std::max(0, pods_per_node - 1));
             
             while (true) {
                 int current = completed.fetch_add(1);
                 if (current >= num_queries) break;
 
-                // Query random metrics to defeat simple caching
-                int metric_id = dis(gen);
-                std::string query = "benchmark_metric_" + std::to_string(metric_id);
+                int q_idx = query_dist(gen);
+                std::string query = query_templates[q_idx];
+
+                // Replace placeholders if any
+                if (query.find("POD_NAME") != std::string::npos) {
+                    int n = node_dist(gen);
+                    int p = pod_dist(gen);
+                    std::string svc = services[p % services.size()];
+                    std::string pod_name = svc + "-" + std::to_string(n) + "-" + std::to_string(p);
+                    
+                    size_t pos = query.find("POD_NAME");
+                    query.replace(pos, 8, pod_name);
+                }
                 
                 auto q_start = std::chrono::high_resolution_clock::now();
                 
-                auto res = cli.Get(("/api/v1/query?query=" + query).c_str());
+                // URL encode the query (simple version)
+                std::string encoded_query;
+                for (char c : query) {
+                    if (isalnum(c) || c == '-' || c == '_' || c == '.' || c == '~') encoded_query += c;
+                    else if (c == ' ') encoded_query += "%20";
+                    else if (c == '"') encoded_query += "%22";
+                    else if (c == '{') encoded_query += "%7B";
+                    else if (c == '}') encoded_query += "%7D";
+                    else if (c == '=') encoded_query += "%3D";
+                    else if (c == '(') encoded_query += "%28";
+                    else if (c == ')') encoded_query += "%29";
+                    else if (c == '[') encoded_query += "%5B";
+                    else if (c == ']') encoded_query += "%5D";
+                    else if (c == ',') encoded_query += "%2C";
+                    else encoded_query += c; // Hope for the best for others
+                }
+
+                auto res = cli.Get(("/api/v1/query?query=" + encoded_query).c_str());
                 
                 auto q_end = std::chrono::high_resolution_clock::now();
                 double lat_ms = std::chrono::duration<double, std::milli>(q_end - q_start).count();
@@ -213,7 +267,7 @@ public:
                 } else {
                     errors++;
                     if (errors <= 5) {
-                        std::cerr << "Query failed: " << (res ? std::to_string(res->status) : "connection error") << std::endl;
+                        std::cerr << "Query failed: " << (res ? std::to_string(res->status) : "connection error") << " Query: " << query << std::endl;
                     }
                 }
             }
@@ -259,6 +313,8 @@ void print_usage(const char* prog_name) {
               << "  --samples N         Samples per series (default: 10)\n"
               << "  --queries N         Number of queries (default: 1000)\n"
               << "  --concurrency N     Query concurrency (default: 10)\n"
+              << "  --batch-size N      Metrics per gRPC request (default: 100)\n"
+              << "  --write-workers N   Number of write workers (default: 10)\n"
               << "  --help              Show this help\n";
 }
 
@@ -269,6 +325,8 @@ int main(int argc, char** argv) {
     int samples_per_series = 10;
     int num_queries = 1000;
     int concurrency = 10;
+    int write_workers = 10;
+    int batch_size = 100;
 
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
@@ -278,6 +336,8 @@ int main(int argc, char** argv) {
         else if (arg == "--samples" && i + 1 < argc) samples_per_series = std::stoi(argv[++i]);
         else if (arg == "--queries" && i + 1 < argc) num_queries = std::stoi(argv[++i]);
         else if (arg == "--concurrency" && i + 1 < argc) concurrency = std::stoi(argv[++i]);
+        else if (arg == "--write-workers" && i + 1 < argc) write_workers = std::stoi(argv[++i]);
+        else if (arg == "--batch-size" && i + 1 < argc) batch_size = std::stoi(argv[++i]);
         else if (arg == "--help") {
             print_usage(argv[0]);
             return 0;
@@ -286,7 +346,7 @@ int main(int argc, char** argv) {
 
     BenchmarkTool tool(grpc_addr, http_addr);
     
-    tool.run_write_benchmark(num_series, samples_per_series);
+    tool.run_write_benchmark(num_series, samples_per_series, write_workers, batch_size);
     
     // Wait a bit for data to be indexed/processed
     std::cout << "Waiting 2 seconds for processing..." << std::endl;

@@ -22,7 +22,7 @@ BlockImpl::BlockImpl(
     , sealed_(false) {}
 
 size_t BlockImpl::size() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     size_t total = sizeof(BlockHeader);
     for (const auto& [labels, data] : series_) {
         total += labels.size() * sizeof(std::string); // Labels
@@ -39,7 +39,7 @@ size_t BlockImpl::size() const {
 }
 
 size_t BlockImpl::num_series() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     return series_.size();
 }
 
@@ -47,7 +47,14 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
     ReadPerformanceInstrumentation::ReadMetrics metrics;
     metrics.blocks_accessed = 1;
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    // Measure lock wait time explicitly
+    auto lock_start = std::chrono::high_resolution_clock::now();
+    mutex_.lock_shared();
+    auto lock_end = std::chrono::high_resolution_clock::now();
+    metrics.block_lock_wait_us = std::chrono::duration<double, std::micro>(lock_end - lock_start).count();
+    
+    // Adopt lock for RAII release
+    std::shared_lock<std::shared_mutex> lock(mutex_, std::adopt_lock);
     // Measure lock wait + map lookup as "block_read" for now (since we hold lock during read)
     // Ideally we'd separate lock wait, but std::lock_guard combines them.
     // We can assume map lookup is fast.
@@ -61,56 +68,135 @@ core::TimeSeries BlockImpl::read(const core::Labels& labels) const {
     const auto& data = it->second;
     
     // Check if data is compressed or uncompressed
+    std::vector<core::Sample> samples;
+    
     if (!data.is_compressed) {
         ReadScopedTimer read_timer(metrics.block_read_us);
         // Read from uncompressed buffers
-        core::TimeSeries ts(labels);
         size_t min_size = std::min(data.timestamps_uncompressed.size(), data.values_uncompressed.size());
         // Ensure fields size matches if present
         if (!data.fields_uncompressed.empty()) {
              min_size = std::min(min_size, data.fields_uncompressed.size());
         }
         
+        samples.reserve(min_size);
         for (size_t i = 0; i < min_size; i++) {
             if (!data.fields_uncompressed.empty()) {
-                ts.add_sample(data.timestamps_uncompressed[i], data.values_uncompressed[i], data.fields_uncompressed[i]);
+                samples.emplace_back(data.timestamps_uncompressed[i], data.values_uncompressed[i], data.fields_uncompressed[i]);
             } else {
-                ts.add_sample(data.timestamps_uncompressed[i], data.values_uncompressed[i]);
+                samples.emplace_back(data.timestamps_uncompressed[i], data.values_uncompressed[i]);
             }
         }
-        metrics.samples_scanned = min_size;
-        ReadPerformanceInstrumentation::instance().record_read(metrics);
-        return ts;
+    } else {
+        // Data is compressed - decompress it
+        std::vector<int64_t> all_timestamps;
+        std::vector<double> all_values;
+        
+        {
+            ReadScopedTimer decompress_timer(metrics.decompression_us);
+            all_timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+            all_values = val_compressor_->decompress(data.values_compressed);
+        }
+        
+        // Match timestamps and values to create samples
+        size_t min_size = std::min(all_timestamps.size(), all_values.size());
+        samples.reserve(min_size);
+        for (size_t i = 0; i < min_size; i++) {
+            samples.emplace_back(all_timestamps[i], all_values[i]);
+        }
     }
-    
-    // Data is compressed - decompress it
-    // The compressed data is in the new batch format (single compressed block per series)
-    std::vector<int64_t> all_timestamps;
-    std::vector<double> all_values;
-    
+
     {
-        ReadScopedTimer decompress_timer(metrics.decompression_us);
-        all_timestamps = ts_compressor_->decompress(data.timestamps_compressed);
-        all_values = val_compressor_->decompress(data.values_compressed);
+        ReadScopedTimer sort_timer(metrics.sorting_us);
+        // robustness: Sort samples to ensure chronological order (handle potentially unordered on-disk data)
+        std::sort(samples.begin(), samples.end(), 
+                  [](const core::Sample& a, const core::Sample& b) {
+                      return a.timestamp() < b.timestamp();
+                  });
     }
-    
-    // Match timestamps and values to create samples
+
     core::TimeSeries ts(labels);
-    size_t min_size = std::min(all_timestamps.size(), all_values.size());
-    for (size_t i = 0; i < min_size; i++) {
-        ts.add_sample(all_timestamps[i], all_values[i]);
+    metrics.samples_scanned = samples.size();
+    
+    // Add sorted samples, handling duplicates if necessary
+    int64_t last_ts = -1;
+    bool first = true;
+    for (const auto& sample : samples) {
+        if (first || sample.timestamp() > last_ts) {
+            try {
+                ts.add_sample(sample);
+                last_ts = sample.timestamp();
+                first = false;
+            } catch (...) {
+                // Ignore individual bad samples
+            }
+        }
     }
     
-    metrics.samples_scanned = min_size;
+    // Propagate local metrics to thread-local query context if active
+    if (auto* current = ReadPerformanceInstrumentation::GetCurrentMetrics()) {
+        current->block_lock_wait_us += metrics.block_lock_wait_us;
+        current->sorting_us += metrics.sorting_us;
+        // Optionally propagate other metrics if needed, but StorageImpl handles most high-level ones
+    }
+
     ReadPerformanceInstrumentation::instance().record_read(metrics);
     return ts;
 }
+
+std::pair<std::vector<int64_t>, std::vector<double>> BlockImpl::read_columns(const core::Labels& labels) const {
+    ReadPerformanceInstrumentation::ReadMetrics metrics;
+    metrics.blocks_accessed = 1;
+
+    // Measure lock wait time explicitly
+    auto lock_start = std::chrono::high_resolution_clock::now();
+    mutex_.lock_shared();
+    auto lock_end = std::chrono::high_resolution_clock::now();
+    metrics.block_lock_wait_us = std::chrono::duration<double, std::micro>(lock_end - lock_start).count();
+    
+    // Adopt lock for RAII release
+    std::shared_lock<std::shared_mutex> lock(mutex_, std::adopt_lock);
+    
+    auto it = series_.find(labels);
+    if (it == series_.end()) {
+        ReadPerformanceInstrumentation::instance().record_read(metrics);
+        return {}; // Empty result if not found
+    }
+
+    const auto& data = it->second;
+    
+    std::vector<int64_t> timestamps;
+    std::vector<double> values;
+    
+    if (!data.is_compressed) {
+        ReadScopedTimer read_timer(metrics.block_read_us);
+        // Copy directly from uncompressed buffers
+        timestamps = data.timestamps_uncompressed;
+        values = data.values_uncompressed;
+    } else {
+        // Data is compressed - decompress directly to vectors
+        ReadScopedTimer decompress_timer(metrics.decompression_us);
+        timestamps = ts_compressor_->decompress(data.timestamps_compressed);
+        values = val_compressor_->decompress(data.values_compressed);
+    }
+    
+    // Propagate local metrics to thread-local query context if active
+    if (auto* current = ReadPerformanceInstrumentation::GetCurrentMetrics()) {
+        current->block_lock_wait_us += metrics.block_lock_wait_us;
+        current->decompression_us += metrics.decompression_us;
+        // Other metrics as needed
+    }
+
+    ReadPerformanceInstrumentation::instance().record_read(metrics);
+    return {std::move(timestamps), std::move(values)};
+}
+
 
 std::vector<core::TimeSeries> BlockImpl::query(
     const std::vector<std::pair<std::string, std::string>>& matchers,
     int64_t start_time,
     int64_t end_time) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     std::vector<core::TimeSeries> result;
 
     // Simple matcher that checks if labels match all criteria
@@ -152,7 +238,7 @@ std::vector<core::TimeSeries> BlockImpl::query(
 }
 
 void BlockImpl::write(const core::TimeSeries& series) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     // Extract timestamps and values
     std::vector<int64_t> timestamps;
@@ -189,7 +275,7 @@ const BlockHeader& BlockImpl::header() const {
 }
 
 void BlockImpl::flush() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     if (!dirty_) {
         return;
     }
@@ -202,7 +288,7 @@ void BlockImpl::flush() {
 }
 
 void BlockImpl::close() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     if (dirty_) {
         flush();
     }
@@ -248,7 +334,7 @@ uint32_t BlockImpl::calculate_crc() const {
 }
 
 void BlockImpl::append(const core::Labels& labels, const core::Sample& sample) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     // Find or create series data
     auto& series_data = series_[labels];
@@ -265,7 +351,7 @@ void BlockImpl::append(const core::Labels& labels, const core::Sample& sample) {
 }
 
 void BlockImpl::seal() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     
     // Compress all buffered data
     for (auto& [labels, data] : series_) {
@@ -290,7 +376,7 @@ void BlockImpl::seal() {
 }
 
 std::vector<uint8_t> BlockImpl::serialize() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     
     std::vector<uint8_t> result;
     

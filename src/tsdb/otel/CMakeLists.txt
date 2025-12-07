@@ -7,15 +7,6 @@ target_sources(tsdb_otel_impl
         bridge_factory.cpp
         bridge.cpp  # Contains MetricsService implementation
         query_service.cpp  # Query service for reading data
-        # metrics_service.cpp removed - implementation is in bridge.cpp
-        ../proto/gen/opentelemetry/proto/metrics/v1/metrics.pb.cc
-        ../proto/gen/opentelemetry/proto/metrics/v1/metrics.grpc.pb.cc
-        ../proto/gen/opentelemetry/proto/collector/metrics/v1/metrics_service.pb.cc
-        ../proto/gen/opentelemetry/proto/collector/metrics/v1/metrics_service.grpc.pb.cc
-        ../proto/gen/opentelemetry/proto/common/v1/common.pb.cc
-        ../proto/gen/opentelemetry/proto/resource/v1/resource.pb.cc
-        ../proto/gen/tsdb.pb.cc
-        ../proto/gen/tsdb.grpc.pb.cc
 )
 
 target_include_directories(tsdb_otel_impl
@@ -23,16 +14,15 @@ target_include_directories(tsdb_otel_impl
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
         $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/src/tsdb>
         $<INSTALL_INTERFACE:include>
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../proto/gen>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
-        ${CMAKE_CURRENT_SOURCE_DIR}/../proto/gen
 )
 
 target_link_libraries(tsdb_otel_impl
     PUBLIC
         tsdb_core_impl
         tsdb_storage_impl
+        tsdb_proto_lib
 )
 
 # Link optional dependencies

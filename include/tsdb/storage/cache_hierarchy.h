@@ -34,6 +34,15 @@ namespace storage {
 class CacheHierarchy {
 public:
     /**
+     * @brief Callback type for L3 (Parquet) persistence
+     * Called when series data needs to be written to cold storage.
+     * @param series_id The series ID being demoted
+     * @param series The time series data to persist
+     * @return true if persistence was successful
+     */
+    using L3PersistenceCallback = std::function<bool(core::SeriesID, std::shared_ptr<core::TimeSeries>)>;
+    
+    /**
      * @brief Construct a new Cache Hierarchy
      * @param config Configuration for the cache hierarchy
      */
@@ -43,6 +52,12 @@ public:
      * @brief Destructor
      */
     ~CacheHierarchy();
+    
+    /**
+     * @brief Set the L3 persistence callback
+     * @param callback Function to call when demoting to L3 (Parquet)
+     */
+    void set_l3_persistence_callback(L3PersistenceCallback callback);
     
     // Non-copyable, non-movable
     CacheHierarchy(const CacheHierarchy&) = delete;
@@ -132,7 +147,9 @@ private:
     // Cache levels
     std::unique_ptr<WorkingSetCache> l1_cache_;      // Fastest, smallest
     std::unique_ptr<MemoryMappedCache> l2_cache_;    // Medium speed, medium size
-    // L3 is the existing storage system (disk)
+    
+    // L3 persistence callback (for writing to Parquet)
+    L3PersistenceCallback on_l3_demotion_;
     
     // Background processing
     std::atomic<bool> background_running_{false};

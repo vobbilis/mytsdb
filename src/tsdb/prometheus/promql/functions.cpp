@@ -37,6 +37,7 @@ FunctionRegistry::FunctionRegistry() {
     RegisterOverTimeAggregations(*this);
     RegisterRemainingAggregations(*this);
     RegisterRemainingUtilityFunctions(*this);
+    RegisterHistogramFunctions(*this);
     RegisterMathFunctions(*this);
     RegisterTimeFunctions(*this);
 }

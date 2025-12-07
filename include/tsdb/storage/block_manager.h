@@ -131,11 +131,25 @@ public:
     // Returns the path to the created Parquet file
     core::Result<std::string> demoteToParquet(const internal::BlockHeader& header);
     
+    // Demote multiple blocks to a single Parquet file (Batch Optimization)
+    // Returns map of BlockID -> Parquet Path
+    core::Result<std::map<uint64_t, std::string>> demoteBlocksToParquet(
+        const std::vector<std::pair<core::Labels, std::shared_ptr<internal::BlockInternal>>>& blocks);
+
+    
     // Read block from Parquet (Cold Tier)
     core::Result<std::shared_ptr<internal::BlockImpl>> readFromParquet(const internal::BlockHeader& header);
 
     // Compact multiple Parquet files into one
     core::Result<void> compactParquetFiles(const std::vector<std::string>& input_paths, const std::string& output_path);
+
+    /**
+     * @brief Persist a single time series directly to Parquet cold storage
+     * @param series_id The series ID
+     * @param series The time series data to persist
+     * @return true if successfully persisted
+     */
+    bool persistSeriesToParquet(core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series);
 
 private:
     std::string data_dir_;

@@ -169,38 +169,44 @@ int main() {
 
 ## 📊 Performance
 
-### Legacy Baseline Performance (v1.0)
+### Latest Benchmark Results (December 2024)
+
+MyTSDB has achieved **enterprise-grade performance** through systematic optimization:
 
 ```
-Write Performance:  ~10K ops/sec (single-threaded)
-Read Performance:   ~50K ops/sec (cached)
-Aggregations:       ~1ms (pushdown) vs ~785ms (raw) -> ~785x Speedup
-Compression Ratio:  4-6x (typical)
-Object Pool Reuse:  99%+ (measured)
-Cache Hit Ratio:    80-90% (hot data)
-PromQL Cache:       O(1) Lookup (1000x speedup for high cardinality)
+┌─────────────────────────────────────────────────────────────┐
+│                  PERFORMANCE HIGHLIGHTS                      │
+├─────────────────────────────────────────────────────────────┤
+│  Write Throughput:    2,002,400 samples/sec (2M+)           │
+│  Write P99 Latency:   65ms                                  │
+│  Read P99 Latency:    56ms                                  │
+│  Read Throughput:     550+ queries/sec                      │
+│  Mutex Contention:    0.1% (down from 83%)                  │
+│  Aggregations:        ~785x speedup (pushdown)              │
+│  PromQL Cache:        O(1) lookup (1000x speedup)           │
+│  Compression Ratio:   4-6x typical                          │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-### Memory Usage
+### Performance Evolution
 
-```
-Base:               ~100MB (empty)
-Per Series:         ~1KB (with 100 samples)
-Object Pools:       ~50MB (default configuration)
-Cache:              ~1GB (configurable)
-```
+| Phase | Read P99 | Write Throughput | Key Improvement |
+|-------|----------|------------------|-----------------|
+| Baseline | 1.8s | 226K/s | - |
+| shared_mutex | 1.6s | 247K/s | Block-level concurrency |
+| Zero-Copy Read | 1.0s | 500K/s | Vectorized data path |
+| Parquet Opt | **50ms** | 1.7M/s | Time partitioning, batch demotion |
+| **Concurrent Map** | **56ms** | **2M/s** | Lock-free series_blocks_ |
 
 ### Optimization Status
 
-- ✅ Object pooling (99%+ reuse)
-- ✅ Multi-tier caching
-- ✅ Compression (4-6x)
-- ✅ Lock-free data structures
-- ✅ Aggregation Pushdown (STDDEV, QUANTILE, etc.)
-- ✅ gRPC/OTEL Integration
-- ✅ **Write Path Optimization** (Batching enabled)
-
-- **Improvement:** 45% increase in throughput, 2.6x reduction in latency.
+- ✅ **Lock-Free Write Path** - `tbb::concurrent_hash_map` for zero contention
+- ✅ **Sharded WAL** - Per-series hash partitioning
+- ✅ **Sharded Index** - Concurrent label lookups
+- ✅ **Zero-Copy Reads** - Direct columnar access
+- ✅ **Parquet Cold Storage** - ZSTD + Dictionary encoding
+- ✅ **Object Pooling** - 99%+ object reuse
+- ✅ **Aggregation Pushdown** - Storage-side computation
 
 ---
 

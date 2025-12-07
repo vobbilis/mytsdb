@@ -527,6 +527,117 @@ core::Result<std::string> BlockManager::demoteToParquet(const internal::BlockHea
     return core::Result<std::string>(parquet_path);
 }
 
+core::Result<std::map<uint64_t, std::string>> BlockManager::demoteBlocksToParquet(
+    const std::vector<std::pair<core::Labels, std::shared_ptr<internal::BlockInternal>>>& blocks) {
+    
+    if (blocks.empty()) return std::map<uint64_t, std::string>{};
+    
+    // 1. Group by Time Partition (Day)
+    // For simplicity in this phase, we assume all blocks belong to the same day/partition basically, 
+    // or we just pick the first block's time to decide the partition.
+    // In a full implementation, we might split into multiple files if they span days.
+    // Let's use the first block's start time for the partition.
+    int64_t start_time = blocks[0].second->start_time();
+    
+    std::time_t t = start_time / 1000; // ms to s
+    std::tm tm = *std::gmtime(&t);
+    
+    std::stringstream date_ss;
+    date_ss << std::put_time(&tm, "%Y/%m/%d");
+    std::string partition_dir = data_dir_ + "/" + date_ss.str();
+    
+    // Create directory
+    std::filesystem::create_directories(partition_dir);
+    
+    // Generate unique file name
+    // Use first block ID + count + random/timestamp suffix
+    std::string parquet_filename = std::to_string(blocks[0].second->header().id) + "_" + std::to_string(blocks.size()) + ".parquet";
+    std::string parquet_path = partition_dir + "/" + parquet_filename;
+    
+    // 2. Sort blocks by Labels (to optimize read locality)
+    auto sorted_blocks = blocks;
+    std::sort(sorted_blocks.begin(), sorted_blocks.end(), 
+              [](const auto& a, const auto& b) {
+                  return a.first < b.first;
+              });
+              
+    // 3. Write to Parquet
+    // We use the same ParquetWriter but we need to feed it batches manually?
+    // ParquetWriter::WriteBatch takes a RecordBatch.
+    // We need to construct a large RecordBatch from multiple blocks.
+    
+    parquet::ParquetWriter writer;
+    // Estimate total rows? 
+    // For optimization, we can set max_row_group_length based on total samples.
+    // Let's use default 128MB or similar.
+    auto open_result = writer.Open(parquet_path, parquet::SchemaMapper::GetArrowSchema());
+    if (!open_result.ok()) {
+        return core::Result<std::map<uint64_t, std::string>>::error(open_result.error());
+    }
+    
+    // Buffers for batching
+    std::vector<int64_t> batch_timestamps;
+    std::vector<double> batch_values;
+    std::vector<core::Labels> batch_labels;
+    std::vector<size_t> batch_counts; // How many samples per series occurrence
+    
+    // Limit per row group (e.g., 100k samples)
+    const size_t MAX_BATCH_SIZE = 100000; 
+    
+    for (const auto& [labels, block] : sorted_blocks) {
+        // Read columns (Zero-Copy!)
+        auto columns = block->read_columns(labels);
+        const auto& ts = columns.first;
+        const auto& vals = columns.second;
+        
+        if (ts.empty()) continue;
+        
+        // Append to batch
+        batch_timestamps.insert(batch_timestamps.end(), ts.begin(), ts.end());
+        batch_values.insert(batch_values.end(), vals.begin(), vals.end());
+        
+        // For tags, we need to repeat them for each sample! 
+        // SchemaMapper::ToRecordBatch expects sample-level tags?
+        // Let's check SchemaMapper.
+        // SchemaMapper::ToRecordBatch takes (timestamps, values, labels).
+        // It internally duplicates labels for each sample (inefficient RLE wise if unchecked, but Parquet handles RLE).
+        // Wait, SchemaMapper::ToRecordBatch takes ONE Labels object.
+        // So we can only write ONE series per call to SchemaMapper::ToRecordBatch.
+        // This defeats the purpose of "Batching multiple series into one Row Group" if ParquetWriter::WriteBatch creates a new Row Group?
+        // No, `writer.WriteBatch` writes a RecordBatch. 
+        // ParquetWriter implementation might buffer?
+        // Let's check ParquetWriter::WriteBatch.
+        // If it calls `GetRecordBatchReader`, it writes.
+        // If we want multiple series in one Row Group, we need to construct a RecordBatch that contains multiple series.
+        // SchemaMapper::ToRecordBatch (singular) creates a batch for 1 series.
+        // We need a SchemaMapper::ToRecordBatch (plural).
+        
+        // For now, let's just write series by series.
+        // If ParquetWriter does NOT flush row group on every WriteBatch, we are good.
+        // If it DOES flush, we still have small row groups.
+        // Arrow Parquet Writer generally buffers until RowGroupSize is reached.
+        // So calling WriteBatch multiple times with small batches is FINE, *provided* we don't force a flush.
+        // My ParquetWriter wrapper `WriteBatch` calls `writer_->WriteRecordBatch(*batch)`.
+        // This usually appends to the current Row Group.
+        
+        // So, we just need to iterate and write.
+        // Sorting by Labels ensures they are contiguous in the Row Group.
+        
+        auto batch = parquet::SchemaMapper::ToRecordBatch(ts, vals, labels.map());
+        writer.WriteBatch(batch);
+    }
+    
+    writer.Close();
+    
+    // 4. Return map
+    std::map<uint64_t, std::string> result;
+    for (const auto& [labels, block] : sorted_blocks) {
+        result[block->header().id] = parquet_path;
+    }
+    
+    return core::Result<std::map<uint64_t, std::string>>(result);
+}
+
 core::Result<std::shared_ptr<internal::BlockImpl>> BlockManager::readFromParquet(const internal::BlockHeader& header) {
     // 1. Open Parquet Reader
     std::stringstream ss;
@@ -659,6 +770,52 @@ core::Result<std::vector<internal::BlockHeader>> BlockManager::recoverBlocks() {
     scan_tier(internal::BlockTier::Type::COLD);
     
     return headers;
+}
+
+bool BlockManager::persistSeriesToParquet(core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series) {
+    if (!series || series->samples().empty()) {
+        return false;
+    }
+    
+    std::unique_lock<std::shared_mutex> lock(mutex_);
+    
+    try {
+        // Construct Parquet path using series_id
+        std::stringstream ss;
+        ss << data_dir_ << "/2/" << std::hex << series_id << ".parquet";
+        std::string parquet_path = ss.str();
+        
+        // Open Parquet Writer
+        parquet::ParquetWriter writer;
+        auto open_result = writer.Open(parquet_path, parquet::SchemaMapper::GetArrowSchema());
+        if (!open_result.ok()) {
+            return false;
+        }
+        
+        // Convert series to RecordBatch and write
+        auto batch = parquet::SchemaMapper::ToRecordBatch(series->samples(), series->labels().map());
+        if (!batch) {
+            return false;
+        }
+        
+        auto write_result = writer.WriteBatch(batch);
+        if (!write_result.ok()) {
+            return false;
+        }
+        
+        auto close_result = writer.Close();
+        if (!close_result.ok()) {
+            return false;
+        }
+        
+        // Track this series as being in COLD tier
+        block_tiers_[series_id] = internal::BlockTier::Type::COLD;
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        return false;
+    }
 }
 
 }  // namespace storage

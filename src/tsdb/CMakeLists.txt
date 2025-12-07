@@ -1,8 +1,14 @@
 # Add subdirectories
+add_subdirectory(proto)
 add_subdirectory(core)
 add_subdirectory(storage)
 add_subdirectory(histogram)
 add_subdirectory(query)
+
+# Add Arrow Flight if available
+if(HAVE_ARROW_FLIGHT)
+    add_subdirectory(arrow)
+endif()
 
 # Only add otel if we have gRPC
 # Only add otel if we have gRPC and OTEL enabled
@@ -58,7 +64,6 @@ endif()
 
 if(ENABLE_OTEL)
     target_link_libraries(tsdb_main INTERFACE
-        tsdb::otel
         OpenSSL::SSL
         OpenSSL::Crypto
     )
@@ -122,6 +127,12 @@ endif()
 # Link Prometheus library if available
 if(HAVE_RAPIDJSON)
     target_link_libraries(tsdb_server PRIVATE tsdb_prometheus)
+endif()
+
+# Link Arrow Flight library if available
+if(HAVE_ARROW_FLIGHT)
+    target_link_libraries(tsdb_server PRIVATE tsdb::arrow)
+    target_compile_definitions(tsdb_server PRIVATE HAVE_ARROW_FLIGHT=1)
 endif()
 
 # Set include directories for server

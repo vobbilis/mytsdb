@@ -1,0 +1,448 @@
+Configuring TSDB project with CMake...
+mkdir -p build
+cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON -DENABLE_OTEL=ON -DHAVE_GRPC=ON
+-- Found OpenSSL: /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib (found version "3.6.0") found components: SSL Crypto
+-- Found spdlog, enabling logging support
+-- Found TBB, enabling concurrent data structures
+-- Found RE2 via CMake.
+-- gRPC support enabled explicitly
+-- Found httplib
+-- RapidJSON found. Headers: /opt/homebrew/Cellar/rapidjson/1.1.0/include
+-- Found RapidJSON
+-- Found Snappy
+-- Found AWS SDK for C++, Version: 1.11.690, Install Root:/opt/homebrew, Platform Prefix:, Platform Dependent Libraries: pthread;curl
+-- Components specified for AWSSDK: config;s3;transfer;identity-management;sts, application will be depending on libs: aws-cpp-sdk-config;aws-cpp-sdk-transfer;aws-cpp-sdk-identity-management;aws-cpp-sdk-cognito-identity;aws-cpp-sdk-sts;aws-cpp-sdk-s3;aws-cpp-sdk-core
+-- Try finding aws-cpp-sdk-core
+-- Found aws-cpp-sdk-core
+-- Try finding aws-cpp-sdk-s3
+-- Found aws-cpp-sdk-s3
+-- Try finding aws-cpp-sdk-sts
+-- Found aws-cpp-sdk-sts
+-- Try finding aws-cpp-sdk-cognito-identity
+-- Found aws-cpp-sdk-cognito-identity
+-- Try finding aws-cpp-sdk-identity-management
+-- Found aws-cpp-sdk-identity-management
+-- Try finding aws-cpp-sdk-transfer
+-- Found aws-cpp-sdk-transfer
+-- Try finding aws-cpp-sdk-config
+-- Found aws-cpp-sdk-config
+-- Found Apache Arrow: 22.0.0
+-- Found Apache Arrow Flight
+-- Found Apache Parquet: 22.0.0
+-- Arrow Flight server library enabled
+-- RapidJSON found. Headers: /opt/homebrew/Cellar/rapidjson/1.1.0/include
+-- RapidJSON found. Headers: /opt/homebrew/Cellar/rapidjson/1.1.0/include
+-- Found OpenSSL: /opt/homebrew/opt/openssl@3/lib/libcrypto.dylib (found version "3.6.0")
+-- Found httplib
+-- Found RapidJSON
+-- Found Protobuf
+-- Found Snappy for Prometheus Remote Storage
+-- Arrow Flight benchmark tools enabled
+-- Prometheus Remote Storage integration test enabled
+-- Google Benchmark not found locally, fetching from GitHub...
+-- git version: v1.8.3 normalized to 1.8.3
+-- Google Benchmark version: 1.8.3
+-- Enabling additional flags: -DINCLUDE_DIRECTORIES=/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/build/_deps/benchmark-src/include
+-- Performing Test HAVE_THREAD_SAFETY_ATTRIBUTES -- success
+-- Performing Test HAVE_STD_REGEX -- success
+-- Performing Test HAVE_GNU_POSIX_REGEX -- failed to compile
+-- Performing Test HAVE_POSIX_REGEX -- success
+-- Performing Test HAVE_STEADY_CLOCK -- success
+-- Performing Test HAVE_PTHREAD_AFFINITY -- failed to compile
+-- Google Benchmark fetched and configured
+-- Performance benchmarks enabled
+-- OTEL/gRPC performance tests directory ready
+-- Configuring done (1.4s)
+-- Generating done (1.0s)
+-- Build files have been written to: /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/build
+Building TSDB project...
+/Applications/Xcode.app/Contents/Developer/usr/bin/make -C build -j12
+[  1%] Built target tsdb_core_impl
+[  1%] Built target k8s_data_generator
+[  1%] Built target arrow_benchmark
+[  3%] Built target tsdb_proto
+[  4%] Built target tsdb_histogram_impl
+[  8%] Built target tsdb_proto_lib
+[ 13%] Built target benchmark
+[ 13%] Built target benchmark_main
+[ 21%] Built target tsdb_prometheus
+[ 22%] Built target tsdb_promql_benchmark
+[ 29%] Built target tsdb_storage_impl
+[ 29%] Built target tsdb_arrow_impl
+[ 31%] Built target tsdb_otel_impl
+[ 32%] Built target tsdb_lib
+[ 34%] Built target k8s_combined_benchmark
+[ 35%] Built target benchmark_tool
+[ 36%] Built target tsdb_server
+[ 37%] Built target synthetic_cluster_generator
+[ 38%] Built target tsdb_core_unit_tests
+[ 39%] Built target tsdb_result_repro_test
+[ 40%] Built target tsdb_parquet_reader_unit_tests
+[ 41%] Built target tsdb_schema_mapper_roundtrip_test
+[ 41%] Built target tsdb_parquet_writer_unit_tests
+[ 42%] Built target tsdb_block_impl_test
+[ 43%] Built target tsdb_parquet_integration_test
+[ 43%] Built target tsdb_schema_evolution_test
+[ 44%] Built target tsdb_schema_mapper_unit_tests
+[ 45%] Built target tsdb_parquet_advanced_unit_tests
+[ 47%] Built target tsdb_storage_unit_tests
+[ 48%] Built target tsdb_histogram_unit_tests
+[ 50%] Built target tsdb_object_pool_unit_tests
+[ 51%] Built target tsdb_performance_config_unit_tests
+[ 52%] Built target tsdb_delta_of_delta_encoder_unit_tests
+[ 53%] Built target tsdb_atomic_metrics_unit_tests
+[ 54%] Built target tsdb_working_set_cache_unit_tests
+[ 55%] Built target tsdb_sharded_wal_unit_tests
+[ 56%] Built target tsdb_background_processor_unit_tests
+[ 57%] Built target tsdb_sharded_index_unit_tests
+[ 58%] Built target tsdb_cache_hierarchy_repro_test
+[ 58%] Built target tsdb_lock_free_queue_unit_tests
+[ 58%] Built target tsdb_cache_hierarchy_unit_tests
+[ 59%] Built target tsdb_predictive_cache_unit_tests
+[ 59%] Built target tsdb_atomic_ref_counted_unit_tests
+[ 60%] Built target tsdb_query_metrics_unit_tests
+[ 61%] Built target tsdb_storage_adapter_unit_tests
+[ 61%] Built target tsdb_wal_backpressure_test
+[ 61%] Built target tsdb_predicate_pushdown_test
+[ 61%] Built target tsdb_pruning_test
+[ 61%] Built target tsdb_index_deletion_test
+[ 62%] Built target tsdb_integration_tests
+[ 63%] Built target tsdb_core_storage_integration_test
+[ 64%] Built target tsdb_storage_stability_test
+[ 69%] Built target tsdb_prometheus_unit_tests
+[ 70%] Built target tsdb_storage_histogram_integration_test
+[ 71%] Built target tsdb_config_integration_test
+[ 71%] Built target tsdb_otel_integration_test
+[ 72%] Built target tsdb_grpc_integration_test
+[ 72%] Built target tsdb_end_to_end_workflow_test
+[ 73%] Built target tsdb_multi_component_test
+[ 74%] Built target tsdb_hybrid_query_test
+[ 75%] Built target tsdb_error_handling_test
+[ 76%] Built target tsdb_query_instrumentation_integration_test
+[ 77%] Built target tsdb_self_monitor_e2e_test
+[ 84%] Built target tsdb_integration_test_suite
+[ 84%] Built target tsdb_storage_persistence_test
+[ 85%] Built target tsdb_storage_demotion_test
+[ 85%] Built target tsdb_prometheus_remote_storage_integration_test
+[ 86%] Built target write_perf_bench
+[ 86%] Built target read_perf_bench
+[ 86%] Built target mixed_perf_bench
+[ 88%] Built target comprehensive_promql_test_harness
+[ 89%] Built target latency_perf_bench
+[ 89%] Built target concurrency_perf_bench
+[ 90%] Built target new_vs_update_perf_bench
+[ 90%] Built target otel_write_perf_bench
+[ 90%] Built target parquet_perf_bench
+[ 91%] Built target parquet_high_cardinality_bench
+[ 92%] Built target rule_manager_perf_bench
+[ 92%] Built target filtering_storage_perf_bench
+[ 92%] Built target scale_test
+[ 93%] Building CXX object test/benchmark/CMakeFiles/e2e_query_benchmark.dir/e2e_query_benchmark.cpp.o
+[ 94%] Built target promql_cache_perf_bench
+[ 94%] Built target tsdb_grpc_server_e2e_test
+[ 95%] Built target tsdb_otel_grpc_full_path_test
+[ 96%] Built target tsdb_otel_benchmark_verify_test
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+[ 96%] Built target tsdb_otel_verification_debug_test
+[ 96%] Built target tsdb_otel_attributes_test
+[ 96%] Building CXX object test/otel_grpc/unit/CMakeFiles/tsdb_otel_bridge_conversion_test.dir/test_bridge_conversion.cpp.o
+[ 97%] Building CXX object test/storage/CMakeFiles/tsdb_storage_orphan_tests.dir/async_wal_test.cpp.o
+[ 97%] Building CXX object test/otel_grpc/unit/CMakeFiles/tsdb_otel_grpc_path_test.dir/test_grpc_path.cpp.o
+[ 97%] Building CXX object test/storage/CMakeFiles/tsdb_storage_orphan_tests.dir/cache_hierarchy_repro_test.cpp.o
+[ 97%] Building CXX object test/storage/CMakeFiles/tsdb_storage_orphan_tests.dir/sharded_wal_test.cpp.o
+[ 97%] Building CXX object test/storage/CMakeFiles/tsdb_storage_orphan_tests.dir/sharded_index_test.cpp.o
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+[ 98%] Built target tsdb_otel_query_service_test
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512f' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512dq' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512bw' [-Wunused-command-line-argument]
+clang: warning: argument unused during compilation: '-mavx512vl' [-Wunused-command-line-argument]
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/benchmark/e2e_query_benchmark.cpp:25:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage_impl.h:18:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/block_manager.h:14:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/internal/block_impl.h:9:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+    uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+                                          ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+    std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+                                   ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/storage/async_wal_test.cpp:84:64: warning: unused parameter 's' [-Wunused-parameter]
+        auto result = shard.replay([&](const core::TimeSeries& s) {
+                                                               ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/storage/sharded_wal_test.cpp:114:48: warning: unused parameter 'series' [-Wunused-parameter]
+        wal.replay([&](const core::TimeSeries& series) {
+                                               ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/storage/async_wal_test.cpp:125:64: warning: unused parameter 's' [-Wunused-parameter]
+        auto result = shard.replay([&](const core::TimeSeries& s) {
+                                                               ^
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/benchmark/e2e_query_benchmark.cpp:25:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage_impl.h:20:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:83:48: warning: unused parameter 'matchers' [-Wunused-parameter]
+        const std::vector<core::LabelMatcher>& matchers,
+                                               ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:84:17: warning: unused parameter 'start_time' [-Wunused-parameter]
+        int64_t start_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:85:17: warning: unused parameter 'end_time' [-Wunused-parameter]
+        int64_t end_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:86:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+        const core::AggregationRequest& aggregation) {
+                                        ^
+1 warning generated.
+2 warnings generated.
+[100%] Linking CXX executable tsdb_storage_orphan_tests
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_bridge_conversion.cpp:5:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/otel/bridge.h:12:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:83:48: warning: unused parameter 'matchers' [-Wunused-parameter]
+        const std::vector<core::LabelMatcher>& matchers,
+                                               ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:84:17: warning: unused parameter 'start_time' [-Wunused-parameter]
+        int64_t start_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:85:17: warning: unused parameter 'end_time' [-Wunused-parameter]
+        int64_t end_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:86:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+        const core::AggregationRequest& aggregation) {
+                                        ^
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_grpc_path.cpp:5:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/otel/bridge.h:12:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:83:48: warning: unused parameter 'matchers' [-Wunused-parameter]
+        const std::vector<core::LabelMatcher>& matchers,
+                                               ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:84:17: warning: unused parameter 'start_time' [-Wunused-parameter]
+        int64_t start_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:85:17: warning: unused parameter 'end_time' [-Wunused-parameter]
+        int64_t end_time,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage.h:86:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+        const core::AggregationRequest& aggregation) {
+                                        ^
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/benchmark/e2e_query_benchmark.cpp:26:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/prometheus/promql/engine.h:8:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/prometheus/storage/adapter.h:38:49: warning: unused parameter 'matchers' [-Wunused-parameter]
+        const std::vector<model::LabelMatcher>& matchers,
+                                                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/prometheus/storage/adapter.h:39:17: warning: unused parameter 'start' [-Wunused-parameter]
+        int64_t start,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/prometheus/storage/adapter.h:40:17: warning: unused parameter 'end' [-Wunused-parameter]
+        int64_t end,
+                ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/prometheus/storage/adapter.h:41:41: warning: unused parameter 'aggregation' [-Wunused-parameter]
+        const core::AggregationRequest& aggregation) {
+                                        ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/benchmark/e2e_query_benchmark.cpp:27:10: fatal error: 'tsdb/prometheus/promql/storage_adapter.h' file not found
+#include "tsdb/prometheus/promql/storage_adapter.h"
+         ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+10 warnings and 1 error generated.
+make[3]: *** [test/benchmark/CMakeFiles/e2e_query_benchmark.dir/e2e_query_benchmark.cpp.o] Error 1
+make[2]: *** [test/benchmark/CMakeFiles/e2e_query_benchmark.dir/all] Error 2
+make[2]: *** Waiting for unfinished jobs....
+ld: warning: object file (/opt/homebrew/lib/libgtest_main.a(gtest_main.cc.o)) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: object file (/opt/homebrew/lib/libgtest.a(gtest-all.cc.o)) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: object file (/opt/homebrew/lib/libgmock.a(gmock-all.cc.o)) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libparquet.2200.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libspdlog.1.15.1.dylib) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libarrow.2200.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libtbb.12.16.dylib) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libfmt.11.1.4.dylib) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libgrpc++.1.76.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libgrpc.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/opt/openssl@3/lib/libssl.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/opt/openssl@3/lib/libcrypto.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_json_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_textformat_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_reflection_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_lex_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_wire_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libutf8_range_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_mini_descriptor_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_base_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_mini_table_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_hash_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_message_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libupb_mem_lib.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libre2.11.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libcares.2.19.4.dylib) was built for newer macOS version (15.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libgpr.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libprotobuf.33.1.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_check_op.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libaddress_sorting.51.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_nullguard.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_conditions.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_message.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_examine_stack.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_format.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_die_if_null.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_structured_proto.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_sink.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_log_sink_set.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_entry.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_proto.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_marshalling.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_reflection.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_config.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_private_handle_accessor.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_program_name.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_commandlineflag.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_flags_commandlineflag_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_fnmatch.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_initialize.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_globals.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_raw_hash_set.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_hashtablez_sampler.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_internal_globals.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_vlog_config_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_entropy_pool.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_randen_hwaes.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_randen.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_distributions.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_randen_hwaes_impl.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_randen_slow.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_seed_gen_exception.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_statusor.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_platform.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_cordz_info.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_seed_sequences.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_status.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_cord.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_city.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_cord_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_hash.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_random_internal_seed_material.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_cordz_functions.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_crc_cord_state.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_crc32c.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_crc_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_crc_cpu_detect.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_exponential_biased.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_leak_check.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_strerror.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_cordz_handle.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_str_format_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_stacktrace.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_symbolize.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_debugging_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_decode_rust_punycode.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_demangle_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_utf8_for_code_point.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_kernel_timeout_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_graphcycles_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_synchronization.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_tracing_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_civil_time.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_time.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_malloc_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: ld: warning: ld: warning: dylib (/opt/homebrew/lib/libabsl_strings.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)dylib (/opt/homebrew/lib/libabsl_time_zone.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+
+ld: warning: dylib (/opt/homebrew/lib/libabsl_strings_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libutf8_validity.33.1.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+dylib (/opt/homebrew/lib/libabsl_demangle_rust.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_base.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_int128.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_spinlock_wait.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_throw_delegate.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_string_view.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_raw_logging_internal.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+ld: warning: dylib (/opt/homebrew/lib/libabsl_log_severity.2508.0.0.dylib) was built for newer macOS version (26.0) than being linked (13.3)
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_bridge_conversion.cpp:6:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage_impl.h:18:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/block_manager.h:14:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/internal/block_impl.h:9:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+    uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+                                          ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+    std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+                                   ^
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_grpc_path.cpp:6:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/storage_impl.h:18:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/block_manager.h:14:
+In file included from /Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/internal/block_impl.h:9:
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:361:43: warning: unused parameter 'label' [-Wunused-parameter]
+    uint32_t add_label(const std::string& label) override { return 0; } // Not used for RLE
+                                          ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/storage/compression.h:362:36: warning: unused parameter 'id' [-Wunused-parameter]
+    std::string get_label(uint32_t id) const override { return ""; } // Not used for RLE
+                                   ^
+[100%] Built target tsdb_storage_orphan_tests
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_bridge_conversion.cpp:81:43: error: no viable conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>'
+    auto result = bridge_->ConvertMetrics(metrics_data);
+                                          ^~~~~~~~~~~~
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1044:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &' for 1st argument
+  RepeatedPtrField(const RepeatedPtrField& rhs)
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1049:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &&' for 1st argument
+  RepeatedPtrField(RepeatedPtrField&& rhs) noexcept
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1036:12: note: explicit constructor is not a candidate
+  explicit RepeatedPtrField(Arena* arena);
+           ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/otel/bridge.h:217:103: note: passing argument to parameter 'resource_metrics' here
+        const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) = 0;
+                                                                                                      ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_grpc_path.cpp:65:46: error: no viable conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>'
+        auto result = bridge->ConvertMetrics(metrics_data);
+                                             ^~~~~~~~~~~~
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1044:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &' for 1st argument
+  RepeatedPtrField(const RepeatedPtrField& rhs)
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1049:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &&' for 1st argument
+  RepeatedPtrField(RepeatedPtrField&& rhs) noexcept
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1036:12: note: explicit constructor is not a candidate
+  explicit RepeatedPtrField(Arena* arena);
+           ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/otel/bridge.h:217:103: note: passing argument to parameter 'resource_metrics' here
+        const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) = 0;
+                                                                                                      ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/test/otel_grpc/unit/test_bridge_conversion.cpp:150:43: error: no viable conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>'
+    auto result = bridge_->ConvertMetrics(metrics_data);
+                                          ^~~~~~~~~~~~
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1044:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &' for 1st argument
+  RepeatedPtrField(const RepeatedPtrField& rhs)
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1049:3: note: candidate constructor not viable: no known conversion from 'opentelemetry::proto::metrics::v1::MetricsData' to 'google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics> &&' for 1st argument
+  RepeatedPtrField(RepeatedPtrField&& rhs) noexcept
+  ^
+/opt/homebrew/include/google/protobuf/repeated_ptr_field.h:1036:12: note: explicit constructor is not a candidate
+  explicit RepeatedPtrField(Arena* arena);
+           ^
+/Users/vobbilis/go/src/github.com/vobbilis/codegen/mytsdb/include/tsdb/otel/bridge.h:217:103: note: passing argument to parameter 'resource_metrics' here
+        const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) = 0;
+                                                                                                      ^
+6 warnings and 1 error generated.
+6 warnings and 2 errors generated.
+make[3]: *** [test/otel_grpc/unit/CMakeFiles/tsdb_otel_grpc_path_test.dir/test_grpc_path.cpp.o] Error 1
+make[2]: *** [test/otel_grpc/unit/CMakeFiles/tsdb_otel_grpc_path_test.dir/all] Error 2
+make[3]: *** [test/otel_grpc/unit/CMakeFiles/tsdb_otel_bridge_conversion_test.dir/test_bridge_conversion.cpp.o] Error 1
+make[2]: *** [test/otel_grpc/unit/CMakeFiles/tsdb_otel_bridge_conversion_test.dir/all] Error 2
+make[1]: *** [all] Error 2
+make: *** [build] Error 2

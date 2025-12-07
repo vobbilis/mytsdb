@@ -29,7 +29,6 @@
 namespace tsdb {
 namespace proto {
 
-// Service for querying time series data
 class TSDBService final {
  public:
   static constexpr char const* service_full_name() {
@@ -38,7 +37,6 @@ class TSDBService final {
   class StubInterface {
    public:
     virtual ~StubInterface() {}
-    // Get all label names
     virtual ::grpc::Status GetLabelNames(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams& request, ::tsdb::proto::LabelNamesResponse* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelNamesResponse>> AsyncGetLabelNames(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelNamesResponse>>(AsyncGetLabelNamesRaw(context, request, cq));
@@ -46,7 +44,6 @@ class TSDBService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelNamesResponse>> PrepareAsyncGetLabelNames(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelNamesResponse>>(PrepareAsyncGetLabelNamesRaw(context, request, cq));
     }
-    // Get values for a specific label
     virtual ::grpc::Status GetLabelValues(::grpc::ClientContext* context, const ::tsdb::proto::LabelValuesRequest& request, ::tsdb::proto::LabelValuesResponse* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelValuesResponse>> AsyncGetLabelValues(::grpc::ClientContext* context, const ::tsdb::proto::LabelValuesRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelValuesResponse>>(AsyncGetLabelValuesRaw(context, request, cq));
@@ -54,7 +51,6 @@ class TSDBService final {
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelValuesResponse>> PrepareAsyncGetLabelValues(::grpc::ClientContext* context, const ::tsdb::proto::LabelValuesRequest& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::LabelValuesResponse>>(PrepareAsyncGetLabelValuesRaw(context, request, cq));
     }
-    // Get time series matching the query parameters
     virtual ::grpc::Status GetSeries(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams& request, ::tsdb::proto::SeriesResponse* response) = 0;
     std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::SeriesResponse>> AsyncGetSeries(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams& request, ::grpc::CompletionQueue* cq) {
       return std::unique_ptr< ::grpc::ClientAsyncResponseReaderInterface< ::tsdb::proto::SeriesResponse>>(AsyncGetSeriesRaw(context, request, cq));
@@ -65,13 +61,10 @@ class TSDBService final {
     class async_interface {
      public:
       virtual ~async_interface() {}
-      // Get all label names
       virtual void GetLabelNames(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::LabelNamesResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void GetLabelNames(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::LabelNamesResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // Get values for a specific label
       virtual void GetLabelValues(::grpc::ClientContext* context, const ::tsdb::proto::LabelValuesRequest* request, ::tsdb::proto::LabelValuesResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void GetLabelValues(::grpc::ClientContext* context, const ::tsdb::proto::LabelValuesRequest* request, ::tsdb::proto::LabelValuesResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
-      // Get time series matching the query parameters
       virtual void GetSeries(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::SeriesResponse* response, std::function<void(::grpc::Status)>) = 0;
       virtual void GetSeries(::grpc::ClientContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::SeriesResponse* response, ::grpc::ClientUnaryReactor* reactor) = 0;
     };
@@ -146,11 +139,8 @@ class TSDBService final {
    public:
     Service();
     virtual ~Service();
-    // Get all label names
     virtual ::grpc::Status GetLabelNames(::grpc::ServerContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::LabelNamesResponse* response);
-    // Get values for a specific label
     virtual ::grpc::Status GetLabelValues(::grpc::ServerContext* context, const ::tsdb::proto::LabelValuesRequest* request, ::tsdb::proto::LabelValuesResponse* response);
-    // Get time series matching the query parameters
     virtual ::grpc::Status GetSeries(::grpc::ServerContext* context, const ::tsdb::proto::QueryParams* request, ::tsdb::proto::SeriesResponse* response);
   };
   template <class BaseClass>

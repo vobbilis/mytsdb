@@ -28,7 +28,7 @@ public:
     std::string stats() const override;
 
     core::Result<void> ConvertMetrics(
-        const opentelemetry::proto::metrics::v1::MetricsData& metrics_data) override;
+        const google::protobuf::RepeatedPtrField<opentelemetry::proto::metrics::v1::ResourceMetrics>& resource_metrics) override;
 
 private:
     core::Result<void> process_metrics(const std::string& data);

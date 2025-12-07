@@ -31,7 +31,9 @@ target_sources(tsdb_storage_impl
         parquet/schema_mapper.cpp
         parquet/writer.cpp
         parquet/reader.cpp
+        parquet/reader.cpp
         parquet/parquet_block.cpp
+        parquet_catalog.cpp
         rule_manager.cpp
         filtering_storage.cpp
         derived_metrics.cpp

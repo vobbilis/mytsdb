@@ -4,6 +4,14 @@ namespace tsdb {
 namespace prometheus {
 namespace promql {
 
+QueryMetrics::QueryMetrics() {
+    // Standard Prometheus buckets (seconds)
+    std::vector<double> bounds = {
+        0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0
+    };
+    query_duration_histogram_ = histogram::FixedBucketHistogram::create(bounds);
+}
+
 QueryMetrics& QueryMetrics::GetInstance() {
     static QueryMetrics instance;
     return instance;
@@ -15,6 +23,13 @@ void QueryMetrics::RecordQuery(uint64_t duration_ns, bool error) {
         query_errors_.fetch_add(1, std::memory_order_relaxed);
     }
     total_query_time_ns_.fetch_add(duration_ns, std::memory_order_relaxed);
+    
+    // Convert ns to seconds for histogram
+    double duration_s = static_cast<double>(duration_ns) / 1e9;
+    std::lock_guard<std::mutex> lock(histogram_mutex_);
+    if (query_duration_histogram_) {
+        query_duration_histogram_->add(duration_s);
+    }
 }
 
 void QueryMetrics::RecordParse(uint64_t duration_ns) {
@@ -48,6 +63,16 @@ QueryMetricsSnapshot QueryMetrics::GetSnapshot() const {
     snapshot.samples_scanned = samples_scanned_.load(std::memory_order_relaxed);
     snapshot.series_scanned = series_scanned_.load(std::memory_order_relaxed);
     snapshot.bytes_scanned = bytes_scanned_.load(std::memory_order_relaxed);
+    
+    // Copy histogram buckets
+    // Cast away constness for mutex (snapshot is logical const)
+    std::lock_guard<std::mutex> lock(const_cast<QueryMetrics*>(this)->histogram_mutex_);
+    if (query_duration_histogram_) {
+        for (const auto& bucket : query_duration_histogram_->buckets()) {
+            snapshot.query_duration_buckets.emplace_back(bucket->upper_bound(), bucket->count());
+        }
+    }
+    
     return snapshot;
 }
 

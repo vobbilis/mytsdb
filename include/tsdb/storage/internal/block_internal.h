@@ -22,6 +22,13 @@ public:
     virtual void write(const core::TimeSeries& series) = 0;
     
     /**
+     * @brief Read raw columns (timestamps, values) for a series
+     * @return Pair of (timestamps, values) vectors, or empty if not found
+     */
+    virtual std::pair<std::vector<int64_t>, std::vector<double>> read_columns(const core::Labels& labels) const = 0;
+
+    
+    /**
      * @brief Get block header
      */
     virtual const BlockHeader& header() const = 0;

@@ -90,6 +90,10 @@ CacheHierarchy::CacheHierarchy(const CacheHierarchyConfig& config)
     }
 }
 
+void CacheHierarchy::set_l3_persistence_callback(L3PersistenceCallback callback) {
+    on_l3_demotion_ = std::move(callback);
+}
+
 /**
  * @brief Destructor that ensures proper cleanup of cache hierarchy resources
  * 
@@ -406,9 +410,31 @@ bool CacheHierarchy::demote(core::SeriesID series_id, int target_level) {
             }
         }
     } else if (target_level == 3) {
-        // Demote from L2 to L3 (would be handled by storage system)
-        // For now, we'll just return false
-        return false;
+        // Demote from L2 to L3 (Parquet cold storage)
+        if (!on_l3_demotion_) {
+            // No L3 persistence callback set - cannot demote to L3
+            return false;
+        }
+        
+        // Get series from L2 (or L1 if not in L2)
+        if (l2_cache_) {
+            series = l2_cache_->get(series_id);
+        }
+        if (!series && l1_cache_) {
+            series = l1_cache_->get(series_id);
+        }
+        
+        if (series) {
+            // Call the L3 persistence callback (writes to Parquet)
+            if (on_l3_demotion_(series_id, series)) {
+                // Successfully persisted to L3 - remove from caches
+                if (l2_cache_) l2_cache_->remove(series_id);
+                if (l1_cache_) l1_cache_->remove(series_id);
+                demotions_.fetch_add(1, std::memory_order_relaxed);
+                l3_hits_.fetch_add(0, std::memory_order_relaxed); // Track L3 activity
+                return true;
+            }
+        }
     }
     
     return false;

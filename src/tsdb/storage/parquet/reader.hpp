@@ -27,6 +27,15 @@ public:
     
     // Predicate pushdown support
     int GetNumRowGroups() const;
+    
+    struct RowGroupStats {
+        int64_t min_timestamp;
+        int64_t max_timestamp;
+        int64_t num_rows;
+        int64_t total_byte_size;
+    };
+    
+    core::Result<RowGroupStats> GetRowGroupStats(int row_group_index);
     core::Result<std::shared_ptr<arrow::RecordBatch>> ReadRowGroupTags(int row_group_index);
     core::Result<std::shared_ptr<arrow::RecordBatch>> ReadRowGroup(int row_group_index);
 

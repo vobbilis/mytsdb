@@ -30,6 +30,11 @@
 #include "tsdb/storage/filtering_storage.h"
 #include "tsdb/storage/rule_manager.h"
 #include "tsdb/storage/derived_metrics.h"
+#include "tsdb/storage/write_performance_instrumentation.h"
+
+#ifdef HAVE_ARROW_FLIGHT
+#include "tsdb/arrow/flight_server.h"
+#endif
 
 // Global flag for shutdown
 std::atomic<bool> g_running(true);
@@ -45,9 +50,13 @@ namespace tsdb {
 
 class TSDBServer {
 public:
-    explicit TSDBServer(const std::string& address, int http_port, const std::string& data_dir = "/tmp/tsdb") 
-        : address_(address), http_port_(http_port), data_dir_(data_dir), shutdown_(false) {
-        std::cout << "Creating TSDB server on address: " << address << ", HTTP port: " << http_port << std::endl;
+    explicit TSDBServer(const std::string& address, int http_port, int arrow_port, const std::string& data_dir = "/tmp/tsdb") 
+        : address_(address), http_port_(http_port), arrow_port_(arrow_port), data_dir_(data_dir), shutdown_(false) {
+        std::cout << "Creating TSDB server on address: " << address << ", HTTP port: " << http_port;
+#ifdef HAVE_ARROW_FLIGHT
+        std::cout << ", Arrow port: " << arrow_port;
+#endif
+        std::cout << std::endl;
     }
 
     bool Start() {
@@ -270,11 +279,31 @@ public:
             std::cerr << "[Main] ERROR: Failed to get background processor!" << std::endl;
         }
         
+#ifdef HAVE_ARROW_FLIGHT
+        // Start Arrow Flight server
+        if (arrow_port_ > 0) {
+            arrow_server_ = std::make_unique<arrow::MetricsFlightServer>(storage_);
+            auto status = arrow_server_->Init(arrow_port_);
+            if (status.ok()) {
+                // Run server in background thread
+                arrow_server_thread_ = std::thread([this]() {
+                    arrow_server_->Serve();
+                });
+                std::cout << "Arrow Flight server listening on port " << arrow_port_ << std::endl;
+            } else {
+                std::cerr << "Failed to start Arrow Flight server: " << status.ToString() << std::endl;
+            }
+        }
+#endif
+        
         return true;
     }
 
     void Stop() {
         shutdown_.store(true);
+        
+        // Print write performance summary immediately on shutdown
+        tsdb::storage::WritePerformanceInstrumentation::instance().print_summary();
         
         if (derived_metric_manager_) {
             std::cout << "Stopping derived metric manager..." << std::endl;
@@ -311,6 +340,18 @@ public:
             query_service_.reset();
         }
 #endif
+
+#ifdef HAVE_ARROW_FLIGHT
+        // Shutdown Arrow Flight server
+        if (arrow_server_) {
+            std::cout << "Shutting down Arrow Flight server..." << std::endl;
+            arrow_server_->Shutdown();
+            if (arrow_server_thread_.joinable()) {
+                arrow_server_thread_.join();
+            }
+            arrow_server_.reset();
+        }
+#endif
         
         if (storage_) {
             auto result = storage_->close();
@@ -332,6 +373,7 @@ public:
 private:
     std::string address_;
     int http_port_;
+    int arrow_port_;
     std::string data_dir_;
     std::shared_ptr<storage::Storage> storage_;
     std::unique_ptr<prometheus::HttpServer> http_server_;
@@ -354,6 +396,11 @@ private:
         std::unique_ptr<otel::MetricsService> metrics_service_;
         std::unique_ptr<otel::QueryService> query_service_;
 #endif
+
+#ifdef HAVE_ARROW_FLIGHT
+    std::unique_ptr<arrow::MetricsFlightServer> arrow_server_;
+    std::thread arrow_server_thread_;
+#endif
 };
 
 } // namespace tsdb
@@ -366,7 +413,9 @@ int main(int argc, char* argv[]) {
     // Parse command-line arguments
     std::string address = "0.0.0.0:4317";  // Default OTEL gRPC port
     int http_port = 9090;                  // Default Prometheus HTTP port
+    int arrow_port = 8815;                 // Default Arrow Flight port
     std::string data_dir = "/tmp/tsdb";
+    bool enable_write_instrumentation = false;
     
     for (int i = 1; i < argc; i++) {
         std::string arg = argv[i];
@@ -374,6 +423,8 @@ int main(int argc, char* argv[]) {
             address = argv[++i];
         } else if (arg == "--http-port" && i + 1 < argc) {
             http_port = std::stoi(argv[++i]);
+        } else if (arg == "--arrow-port" && i + 1 < argc) {
+            arrow_port = std::stoi(argv[++i]);
         } else if (arg == "--data-dir" && i + 1 < argc) {
             data_dir = argv[++i];
         } else if (arg == "--log-level" && i + 1 < argc) {
@@ -384,13 +435,17 @@ int main(int argc, char* argv[]) {
             else if (level_str == "error") tsdb::common::Logger::SetLevel(spdlog::level::err);
             else if (level_str == "off") tsdb::common::Logger::SetLevel(spdlog::level::off);
             else std::cerr << "Unknown log level: " << level_str << ". Using default (info)." << std::endl;
+        } else if (arg == "--enable-write-instrumentation") {
+            enable_write_instrumentation = true;
         } else if (arg == "--help" || arg == "-h") {
             std::cout << "Usage: " << argv[0] << " [OPTIONS]" << std::endl;
             std::cout << "Options:" << std::endl;
             std::cout << "  --address ADDRESS    gRPC Server address (default: 0.0.0.0:4317)" << std::endl;
             std::cout << "  --http-port PORT     HTTP Server port (default: 9090)" << std::endl;
+            std::cout << "  --arrow-port PORT    Arrow Flight port (default: 8815, 0 to disable)" << std::endl;
             std::cout << "  --data-dir DIR       Data directory (default: /tmp/tsdb)" << std::endl;
             std::cout << "  --log-level LEVEL    Log level (debug, info, warn, error, off)" << std::endl;
+            std::cout << "  --enable-write-instrumentation Enable detailed write performance metrics" << std::endl;
             std::cout << "  --help, -h           Show this help message" << std::endl;
             return 0;
         } else {
@@ -401,7 +456,12 @@ int main(int argc, char* argv[]) {
     }
     
     try {
-        tsdb::TSDBServer server(address, http_port, data_dir);
+        if (enable_write_instrumentation) {
+            tsdb::storage::StorageImpl::enable_write_instrumentation(true);
+            std::cout << "Write performance instrumentation enabled" << std::endl;
+        }
+
+        tsdb::TSDBServer server(address, http_port, arrow_port, data_dir);
         
         if (!server.Start()) {
             return 1;

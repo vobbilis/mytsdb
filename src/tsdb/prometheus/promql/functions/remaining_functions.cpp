@@ -36,6 +36,125 @@ static double CalculateQuantile(std::vector<double>& values, double phi) {
 }
 
 void RegisterOverTimeAggregations(FunctionRegistry& registry) {
+    // ==================== BASIC OVER-TIME AGGREGATIONS ====================
+    
+    // sum_over_time(range-vector) - Sum of all values in the time window
+    registry.Register({
+        "sum_over_time",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.empty()) continue;
+                
+                double sum = 0.0;
+                for (const auto& sample : series.samples) {
+                    sum += sample.value();
+                }
+                
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), sum});
+            }
+            return Value(result);
+        }
+    });
+    
+    // avg_over_time(range-vector) - Average of all values in the time window
+    registry.Register({
+        "avg_over_time",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.empty()) continue;
+                
+                double sum = 0.0;
+                for (const auto& sample : series.samples) {
+                    sum += sample.value();
+                }
+                double avg = sum / series.samples.size();
+                
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), avg});
+            }
+            return Value(result);
+        }
+    });
+    
+    // min_over_time(range-vector) - Minimum value in the time window
+    registry.Register({
+        "min_over_time",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.empty()) continue;
+                
+                double min_val = series.samples[0].value();
+                for (const auto& sample : series.samples) {
+                    min_val = std::min(min_val, sample.value());
+                }
+                
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), min_val});
+            }
+            return Value(result);
+        }
+    });
+    
+    // max_over_time(range-vector) - Maximum value in the time window
+    registry.Register({
+        "max_over_time",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.empty()) continue;
+                
+                double max_val = series.samples[0].value();
+                for (const auto& sample : series.samples) {
+                    max_val = std::max(max_val, sample.value());
+                }
+                
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), max_val});
+            }
+            return Value(result);
+        }
+    });
+    
+    // count_over_time(range-vector) - Count of samples in the time window
+    registry.Register({
+        "count_over_time",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.empty()) continue;
+                
+                double count = static_cast<double>(series.samples.size());
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), count});
+            }
+            return Value(result);
+        }
+    });
+
     // quantile_over_time(φ scalar, range-vector) - Quantile of values over time
     registry.Register({
         "quantile_over_time",
@@ -345,8 +464,188 @@ void RegisterRemainingUtilityFunctions(FunctionRegistry& registry) {
             return Value(result);
         }
     });
+
+    // resets(range-vector) - Number of counter resets within the time window
+    registry.Register({
+        "resets",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.size() < 2) {
+                    result.push_back(Sample{series.metric, series.samples.empty() ? 0 : series.samples.back().timestamp(), 0.0});
+                    continue;
+                }
+                
+                double resets_count = 0;
+                for (size_t i = 1; i < series.samples.size(); ++i) {
+                    if (series.samples[i].value() < series.samples[i-1].value()) {
+                        resets_count++;
+                    }
+                }
+                
+                result.push_back(Sample{series.metric, series.samples.back().timestamp(), resets_count});
+            }
+            return Value(result);
+        }
+    });
+
+    // idelta(range-vector) - Delta of the last two samples in the time window
+    registry.Register({
+        "idelta",
+        {ValueType::MATRIX},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& matrix = args[0].getMatrix();
+            
+            Vector result;
+            for (const auto& series : matrix) {
+                if (series.samples.size() < 2) continue;
+                
+                // Use last two samples
+                const auto& last = series.samples.back();
+                const auto& prev = series.samples[series.samples.size() - 2];
+                
+                double delta = last.value() - prev.value();
+                result.push_back(Sample{series.metric, last.timestamp(), delta});
+            }
+            return Value(result);
+        }
+    });
+
+    // timestamp(vector) - Returns the timestamp of each sample
+    registry.Register({
+        "timestamp",
+        {ValueType::VECTOR},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            const auto& vec = args[0].getVector();
+            
+            Vector result;
+            for (const auto& sample : vec) {
+                // Return timestamp in seconds (PromQL convention)
+                double ts_seconds = static_cast<double>(sample.timestamp) / 1000.0;
+                result.push_back(Sample{sample.metric, sample.timestamp, ts_seconds});
+            }
+            return Value(result);
+        }
+    });
+}
+
+// Helper for histogram_quantile: extract bucket boundaries from "le" label
+static double ExtractLeBound(const LabelSet& labels) {
+    auto le = labels.GetLabelValue("le");
+    if (!le.has_value()) return std::numeric_limits<double>::quiet_NaN();
+    const std::string& le_str = le.value();
+    if (le_str == "+Inf") return std::numeric_limits<double>::infinity();
+    try {
+        return std::stod(le_str);
+    } catch (...) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+}
+
+void RegisterHistogramFunctions(FunctionRegistry& registry) {
+    // histogram_quantile(scalar, vector) - Calculate quantile from histogram buckets
+    // Critical for P99 latency queries like histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m]))
+    registry.Register({
+        "histogram_quantile",
+        {ValueType::SCALAR, ValueType::VECTOR},
+        false,
+        ValueType::VECTOR,
+        [](const std::vector<Value>& args, Evaluator*) -> Value {
+            double phi = args[0].getScalar().value;
+            const auto& input_vec = args[1].getVector();
+            
+            if (phi < 0 || phi > 1) {
+                return Value(Vector{});  // Invalid quantile
+            }
+            
+            // Group samples by series (excluding "le" label)
+            struct BucketGroup {
+                LabelSet base_labels;
+                std::vector<std::pair<double, double>> buckets;  // (le, count)
+                int64_t timestamp;
+            };
+            
+            std::map<std::string, BucketGroup> groups;
+            
+            for (const auto& sample : input_vec) {
+                // Create base labels without "le"
+                LabelSet base = sample.metric;
+                base.RemoveLabel("le");
+                std::string key = base.ToString();
+                
+                auto& group = groups[key];
+                if (group.base_labels.labels().empty()) {
+                    group.base_labels = base;
+                    group.timestamp = sample.timestamp;
+                }
+                
+                double le = ExtractLeBound(sample.metric);
+                if (!std::isnan(le)) {
+                    group.buckets.emplace_back(le, sample.value);
+                }
+            }
+            
+            Vector result;
+            for (auto& [key, group] : groups) {
+                if (group.buckets.empty()) continue;
+                
+                // Sort buckets by le
+                std::sort(group.buckets.begin(), group.buckets.end());
+                
+                // Find total count (from +Inf bucket)
+                double total = 0;
+                for (const auto& [le, count] : group.buckets) {
+                    if (std::isinf(le)) {
+                        total = count;
+                        break;
+                    }
+                }
+                
+                if (total == 0) {
+                    result.push_back(Sample{group.base_labels, group.timestamp, std::numeric_limits<double>::quiet_NaN()});
+                    continue;
+                }
+                
+                // Calculate quantile using linear interpolation
+                double target = phi * total;
+                double prev_le = 0;
+                double prev_count = 0;
+                double quantile_value = std::numeric_limits<double>::quiet_NaN();
+                
+                for (const auto& [le, count] : group.buckets) {
+                    if (count >= target) {
+                        // Interpolate
+                        double bucket_size = count - prev_count;
+                        if (bucket_size > 0) {
+                            double fraction = (target - prev_count) / bucket_size;
+                            quantile_value = prev_le + fraction * (le - prev_le);
+                        } else {
+                            quantile_value = le;
+                        }
+                        break;
+                    }
+                    prev_le = le;
+                    prev_count = count;
+                }
+                
+                result.push_back(Sample{group.base_labels, group.timestamp, quantile_value});
+            }
+            
+            return Value(result);
+        }
+    });
 }
 
 } // namespace promql
 } // namespace prometheus
 } // namespace tsdb
+

@@ -3,7 +3,9 @@
 #include <arrow/table.h>
 #include <arrow/record_batch.h>
 #include <parquet/arrow/reader.h>
+#include <parquet/arrow/reader.h>
 #include <parquet/file_reader.h>
+#include <parquet/statistics.h>
 
 namespace tsdb {
 namespace storage {
@@ -99,6 +101,63 @@ core::Result<void> ParquetReader::Close() {
 int ParquetReader::GetNumRowGroups() const {
     if (!reader_) return 0;
     return reader_->num_row_groups();
+}
+
+core::Result<ParquetReader::RowGroupStats> ParquetReader::GetRowGroupStats(int row_group_index) {
+    if (!reader_) {
+        return core::Result<RowGroupStats>::error("Reader not open");
+    }
+    
+    if (row_group_index < 0 || row_group_index >= reader_->num_row_groups()) {
+        return core::Result<RowGroupStats>::error("Invalid row group index");
+    }
+    
+    try {
+        auto metadata = reader_->parquet_reader()->metadata();
+        auto rg_metadata = metadata->RowGroup(row_group_index);
+        
+        // Find timestamp column
+        int ts_col_idx = -1;
+        auto schema = metadata->schema();
+        for (int i = 0; i < schema->num_columns(); ++i) {
+            if (schema->Column(i)->name() == "timestamp") {
+                ts_col_idx = i;
+                break;
+            }
+        }
+        
+        if (ts_col_idx == -1) {
+             return core::Result<RowGroupStats>::error("Timestamp column not found");
+        }
+        
+        auto col_chunk = rg_metadata->ColumnChunk(ts_col_idx);
+        auto stats = col_chunk->statistics();
+        
+        if (!stats || !stats->HasMinMax()) {
+             // Fallback if no stats: return full range to be safe
+             return core::Result<RowGroupStats>({
+                 .min_timestamp = std::numeric_limits<int64_t>::min(),
+                 .max_timestamp = std::numeric_limits<int64_t>::max(),
+                 .num_rows = rg_metadata->num_rows(),
+                 .total_byte_size = rg_metadata->total_byte_size()
+             });
+        }
+        
+        auto int64_stats = std::dynamic_pointer_cast<::parquet::Int64Statistics>(stats);
+        if (!int64_stats) {
+             return core::Result<RowGroupStats>::error("Timestamp column is not Int64");
+        }
+        
+        return core::Result<RowGroupStats>({
+            .min_timestamp = int64_stats->min(),
+            .max_timestamp = int64_stats->max(),
+            .num_rows = rg_metadata->num_rows(),
+            .total_byte_size = rg_metadata->total_byte_size()
+        });
+        
+    } catch (const std::exception& e) {
+        return core::Result<RowGroupStats>::error("Error reading metadata: " + std::string(e.what()));
+    }
 }
 
 core::Result<std::shared_ptr<arrow::RecordBatch>> ParquetReader::ReadRowGroupTags(int row_group_index) {
