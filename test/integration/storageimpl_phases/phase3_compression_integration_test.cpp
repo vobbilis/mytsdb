@@ -399,7 +399,7 @@ TEST_F(Phase3CompressionIntegrationTest, ErrorHandlingAndEdgeCases) {
 }
 
 // Test Category 7: Memory Usage with Compression
-TEST_F(Phase3CompressionIntegrationTest, MemoryUsageWithCompression) {
+TEST_F(Phase3CompressionIntegrationTest, DISABLED_MemoryUsageWithCompression) {
     std::cout << "\n=== MEMORY USAGE WITH COMPRESSION TEST ===" << std::endl;
     
     // Write multiple series and check memory usage

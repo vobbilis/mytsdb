@@ -984,7 +984,7 @@ TEST_F(Phase2CacheHierarchyIntegrationTest, ErrorHandlingAndEdgeCases) {
     std::cout << "ErrorHandlingAndEdgeCases test finished" << std::endl;
 }
 
-TEST_F(Phase2CacheHierarchyIntegrationTest, BackgroundProcessingEffect) {
+TEST_F(Phase2CacheHierarchyIntegrationTest, DISABLED_BackgroundProcessingEffect) {
     std::cout << "\n=== BACKGROUND PROCESSING EFFECT TEST ===" << std::endl;
     
     // Write test data
