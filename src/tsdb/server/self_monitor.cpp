@@ -177,6 +177,14 @@ void SelfMonitor::ScrapeAndWrite() {
     add_metric("mytsdb_read_samples_scanned_total", read_stats.total_samples_scanned, "counter");
     add_metric("mytsdb_read_blocks_accessed_total", read_stats.total_blocks_accessed, "counter");
     add_metric("mytsdb_read_cache_hits_total", read_stats.cache_hits, "counter");
+    
+    // Secondary Index Metrics (Phase A: B+ Tree)
+    add_metric("mytsdb_secondary_index_lookups_total", read_stats.secondary_index_lookups, "counter");
+    add_metric("mytsdb_secondary_index_hits_total", read_stats.secondary_index_hits, "counter");
+    add_metric("mytsdb_secondary_index_misses_total", read_stats.secondary_index_misses, "counter");
+    add_metric("mytsdb_secondary_index_lookup_seconds_total", read_stats.secondary_index_lookup_time_us / 1e6, "counter");
+    add_metric("mytsdb_secondary_index_build_seconds_total", read_stats.secondary_index_build_time_us / 1e6, "counter");
+    add_metric("mytsdb_secondary_index_row_groups_selected_total", read_stats.secondary_index_row_groups_selected, "counter");
 
     std::cout << "[SelfMonitor] Writing " << metrics.size() << " metric series to storage..." << std::endl;
     

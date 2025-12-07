@@ -276,7 +276,7 @@ std::string WorkingSetCache::stats() const {
     oss << "  Current size: " << size() << "/" << max_size_ << "\n";
     oss << "  Hit count: " << hit_count() << "\n";
     oss << "  Miss count: " << miss_count() << "\n";
-    oss << "  Hit ratio: " << std::fixed << std::setprecision(2) << hit_ratio() << "%";
+    oss << "  Hit ratio: " << std::fixed << std::setprecision(2) << hit_ratio() << "%\n";
     return oss.str();
 }
 

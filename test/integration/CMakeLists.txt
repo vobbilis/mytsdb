@@ -5,6 +5,7 @@ add_executable(tsdb_integration_test_suite
     core_storage_integration_test.cpp
     storage_histogram_integration_test.cpp
     config_integration_test.cpp
+    derived_metrics_integration_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp
@@ -261,6 +262,31 @@ target_link_libraries(tsdb_hybrid_query_test
         GTest::gtest
         GTest::gtest_main
 )
+
+# Secondary Index Integration Test - tests that ParquetBlock uses secondary index
+add_executable(tsdb_secondary_index_integration_test
+    parquet/secondary_index_integration_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_secondary_index_integration_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_secondary_index_integration_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+        Arrow::arrow_shared
+        Parquet::parquet_shared
+        GTest::gtest
+        GTest::gtest_main
+)
+
+gtest_discover_tests(tsdb_secondary_index_integration_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Query instrumentation integration test
 add_executable(tsdb_query_instrumentation_integration_test

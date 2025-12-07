@@ -537,6 +537,14 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
                 series_blocks_.insert(blocks_accessor, series_id);
                 blocks_accessor->second.push_back(persisted_block);
             }
+            
+            // CRITICAL FIX: Also update block_to_series_ and label_to_blocks_ for compaction to work
+            // These maps are used by execute_background_compaction() to find blocks to compact
+            {
+                std::unique_lock<std::shared_mutex> lock(mutex_);
+                block_to_series_[persisted_block].insert(series_id);
+                label_to_blocks_[series.labels()].push_back(persisted_block);
+            }
         }
         
         // Calculate total time and record metrics

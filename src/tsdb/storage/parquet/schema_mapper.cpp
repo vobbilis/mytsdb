@@ -249,6 +249,16 @@ core::Result<std::map<std::string, std::string>> SchemaMapper::ExtractTags(std::
         return core::Result<std::map<std::string, std::string>>(std::map<std::string, std::string>{});
     }
 
+    // Delegate to ExtractTagsForRow for row 0
+    return ExtractTagsForRow(batch, 0);
+}
+
+core::Result<std::map<std::string, std::string>> SchemaMapper::ExtractTagsForRow(
+    std::shared_ptr<arrow::RecordBatch> batch, int64_t row_idx) {
+    if (!batch || batch->num_rows() == 0 || row_idx < 0 || row_idx >= batch->num_rows()) {
+        return core::Result<std::map<std::string, std::string>>(std::map<std::string, std::string>{});
+    }
+
     auto schema = batch->schema();
     auto tags_idx = schema->GetFieldIndex("tags");
     if (tags_idx == -1) {
@@ -265,17 +275,17 @@ core::Result<std::map<std::string, std::string>> SchemaMapper::ExtractTags(std::
 
     if (col->type()->id() == arrow::Type::MAP) {
         auto tags_array = std::static_pointer_cast<arrow::MapArray>(col);
-        if (!tags_array->IsValid(0)) {
+        if (!tags_array->IsValid(row_idx)) {
              return core::Result<std::map<std::string, std::string>>(std::map<std::string, std::string>{});
         }
         keys_array = tags_array->keys();
         items_array = tags_array->items();
-        start = tags_array->value_offset(0);
-        end = tags_array->value_offset(1);
+        start = tags_array->value_offset(row_idx);
+        end = tags_array->value_offset(row_idx + 1);
     } else if (col->type()->id() == arrow::Type::LIST) {
         // Fallback for List<Struct<key, value>>
         auto list_array = std::static_pointer_cast<arrow::ListArray>(col);
-        if (!list_array->IsValid(0)) {
+        if (!list_array->IsValid(row_idx)) {
              return core::Result<std::map<std::string, std::string>>(std::map<std::string, std::string>{});
         }
         auto struct_array = std::static_pointer_cast<arrow::StructArray>(list_array->values());
@@ -286,8 +296,8 @@ core::Result<std::map<std::string, std::string>> SchemaMapper::ExtractTags(std::
         
         keys_array = struct_array->field(0);
         items_array = struct_array->field(1);
-        start = list_array->value_offset(0);
-        end = list_array->value_offset(1);
+        start = list_array->value_offset(row_idx);
+        end = list_array->value_offset(row_idx + 1);
     } else {
         return core::Result<std::map<std::string, std::string>>::error("Unexpected tags column type: " + col->type()->ToString());
     }
@@ -303,6 +313,60 @@ core::Result<std::map<std::string, std::string>> SchemaMapper::ExtractTags(std::
     }
 
     return core::Result<std::map<std::string, std::string>>(std::move(tags));
+}
+
+core::Result<SchemaMapper::SeriesMap> SchemaMapper::ToSeriesMap(std::shared_ptr<arrow::RecordBatch> batch) {
+    if (!batch) {
+        return core::Result<SeriesMap>::error("Null batch");
+    }
+
+    auto schema = batch->schema();
+    auto ts_idx = schema->GetFieldIndex("timestamp");
+    auto val_idx = schema->GetFieldIndex("value");
+    auto tags_idx = schema->GetFieldIndex("tags");
+
+    if (ts_idx == -1 || val_idx == -1) {
+        return core::Result<SeriesMap>::error("Missing timestamp or value column");
+    }
+
+    auto ts_array = std::static_pointer_cast<arrow::Int64Array>(batch->column(ts_idx));
+    auto val_array = std::static_pointer_cast<arrow::DoubleArray>(batch->column(val_idx));
+
+    // Identify field columns
+    std::vector<std::pair<std::string, std::shared_ptr<arrow::StringArray>>> field_cols;
+    for (int i = 0; i < schema->num_fields(); ++i) {
+        if (i != ts_idx && i != val_idx && i != tags_idx) {
+            auto field_name = schema->field(i)->name();
+            auto array = std::static_pointer_cast<arrow::StringArray>(batch->column(i));
+            field_cols.emplace_back(field_name, array);
+        }
+    }
+
+    SeriesMap result;
+
+    for (int64_t i = 0; i < batch->num_rows(); ++i) {
+        if (ts_array->IsValid(i) && val_array->IsValid(i)) {
+            // Extract tags for this specific row
+            auto tags_result = ExtractTagsForRow(batch, i);
+            if (!tags_result.ok()) {
+                continue;  // Skip rows with invalid tags
+            }
+            auto tags = std::move(tags_result).value();
+            
+            // Build the sample with fields
+            core::Fields fields;
+            for (const auto& [name, array] : field_cols) {
+                if (array->IsValid(i)) {
+                    fields[name] = array->GetString(i);
+                }
+            }
+            
+            core::Sample sample(ts_array->Value(i), val_array->Value(i), fields);
+            result[tags].push_back(std::move(sample));
+        }
+    }
+
+    return core::Result<SeriesMap>(std::move(result));
 }
 
 } // namespace parquet

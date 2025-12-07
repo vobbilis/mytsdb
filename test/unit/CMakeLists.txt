@@ -53,6 +53,15 @@ if(HAVE_ARROW)
     target_link_libraries(tsdb_parquet_reader_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
     gtest_discover_tests(tsdb_parquet_reader_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+    # Secondary Index (B+ Tree) unit tests - Phase A
+    add_executable(tsdb_secondary_index_unit_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/secondary_index_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+    target_include_directories(tsdb_secondary_index_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(tsdb_secondary_index_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
+    gtest_discover_tests(tsdb_secondary_index_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
     add_executable(tsdb_parquet_advanced_unit_tests
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/advanced_test.cpp
         ${CMAKE_SOURCE_DIR}/test/main.cpp

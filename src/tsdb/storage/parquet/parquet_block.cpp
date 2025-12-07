@@ -1,11 +1,16 @@
 #include "tsdb/storage/parquet/parquet_block.hpp"
 #include "tsdb/storage/parquet/schema_mapper.hpp"
+#include "tsdb/storage/parquet/secondary_index.h"
 #include "tsdb/storage/read_performance_instrumentation.h"
 #include "tsdb/storage/parquet_catalog.h"
 #include "tsdb/core/matcher.h"
 #include <stdexcept>
 #include <map>
+#include <set>
+#include <chrono>
+#include <algorithm>
 #include <spdlog/spdlog.h>
+#include <functional>
 
 namespace tsdb {
 namespace storage {
@@ -85,6 +90,7 @@ core::TimeSeries ParquetBlock::read(const core::Labels& labels) const {
     }
     
     core::TimeSeries series(labels);
+    std::vector<core::Sample> collected_samples; // Collect samples before sorting
     
     while (true) {
         std::shared_ptr<arrow::RecordBatch> batch;
@@ -94,23 +100,36 @@ core::TimeSeries ParquetBlock::read(const core::Labels& labels) const {
         }
         if (!batch) break; // EOF
         
-        auto samples_res = SchemaMapper::ToSamples(batch);
-        if (!samples_res.ok()) continue;
-        auto samples = samples_res.value();
+        // Use ToSeriesMap to properly extract samples grouped by their actual per-row tags
+        auto series_map_res = SchemaMapper::ToSeriesMap(batch);
+        if (!series_map_res.ok()) continue;
+        auto batch_series_map = series_map_res.value();
         
-        auto tags_res = SchemaMapper::ExtractTags(batch);
-        if (!tags_res.ok()) continue;
-        core::Labels batch_labels(tags_res.value());
-        
-        // Check if labels match
-        if (batch_labels == labels) {
-            for (const auto& sample : samples) {
-                // Check time range (block level check is already done by caller, but safe to double check)
-                if (sample.timestamp() >= header_.start_time && sample.timestamp() <= header_.end_time) {
-                    series.add_sample(sample);
+        // Find the series matching the requested labels
+        for (const auto& [tags, samples] : batch_series_map) {
+            core::Labels batch_labels(tags);
+            
+            // Check if labels match
+            if (batch_labels == labels) {
+                for (const auto& sample : samples) {
+                    // Check time range (block level check is already done by caller, but safe to double check)
+                    if (sample.timestamp() >= header_.start_time && sample.timestamp() <= header_.end_time) {
+                        collected_samples.push_back(sample);
+                    }
                 }
             }
         }
+    }
+    
+    // Sort samples by timestamp before adding to series
+    std::sort(collected_samples.begin(), collected_samples.end(),
+        [](const core::Sample& a, const core::Sample& b) {
+            return a.timestamp() < b.timestamp();
+        });
+    
+    // Add sorted samples to series
+    for (const auto& sample : collected_samples) {
+        series.add_sample(sample);
     }
     
     return series;
@@ -119,8 +138,9 @@ core::TimeSeries ParquetBlock::read(const core::Labels& labels) const {
 std::pair<std::vector<int64_t>, std::vector<double>> ParquetBlock::read_columns(const core::Labels& labels) const {
     std::lock_guard<std::mutex> lock(mutex_);
     
-    // Inefficient implementation for now, similar to read()
-    // Ideally we would push down column selection to Parquet reader
+    // =========================================================================
+    // PHASE A: Use Secondary Index for O(log n) row group selection
+    // =========================================================================
     
     if (reader_) {
         reader_->Close();
@@ -134,6 +154,39 @@ std::pair<std::vector<int64_t>, std::vector<double>> ParquetBlock::read_columns(
     std::vector<int64_t> timestamps;
     std::vector<double> values;
     
+    // Try to use secondary index for efficient lookup
+    auto index = SecondaryIndexCache::Instance().GetOrCreate(path_);
+    std::set<int> target_row_groups;
+    bool use_index = false;
+    
+    if (index) {
+        // Build canonical label string for SeriesID computation
+        std::vector<std::pair<std::string, std::string>> sorted_labels;
+        for (const auto& [k, v] : labels.map()) {
+            sorted_labels.emplace_back(k, v);
+        }
+        std::sort(sorted_labels.begin(), sorted_labels.end());
+        
+        std::string labels_str;
+        for (const auto& [k, v] : sorted_labels) {
+            if (!labels_str.empty()) labels_str += ",";
+            labels_str += k + "=" + v;
+        }
+        
+        core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+        auto locations = index->Lookup(series_id);
+        
+        if (!locations.empty()) {
+            use_index = true;
+            for (const auto& loc : locations) {
+                target_row_groups.insert(loc.row_group_id);
+            }
+            spdlog::debug("read_columns: Secondary index hit, {} row groups to scan", target_row_groups.size());
+        }
+    }
+    
+    // Read batches - either from targeted row groups or all
+    int current_row_group = 0;
     while (true) {
         std::shared_ptr<arrow::RecordBatch> batch;
         auto result = reader_->ReadBatch(&batch);
@@ -142,13 +195,19 @@ std::pair<std::vector<int64_t>, std::vector<double>> ParquetBlock::read_columns(
         }
         if (!batch) break; // EOF
         
+        // If using index, skip row groups not in our target set
+        if (use_index && target_row_groups.find(current_row_group) == target_row_groups.end()) {
+            current_row_group++;
+            continue;
+        }
+        current_row_group++;
+        
         auto tags_res = SchemaMapper::ExtractTags(batch);
         if (!tags_res.ok()) continue;
         core::Labels batch_labels(tags_res.value());
         
         if (batch_labels == labels) {
              // We found the series, extract columns
-             // Note: SchemaMapper::ToSamples extracts all columns, we should optimize this later
             auto samples_res = SchemaMapper::ToSamples(batch);
             if (!samples_res.ok()) continue;
             auto samples = samples_res.value();
@@ -177,6 +236,7 @@ std::vector<core::TimeSeries> ParquetBlock::query(
     // We reuse the existing reader if it's already open (Reader Caching)
     
     std::map<std::string, core::TimeSeries> series_map; // Keyed by labels string
+    std::map<std::string, std::vector<core::Sample>> collected_samples; // Collect samples before sorting
     
     // Construct LabelMatcher
     // Note: We are using a simplified matcher here. 
@@ -195,11 +255,91 @@ std::vector<core::TimeSeries> ParquetBlock::query(
     int num_row_groups = meta->row_groups.size();
     m.row_groups_total = num_row_groups;
     
-    for (int i = 0; i < num_row_groups; ++i) {
+    // =========================================================================
+    // PHASE A: Secondary Index Optimization
+    // If we have matchers, try to use secondary index for O(log n) lookup
+    // instead of scanning all row groups O(n)
+    // =========================================================================
+    
+    std::set<int> candidate_row_groups;
+    bool use_index = false;
+    
+    // Try to get secondary index - measure time
+    auto index_lookup_start = std::chrono::high_resolution_clock::now();
+    auto index = SecondaryIndexCache::Instance().GetOrCreate(path_);
+    
+    if (index && !matchers.empty()) {
+        // Compute SeriesID from matchers
+        // Build a canonical label string from matchers (sorted by key)
+        std::vector<std::pair<std::string, std::string>> sorted_matchers = matchers;
+        std::sort(sorted_matchers.begin(), sorted_matchers.end());
+        
+        std::string labels_str;
+        for (const auto& [k, v] : sorted_matchers) {
+            if (!labels_str.empty()) labels_str += ",";
+            labels_str += k + "=" + v;
+        }
+        
+        // Compute SeriesID using same hash as secondary_index.cpp
+        core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+        
+        spdlog::info("Secondary index lookup: matchers={}, labels_str='{}', series_id={}", 
+                     matchers.size(), labels_str, series_id);
+        
+        // Lookup in secondary index with time range filtering
+        auto locations = index->LookupInTimeRange(series_id, start_time, end_time);
+        
+        // Record index lookup time
+        auto index_lookup_end = std::chrono::high_resolution_clock::now();
+        m.secondary_index_lookup_us = std::chrono::duration<double, std::micro>(
+            index_lookup_end - index_lookup_start).count();
+        
+        if (!locations.empty()) {
+            // We found the series in the index!
+            use_index = true;
+            m.secondary_index_used = true;
+            m.secondary_index_hits = 1;  // Found the series
+            
+            for (const auto& loc : locations) {
+                candidate_row_groups.insert(loc.row_group_id);
+            }
+            
+            m.secondary_index_row_groups_selected = candidate_row_groups.size();
+            
+            spdlog::debug("Secondary index hit: series_id={}, {} row groups (vs {} total), lookup took {:.3f}us",
+                          series_id, candidate_row_groups.size(), num_row_groups, m.secondary_index_lookup_us);
+            
+            // Update metrics for index usage
+            m.row_groups_pruned_tags = num_row_groups - candidate_row_groups.size();
+        } else {
+            spdlog::debug("Secondary index miss: series_id={}, falling back to scan", series_id);
+            m.secondary_index_used = false;
+        }
+    } else {
+        // No index or no matchers - record why
+        auto index_lookup_end = std::chrono::high_resolution_clock::now();
+        m.secondary_index_lookup_us = std::chrono::duration<double, std::micro>(
+            index_lookup_end - index_lookup_start).count();
+    }
+    
+    // Determine which row groups to scan
+    // If we have index hits, only scan those; otherwise scan all
+    std::vector<int> row_groups_to_scan;
+    if (use_index) {
+        row_groups_to_scan.assign(candidate_row_groups.begin(), candidate_row_groups.end());
+    } else {
+        row_groups_to_scan.reserve(num_row_groups);
+        for (int i = 0; i < num_row_groups; ++i) {
+            row_groups_to_scan.push_back(i);
+        }
+    }
+    
+    for (int i : row_groups_to_scan) {
         int64_t rg_byte_size = 0;
         
         // 0. Time-based Pruning (Catalog Optimized)
-        {
+        // Skip this if we already did time-based filtering via secondary index
+        if (!use_index) {
             auto start_prune = std::chrono::high_resolution_clock::now();
             const auto& stats = meta->row_groups[i];
             rg_byte_size = stats.total_byte_size;
@@ -214,6 +354,10 @@ std::vector<core::TimeSeries> ParquetBlock::query(
             }
             auto end_prune = std::chrono::high_resolution_clock::now();
             m.pruning_time_us += std::chrono::duration<double, std::micro>(end_prune - start_prune).count();
+        } else {
+            // For index-based lookup, we already filtered by time
+            const auto& stats = meta->row_groups[i];
+            rg_byte_size = stats.total_byte_size;
         }
 
         // Lazy Open: Only open reader if we actually need to read something
@@ -225,38 +369,8 @@ std::vector<core::TimeSeries> ParquetBlock::query(
             }
         }
 
-        // 1. Predicate Pushdown: Read only tags first
-        auto tags_batch_res = reader_->ReadRowGroupTags(i);
-        if (!tags_batch_res.ok()) {
-            // Log warning? For now throw or continue
-            continue;
-        }
-        auto tags_batch = tags_batch_res.value();
-
-        
-        auto tags_res = SchemaMapper::ExtractTags(tags_batch);
-        if (!tags_res.ok()) continue;
-        core::Labels batch_labels(tags_res.value());
-        
-        // Check matchers
-        bool match = true;
-        for (const auto& m : matchers) {
-            // Simple exact match for now
-            if (batch_labels.get(m.first) != m.second) {
-                match = false;
-                break;
-            }
-        }
-        
-        if (!match) {
-            // Skip this row group!
-            m.row_groups_pruned_tags++;
-            // Estimate bytes skipped (rough approximation)
-            // Ideally we get this from RowGroup metadata
-            continue;
-        }
-        
         // 2. Read full data for matching row group
+        // Note: Per-row tag filtering is done after reading via ToSeriesMap
         auto batch_res = reader_->ReadRowGroup(i);
         if (!batch_res.ok()) {
             throw std::runtime_error("Failed to read row group: " + batch_res.error());
@@ -265,27 +379,65 @@ std::vector<core::TimeSeries> ParquetBlock::query(
         m.row_groups_read++;
         m.bytes_read += rg_byte_size;
         
-        auto samples_res = SchemaMapper::ToSamples(batch);
-        if (!samples_res.ok()) continue;
-        auto samples = samples_res.value();
-        m.samples_scanned += samples.size();
+        // Use ToSeriesMap to properly extract samples grouped by their actual per-row tags
+        auto series_map_res = SchemaMapper::ToSeriesMap(batch);
+        if (!series_map_res.ok()) continue;
+        auto batch_series_map = series_map_res.value();
         
-        std::string label_str = batch_labels.to_string();
-        if (series_map.find(label_str) == series_map.end()) {
-            series_map.emplace(label_str, core::TimeSeries(batch_labels));
-        }
-        
-        for (const auto& sample : samples) {
-            if (sample.timestamp() >= start_time && sample.timestamp() <= end_time) {
-                series_map.at(label_str).add_sample(sample);
+        // Process each series in the batch
+        for (auto& [tags, samples] : batch_series_map) {
+            m.samples_scanned += samples.size();
+            
+            core::Labels series_labels(tags);
+            
+            // Apply matchers filter if we're not using index
+            // (if using index, we've already filtered by series_id)
+            if (!use_index) {
+                bool match = true;
+                for (const auto& matcher : matchers) {
+                    if (series_labels.get(matcher.first) != matcher.second) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (!match) continue;
             }
+            
+            std::string label_str = series_labels.to_string();
+            if (series_map.find(label_str) == series_map.end()) {
+                series_map.emplace(label_str, core::TimeSeries(series_labels));
+            }
+            
+            // Collect samples that match the time range (will sort later)
+            for (const auto& sample : samples) {
+                if (sample.timestamp() >= start_time && sample.timestamp() <= end_time) {
+                    collected_samples[label_str].push_back(sample);
+                }
+            }
+        }
+    }
+    
+    // Sort and add samples to time series in chronological order
+    for (auto& [label_str, samples] : collected_samples) {
+        // Sort samples by timestamp
+        std::sort(samples.begin(), samples.end(), 
+            [](const core::Sample& a, const core::Sample& b) {
+                return a.timestamp() < b.timestamp();
+            });
+        
+        // Add sorted samples to time series
+        for (const auto& sample : samples) {
+            series_map.at(label_str).add_sample(sample);
         }
     }
     
     metrics.record_read(m);
     
     // Log performance evidence for verification
-    if (m.row_groups_pruned_time > 0) {
+    if (use_index) {
+        spdlog::info("Parquet Secondary Index: Total RG: {}, Index Selected: {}, Read: {}, Bytes Read: {}",
+            m.row_groups_total, candidate_row_groups.size(), m.row_groups_read, m.bytes_read);
+    } else if (m.row_groups_pruned_time > 0) {
         spdlog::info("Parquet Pruning Evidence: Total RG: {}, Pruned(Time): {}, Pruned(Tags): {}, Read: {}, Bytes Skipped: {}, Pruning Time: {:.3f}ms",
             m.row_groups_total, m.row_groups_pruned_time, m.row_groups_pruned_tags, m.row_groups_read, m.bytes_skipped, m.pruning_time_us / 1000.0);
     }

@@ -39,6 +39,15 @@ public:
     // Extracts tags from Arrow RecordBatch (assumes all rows have same tags for now)
     static core::Result<std::map<std::string, std::string>> ExtractTags(
         std::shared_ptr<arrow::RecordBatch> batch);
+    
+    // Extracts tags from a specific row of an Arrow RecordBatch
+    static core::Result<std::map<std::string, std::string>> ExtractTagsForRow(
+        std::shared_ptr<arrow::RecordBatch> batch, int64_t row_idx);
+    
+    // Converts Arrow RecordBatch to a map of series (tags -> samples)
+    // This properly handles batches with multiple series (different tags per row)
+    using SeriesMap = std::map<std::map<std::string, std::string>, std::vector<core::Sample>>;
+    static core::Result<SeriesMap> ToSeriesMap(std::shared_ptr<arrow::RecordBatch> batch);
 };
 
 } // namespace parquet

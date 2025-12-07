@@ -963,6 +963,25 @@ private:
         std::cout << "  Decompression:     " << fmt_time(read_decomp) << std::endl;
         std::cout << "  Cache Hits:        " << fmt_count(read_cache_hits) << std::endl;
 
+        // ========== SECONDARY INDEX METRICS (Phase A: B+ Tree) ==========
+        std::cout << "\n--- Secondary Index Metrics ---" << std::endl;
+        double idx_lookups = get_metric("mytsdb_secondary_index_lookups_total");
+        double idx_hits = get_metric("mytsdb_secondary_index_hits_total");
+        double idx_misses = get_metric("mytsdb_secondary_index_misses_total");
+        double idx_lookup_time = get_metric("mytsdb_secondary_index_lookup_seconds_total");
+        double idx_build_time = get_metric("mytsdb_secondary_index_build_seconds_total");
+        double idx_rg_selected = get_metric("mytsdb_secondary_index_row_groups_selected_total");
+        
+        std::cout << "  Index Lookups:     " << fmt_count(idx_lookups) << std::endl;
+        std::cout << "  Index Hits:        " << fmt_count(idx_hits) << std::endl;
+        std::cout << "  Index Misses:      " << fmt_count(idx_misses) << std::endl;
+        std::cout << "  Index Hit Rate:    " << std::fixed << std::setprecision(1) 
+                  << (idx_lookups > 0 ? (idx_hits / idx_lookups * 100) : 0) << "%" << std::endl;
+        std::cout << "  Lookup Time:       " << fmt_time(idx_lookup_time) << std::endl;
+        std::cout << "  Avg Lookup:        " << (idx_lookups > 0 ? fmt_time(idx_lookup_time / idx_lookups) : "N/A") << std::endl;
+        std::cout << "  Build Time:        " << fmt_time(idx_build_time) << std::endl;
+        std::cout << "  RG Selected:       " << fmt_count(idx_rg_selected) << std::endl;
+
         // ========== STORAGE METRICS ==========
         std::cout << "\n--- Storage Metrics ---" << std::endl;
         double storage_writes = get_metric("mytsdb_storage_writes_total");

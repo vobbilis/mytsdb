@@ -47,6 +47,13 @@ public:
         size_t bytes_read = 0;
         
         double pruning_time_us = 0.0;
+        
+        // Secondary Index Metrics (Phase A: B+ Tree)
+        bool secondary_index_used = false;           // Whether index was used for this query
+        double secondary_index_lookup_us = 0.0;      // Time spent in index lookup
+        double secondary_index_build_us = 0.0;       // Time to build index (if newly built)
+        size_t secondary_index_hits = 0;             // Number of series found in index
+        size_t secondary_index_row_groups_selected = 0; // Row groups selected via index
 
         void reset() {
             index_search_us = 0.0;
@@ -75,6 +82,13 @@ public:
             bytes_read = 0;
             
             pruning_time_us = 0.0;
+            
+            // Secondary Index reset
+            secondary_index_used = false;
+            secondary_index_lookup_us = 0.0;
+            secondary_index_build_us = 0.0;
+            secondary_index_hits = 0;
+            secondary_index_row_groups_selected = 0;
         }
 
         std::string to_string() const {
@@ -100,6 +114,12 @@ public:
             ss << ", Samples: " << samples_scanned;
             ss << ", Blocks: " << blocks_accessed;
             ss << ", CacheHit: " << (cache_hit ? "Yes" : "No");
+            ss << ", SecondaryIdx: " << (secondary_index_used ? "Yes" : "No");
+            if (secondary_index_used) {
+                ss << " (lookup: " << secondary_index_lookup_us / 1000.0 << "ms";
+                ss << ", hits: " << secondary_index_hits;
+                ss << ", rg_selected: " << secondary_index_row_groups_selected << ")";
+            }
             return ss.str();
         }
     };
@@ -152,6 +172,18 @@ public:
         bytes_skipped_ += metrics.bytes_skipped;
         bytes_read_ += metrics.bytes_read;
         
+        // Secondary Index aggregation
+        if (metrics.secondary_index_used) {
+            secondary_index_lookups_++;
+            secondary_index_hits_ += metrics.secondary_index_hits;
+            secondary_index_lookup_time_us_ += metrics.secondary_index_lookup_us;
+            secondary_index_build_time_us_ += metrics.secondary_index_build_us;
+            secondary_index_row_groups_selected_ += metrics.secondary_index_row_groups_selected;
+        } else if (metrics.row_groups_total > 0) {
+            // Index was not used but we had row groups to scan
+            secondary_index_misses_++;
+        }
+        
         // Record to GlobalMetrics for self-monitoring
         size_t bytes = metrics.bytes_read > 0 ? metrics.bytes_read : metrics.samples_scanned * sizeof(double);
         tsdb::storage::internal::GlobalMetrics::getInstance().recordRead(
@@ -185,6 +217,14 @@ public:
         uint64_t row_groups_read;
         uint64_t bytes_skipped;
         uint64_t bytes_read;
+        
+        // Secondary Index Metrics
+        uint64_t secondary_index_lookups;
+        uint64_t secondary_index_hits;
+        uint64_t secondary_index_misses;
+        double secondary_index_lookup_time_us;
+        double secondary_index_build_time_us;
+        uint64_t secondary_index_row_groups_selected;
     };
 
     AggregateStats get_stats() const {
@@ -204,7 +244,13 @@ public:
             row_groups_pruned_tags_,
             row_groups_read_,
             bytes_skipped_,
-            bytes_read_
+            bytes_read_,
+            secondary_index_lookups_,
+            secondary_index_hits_,
+            secondary_index_misses_,
+            secondary_index_lookup_time_us_,
+            secondary_index_build_time_us_,
+            secondary_index_row_groups_selected_
         };
     }
 
@@ -226,6 +272,13 @@ public:
         row_groups_read_ = 0;
         bytes_skipped_ = 0;
         bytes_read_ = 0;
+        
+        secondary_index_lookups_ = 0;
+        secondary_index_hits_ = 0;
+        secondary_index_misses_ = 0;
+        secondary_index_lookup_time_us_ = 0;
+        secondary_index_build_time_us_ = 0;
+        secondary_index_row_groups_selected_ = 0;
     }
 
 private:
@@ -251,6 +304,14 @@ private:
     uint64_t row_groups_read_ = 0;
     uint64_t bytes_skipped_ = 0;
     uint64_t bytes_read_ = 0;
+    
+    // Secondary Index Metrics
+    uint64_t secondary_index_lookups_ = 0;
+    uint64_t secondary_index_hits_ = 0;
+    uint64_t secondary_index_misses_ = 0;
+    double secondary_index_lookup_time_us_ = 0;
+    double secondary_index_build_time_us_ = 0;
+    uint64_t secondary_index_row_groups_selected_ = 0;
 };
 
 class ReadScopedTimer {

@@ -33,6 +33,7 @@ target_sources(tsdb_storage_impl
         parquet/reader.cpp
         parquet/reader.cpp
         parquet/parquet_block.cpp
+        parquet/secondary_index.cpp
         parquet_catalog.cpp
         rule_manager.cpp
         filtering_storage.cpp

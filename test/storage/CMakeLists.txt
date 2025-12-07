@@ -6,6 +6,7 @@ add_executable(tsdb_storage_orphan_tests
     sharded_wal_test.cpp
     sharded_index_test.cpp
     cache_hierarchy_repro_test.cpp
+    derived_metrics_test.cpp
 )
 
 target_include_directories(tsdb_storage_orphan_tests PRIVATE

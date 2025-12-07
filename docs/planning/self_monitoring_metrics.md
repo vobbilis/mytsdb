@@ -115,6 +115,19 @@ Track storage read path performance.
 | `mytsdb_read_blocks_accessed_total` | counter | Blocks accessed | `mytsdb_read_blocks_accessed_total` |
 | `mytsdb_read_cache_hits_total` | counter | Cache hits | `mytsdb_read_cache_hits_total` |
 
+### Secondary Index Metrics (Phase A: B+ Tree)
+
+Track the B+ tree secondary index performance for cold storage (Parquet) queries.
+
+| Metric | Type | Description | PromQL Example |
+|--------|------|-------------|----------------|
+| `mytsdb_secondary_index_lookups_total` | counter | Total index lookups | `rate(mytsdb_secondary_index_lookups_total[1m])` |
+| `mytsdb_secondary_index_hits_total` | counter | Series found via index | `mytsdb_secondary_index_hits_total` |
+| `mytsdb_secondary_index_misses_total` | counter | Index misses (fallback to scan) | `mytsdb_secondary_index_misses_total` |
+| `mytsdb_secondary_index_lookup_seconds_total` | counter | Index lookup time | `mytsdb_secondary_index_lookup_seconds_total` |
+| `mytsdb_secondary_index_build_seconds_total` | counter | Index build time | `mytsdb_secondary_index_build_seconds_total` |
+| `mytsdb_secondary_index_row_groups_selected_total` | counter | Row groups selected via index | `mytsdb_secondary_index_row_groups_selected_total` |
+
 ### Derived Queries
 
 ```promql
@@ -126,6 +139,15 @@ mytsdb_read_cache_hits_total / mytsdb_read_total * 100
 
 # Read throughput (samples/sec)
 rate(mytsdb_read_samples_scanned_total[1m])
+
+# Secondary Index hit rate (key efficiency metric)
+mytsdb_secondary_index_hits_total / mytsdb_secondary_index_lookups_total * 100
+
+# Average index lookup time (microseconds)
+mytsdb_secondary_index_lookup_seconds_total * 1e6 / mytsdb_secondary_index_lookups_total
+
+# Row groups skipped via index (efficiency gain)
+mytsdb_secondary_index_row_groups_selected_total / mytsdb_read_total
 ```
 
 ---
