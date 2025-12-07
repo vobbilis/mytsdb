@@ -16,15 +16,15 @@ The TSDB storage architecture implements a multi-tier storage system designed fo
 │                              TIER 1: HOT STORAGE                               │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │  Working    │  │  Object     │  │  Sharded    │  │  Lock-Free  │           │
-│  │  Set Cache  │  │  Pooling    │  │  Storage    │  │   Queue     │           │
+│  │  Working    │  │  Object     │  │  Sharded    │  │  Sync       │           │
+│  │  Set Cache  │  │  Pooling    │  │  Index/WAL  │  │  Maps       │           │
 │  │  (L1)       │  │             │  │  Manager    │  │             │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
 │  • In-Memory Storage (RAM)                                                     │
-│  • Fastest Access (<0.1ms)                                                     │
+│  • Fastest Access                                                              │
 │  • LRU Eviction Policy                                                         │
-│  • 98.52% Hit Ratio                                                            │
+│  • High Cache Hit Ratio goal                                                   │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
@@ -347,26 +347,17 @@ Strategy Selection
 9. Response Generation
 ```
 
-## 📈 **Storage Performance Characteristics**
+## 📈 **Storage Performance Goals**
 
 ### **Throughput Metrics**
-- **Write Throughput**: 4.8M metrics/sec
-- **Read Throughput**: 10M queries/sec
-- **Compression Ratio**: 20-60% data reduction
-- **Cache Hit Ratio**: 98.52% (L1 cache)
-
-### **Latency Metrics**
-- **L1 Cache Access**: <0.1ms
-- **L2 Cache Access**: 1-5ms
-- **L3 Cache Access**: 5-10ms
-- **Disk Access**: 10-100ms
-- **Compression**: <1ms per block
+- **Write Throughput**: Optimized for high volume ingestion
+- **Read Throughput**: Optimized for low latency queries
+- **Compression Ratio**: 20-60% data reduction target
 
 ### **Storage Efficiency**
-- **Memory Usage**: <1KB per active time series
-- **Compression Efficiency**: 20-60% storage reduction
-- **Cache Efficiency**: 98.52% hit ratio
-- **Block Utilization**: 85-95% block fill rate
+- **Memory Usage**: Minimal overhead per series
+- **Compression Efficiency**: High storage reduction via tiered compression
+- **Block Utilization**: High block fill rate via buffering
 
 ## 🔧 **Storage Configuration**
 
@@ -424,14 +415,9 @@ The storage engine uses fine-grained sharding for critical write-path components
 
 ### **Performance Characteristics**
 
-#### **Throughput**
--   **Single Thread**: ~333,000 items/sec (Async WAL)
--   **Concurrent (8 threads)**: ~43,600 items/sec
--   **OTEL Ingestion**: ~18,900 items/sec (batch size 100)
-
-#### **Latency**
--   **Write Latency**: <1us (p99) for WAL write (memory only)
--   **Lock Wait Time**: Negligible under normal load
+#### **Performance Characteristics**
+- **Throughput**: Significantly improved via async I/O
+- **Latency**: Decouples client write latency from disk I/O latency
 
 ### **Configuration**
 The number of shards is currently fixed at compile time (default 16) but designed to be configurable.

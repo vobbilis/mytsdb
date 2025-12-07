@@ -18,8 +18,8 @@ The TSDB performance architecture implements advanced performance optimizations 
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
 │  │  Object     │  │  Working    │  │  Memory     │  │  Smart      │           │
 │  │  Pooling    │  │  Set Cache  │  │  Mapping    │  │  Pointers   │           │
-│  │  (99%       │  │  (98.52%    │  │  (Efficient │  │  (RAII)     │           │
-│  │   Reduction)│  │   Hit Ratio)│  │   I/O)      │  │             │           │
+│  │             │  │             │  │  (Efficient │  │  (RAII)     │           │
+│  │             │  │             │  │   I/O)      │  │             │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -85,10 +85,10 @@ The TSDB performance architecture implements advanced performance optimizations 
 ```
 
 #### **Pool Performance Characteristics**
-- **TimeSeriesPool**: 100K+ objects, 99% reuse rate
-- **LabelsPool**: 1M+ objects, 99% reuse rate
-- **SamplePool**: 10M+ objects, 99% reuse rate
-- **Memory Reduction**: 99% fewer allocations
+- **TimeSeriesPool**: High Reuse Rate
+- **LabelsPool**: High Reuse Rate
+- **SamplePool**: High Reuse Rate
+- **Memory Reduction**: Significantly fewer allocations
 - **Thread Safety**: Lock-free operations
 
 ### **Working Set Cache**
@@ -103,9 +103,9 @@ The TSDB performance architecture implements advanced performance optimizations 
 │  │  Eviction   │  │  Tracking   │  │  Management │  │  Collection │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
-│  • 98.52% Hit Ratio                                                            │
-│  • <0.1ms Access Time                                                          │
-│  • <1KB per Active Series                                                      │
+│  • High Hit Ratio goal                                                         │
+│  • Fast Access Time                                                            │
+│  • Minimal memory per active series                                            │
 │  • Automatic Eviction                                                          │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -117,19 +117,19 @@ The TSDB performance architecture implements advanced performance optimizations 
 #### **L1 Cache (Working Set Cache)**
 ```
 Performance Characteristics:
-• Access Time: <0.1ms
-• Hit Ratio: 98.52%
-• Capacity: 1GB (configurable)
+• Access Time: Fast (Memory)
+• Hit Ratio: Optimized for high hit rate
+• Capacity: Configurable
 • Eviction: LRU
-• Memory: <1KB per series
+• Memory: Optimized per series
 ```
 
 #### **L2 Cache (Memory Mapped Cache)**
 ```
 Performance Characteristics:
-• Access Time: 1-5ms
-• Hit Ratio: 85-90%
-• Capacity: 10GB (configurable)
+• Access Time: Memory Mapped Speed
+• Hit Ratio: Secondary Cache
+• Capacity: Configurable
 • Persistence: Memory-mapped files
 • Compression: Adaptive
 ```
@@ -137,8 +137,8 @@ Performance Characteristics:
 #### **L3 Cache (Predictive Cache)**
 ```
 Performance Characteristics:
-• Access Time: 5-10ms
-• Hit Ratio: 15-25% improvement
+• Access Time: Prefetch Latency Hiding
+• Hit Ratio: Pattern-based improvement
 • Pattern Detection: Global sequence tracking
 • Prefetching: Confidence-based
 • Adaptive: Dynamic prefetch size
@@ -159,15 +159,15 @@ Performance Characteristics:
 │                                                                                 │
 │  • Level 1: std::map<Matchers, Vector> -> O(1) Lookup                          │
 │  • Level 2: std::vector<Entry> -> O(M) Linear Scan (M is small)                │
-│  • 1000x Speedup for High Cardinality (vs O(N) scan)                           │
+│  • High Speedup for High Cardinality                                           │
 │  • Handles disjoint time ranges correctly                                      │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 #### **Performance Characteristics**
 - **Lookup Complexity**: O(1) (Matcher) + O(M) (Time Range)
-- **Speedup**: 1135x (at N=10,000 matcher sets)
-- **Latency**: ~0.48us (vs ~550us for linear scan)
+- **High Speedup**: Optimized for high cardinality matcher sets
+- **Low Latency**: Faster than linear scan
 - **Correctness**: Keys include time range to prevent cache poisoning
 
 ### **Predictive Caching Architecture**
@@ -186,7 +186,7 @@ Performance Characteristics:
 │  • Global Access Sequence Tracking                                             │
 │  • Sequence Pattern Recognition                                                │
 │  • Confidence-Based Prefetching                                                │
-│  • 15-25% Hit Ratio Improvement                                                │
+│  • Hit Ratio Improvement via Prefetch                                          │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -212,10 +212,10 @@ Performance Characteristics:
 ```
 
 #### **Performance Characteristics**
--   **Single-Threaded Throughput**: ~233,000 items/sec
--   **Concurrent Throughput**: ~260,000 items/sec (20 threads)
--   **OTEL Ingestion**: ~260,000 items/sec (Batching Enabled)
--   **Latency**: <4us per operation
+-   **High Throughput**: Via async sharding
+-   **Concurrent Access**: Minimized lock contention
+-   **OTEL Ingestion**: Optimized for batch ingestion
+-   **Low Latency**: Fast non-blocking operations
 -   **Shards**: 16 (default)
 
 ### **Lock-Free Queue**
@@ -226,9 +226,9 @@ Performance Characteristics:
 │                              LOCK-FREE QUEUE                                    │
 ├─────────────────────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │  Push       │  │  Pop        │  │  Memory     │  │  Persistence│           │
-│  │  442M       │  │  138M       │  │  Ordering   │  │  Hooks      │           │
-│  │  ops/sec    │  │  ops/sec    │  │  (Relaxed)  │  │             │           │
+│  │  Async      │  │  Batch      │  │  Memory     │  │  Persistence│           │
+│  │  Push       │  │  Pop        │  │  Ordering   │  │  Hooks      │           │
+│  │             │  │             │  │  (Relaxed)  │  │             │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
 │  • Bounded Ring Buffer                                                         │
@@ -255,7 +255,7 @@ Performance Characteristics:
 │  • Multi-Threaded Worker Pool                                                  │
 │  • Priority-Based Task Scheduling                                              │
 │  • Non-Blocking Operations                                                     │
-│  • 2-3x Latency Improvement                                                    │
+│  • Latency Improvement via Backgrounding                                       │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -276,7 +276,7 @@ Performance Characteristics:
 │  • Automatic Type Detection                                                    │
 │  • Pattern-Based Analysis                                                      │
 │  • Entropy-Based Selection                                                     │
-│  • 20-60% Compression Ratio                                                   │
+│  • High Compression Ratio                                                      │
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -346,36 +346,27 @@ Compressed Timestamps (30-60% reduction)
 └─────────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## 📈 **Performance Targets and Achievements (December 2024)**
+## 📈 **Performance Design Goals**
 
 ### **Throughput Performance**
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| Write Throughput | 1M samples/sec | **2,002,400 samples/sec** | ✅ 2x target |
-| Read Queries | 500 QPS | **550 QPS** | ✅ |
-| OTEL Ingestion | 200K metrics/sec | **260K metrics/sec** | ✅ |
+- **Write Throughput**: Optimized for blocking I/O reduction
+- **Read Queries**: Optimized for vectorization
+- **OTEL Ingestion**: Optimized for batch processing
 
 ### **Latency Performance**
-| Metric | Target | Achieved | Status |
-|--------|--------|----------|--------|
-| Write P99 | 50ms | 65ms | ⚠️ Close |
-| Read P99 | 50ms | **56ms** | ⚠️ Close |
-| Write P50 | 5ms | **0.23ms** | ✅ |
-| Read P50 | 5ms | **2ms** | ✅ |
-| Cache Lookup | <0.5µs | **<0.5µs** | ✅ |
+- **Write P99**: Minimized via Async WAL
+- **Read P99**: Reduced via Caching and block-skipping
+- **Cache Lookup**: O(1) time complexity
 
-### **Concurrency Performance (Phase 4b Fix)**
-| Metric | Before | After | Improvement |
-|--------|--------|-------|-------------|
-| Mutex Contention | 83% | **0.1%** | ✅ 830x |
-| Write Throughput | 740K/s | **2M/s** | ✅ 2.7x |
-| Read P99 | 1.8s | **56ms** | ✅ 32x |
+### **Concurrency Performance**
+- **Mutex Contention**: Reduced via Sharding and Lock-free structures
+- **Write Throughput**: Scalable with thread count
 
 ### **Memory Efficiency**
-- **Object Pooling**: 99% allocation reduction ✅
-- **Cache Hit Ratio**: 98.52% ✅
-- **Memory per Series**: <1KB ✅
-- **Compression Ratio**: 4-6x ✅
+- **Object Pooling**: Significant allocation reduction
+- **Cache Hit Ratio**: Maximized via LRU + Arc strategies
+- **Memory per Series**: Minimized overhead per series
+- **Compression Ratio**: High density via Gorilla/Delta encodings
 
 ## 🔧 **Performance Configuration**
 
@@ -451,12 +442,12 @@ compression:
 - **Concurrency**: success rates, queue depths
 
 ### **Performance Alerts**
-- **Throughput Degradation**: <90% of baseline
-- **Latency Increase**: >2x baseline
-- **Memory Pressure**: >80% utilization
-- **Cache Miss Rate**: >5% for L1 cache
-- **Error Rate**: >1% for any operation
+- **Throughput Degradation**: Below established baseline
+- **Latency Increase**: Above established baseline
+- **Memory Pressure**: High utilization alert
+- **Cache Miss Rate**: Elevated miss rate alert
+- **Error Rate**: Elevated error rate alert
 
 ---
 
-*This performance architecture provides comprehensive optimization strategies across memory, caching, concurrency, and compression layers, achieving exceptional performance characteristics with ~260,000 metrics/sec write throughput, 98.52% cache hit ratio, and 99% memory allocation reduction.* 
+*This performance architecture provides comprehensive optimization strategies across memory, caching, concurrency, and compression layers, designed to achieve high throughput and low latency.* 

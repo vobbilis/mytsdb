@@ -2,10 +2,10 @@
 
 ## 🧠 System Overview
 
-MyTSDB is a **high-performance, Prometheus-compatible time series database** achieving:
-- **2M+ writes/sec** with < 65ms P99 latency
-- **550+ reads/sec** with < 56ms P99 latency
-- **0.1% mutex contention** (down from 83% through lock-free design)
+MyTSDB is a **high-performance, Prometheus-compatible time series database** designed for:
+- **High throughput writes** via lock-free/sharded architecture
+- **Low latency reads** via concurrent index and zero-copy access
+- **Minimal mutex contention** through sharded design
 
 The engine decouples **Compute** (Query Engine) from **Storage** (Data Layer) with systematic optimizations at every level.
 
@@ -55,8 +55,8 @@ The write path is optimized for **maximum throughput** with **minimal contention
 │  series_blocks_: tbb::concurrent_hash_map                        │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │  SeriesID → vector<BlockPtr>                              │   │
-│  │  • Lock-free block assignment (Phase 4b Fix)             │   │
-│  │  • 83% → 0.1% contention reduction                       │   │
+│  │  • Lock-free block assignment                            │   │
+│  │  • Significant contention reduction                      │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -68,20 +68,12 @@ The write path is optimized for **maximum throughput** with **minimal contention
 | **WAL** | `ShardedWAL` + `AsyncWALShard` | Lock-free durability |
 | **Index** | `ShardedIndex` | Concurrent label lookups |
 | **Series Map** | `tbb::concurrent_hash_map` | Zero global contention |
-| **Block Map** | `tbb::concurrent_hash_map` | **83% → 0.1% contention** |
+| **Block Map** | `tbb::concurrent_hash_map` | **Non-blocking block assignment** |
 
-### Write Performance Metrics
-
-```
-Metric                    Value
-─────────────────────────────────────
-Throughput                2,002,400 samples/sec
-P50 Latency               0.23 ms
-P99 Latency               65 ms
-Mutex Wait                0.1% (was 83%)
-Sample Append             3.2s total
-Block Persist             9.4s total
-```
+### Write Performance Goals
+- **Throughput**: Optimized for high volume ingestion
+- **Latency**: Minimized write latency via Async WAL
+- **Contention**: Minimized via Sharding and Concurrent Maps
 
 ---
 
@@ -110,7 +102,7 @@ The read path is optimized for **vectorized, zero-copy data access**.
 │  BufferedStorageAdapter (O(1) Cache)                             │
 │  ┌──────────────────────────────────────────────────────────┐   │
 │  │ Matcher Cache: {job="api"} → [TimeRanges]                │   │
-│  │ Lookup: O(1) vs O(N) → 1000x speedup                     │   │
+│  │ Lookup: O(1) complexity                                  │   │
 │  └──────────────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────────────┘
                               │
@@ -150,17 +142,10 @@ auto [timestamps, values] = block->read_columns(labels);
 // Direct vector access - no Sample objects created
 ```
 
-### Read Performance Metrics
-
-```
-Metric                    Value
-─────────────────────────────────────
-Throughput                550+ queries/sec
-P50 Latency               2 ms
-P99 Latency               56 ms
-Index Search              1.2s total
-Cache Hits                465/run
-```
+### Read Performance Goals
+- **Throughput**: High QPS support
+- **Latency**: Low latency query execution
+- **Efficiency**: Zero-copy data paths where possible
 
 ---
 
@@ -191,10 +176,10 @@ MyTSDB exports **35+ internal metrics** via Prometheus API at `:9090/api/v1/quer
 
 | Metric | Description |
 |--------|-------------|
-| `mytsdb_write_mutex_lock_seconds_total` | Mutex contention (target: < 1%) |
-| `mytsdb_write_sample_append_seconds_total` | I/O time |
+| `mytsdb_write_mutex_lock_seconds_total` | Mutex contention monitoring |
+| `mytsdb_write_sample_append_seconds_total` | I/O time monitoring |
 | `mytsdb_query_duration_seconds_bucket` | Query latency histogram |
-| `mytsdb_read_index_search_seconds_total` | Index performance |
+| `mytsdb_read_index_search_seconds_total` | Index performance monitoring |
 
 ### Automated Benchmarking
 
@@ -207,14 +192,11 @@ The `k8s_combined_benchmark` tool automatically queries all metrics:
 
 ---
 
-## 📊 Performance Summary
-
-| Metric | Baseline | Current | Improvement |
-|--------|----------|---------|-------------|
-| Read P99 | 1.8s | **56ms** | **32x faster** |
-| Write Throughput | 226K/s | **2M/s** | **8.8x faster** |
-| Mutex Contention | 83% | **0.1%** | **830x reduction** |
-| QPS | 21 | **550** | **26x faster** |
+## 📊 Performance Architecture
+The system is architected for:
+- **Scalable Read/Write** operations
+- **Low Contention** locking strategies
+- **High Throughput** ingestion pipeline
 
 ---
 

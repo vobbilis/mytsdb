@@ -32,13 +32,11 @@ The TSDB (Time Series Database) is designed as a high-performance, distributed-c
 - **Concurrency**: Lock-free data structures and sharded operations
 - **Background Processing**: Asynchronous task processing
 
-### **4. High-Concurrency Layer (NEW)**
-- **Sharded Storage**: Horizontal partitioning across multiple StorageImpl instances
-- **Write Queue System**: Asynchronous processing with per-shard queues
-- **Load Balancing**: Hash-based distribution of operations across shards
-- **Batch Processing**: Grouped operations for improved throughput
-- **Retry Logic**: Automatic retry mechanism for failed operations
-- **Performance**: ~260K ops/sec throughput, <3ms P90 latency, 100% success rate
+### **4. Concurrency Architecture**
+- **Sharded Storage**: Horizontal partitioning for critical write components (WAL, Index)
+- **Async WAL Persistence**: Non-blocking log writing via sharded queues
+- **Concurrent Data Structures**: Lock-free maps for series management
+- **Shared Locking**: Optimization for high-read-concurrency workloads
 
 ### **5. Query Layer**
 - **PromQL Engine**: Query parsing and execution
@@ -84,34 +82,18 @@ Cache Maintenance → Block Compaction → Metrics Collection
 - **Sharded Write Buffers**: Parallel write processing
 - **Lock-Free Queues**: High-performance inter-thread communication
 
-### **High-Concurrency Architecture (NEW)**
-The high-concurrency layer provides enterprise-grade performance through:
+### **Concurrency Details**
 
-#### **Sharded Storage Architecture**
-- **16 Shards**: Each shard is a complete StorageImpl instance
-- **Hash Distribution**: Series labels are hashed to determine shard assignment
-- **Independent Processing**: Each shard operates independently with its own resources
-- **Load Balancing**: Even distribution of operations across all shards
+#### **Sharded WAL Architecture**
+- **16 Shards**: WAL partitioned to reduce lock contention
+- **Async Batching**: Writes are queued and processed by background worker threads
+- **Non-Blocking**: Client threads push to queue and return immediately (for persistence) of WAL
+- **Durability**: Guarantees data on disk via background flush
 
-#### **Write Queue System**
-- **Per-Shard Queues**: Each shard has its own dedicated write queue
-- **Asynchronous Processing**: Write operations are queued and processed by background workers
-- **Batch Processing**: Operations are grouped into batches for improved efficiency
-- **Queue Management**: Configurable queue sizes with overflow handling
-
-#### **Worker Thread Model**
-- **Dedicated Workers**: Each shard has dedicated worker threads
-- **Non-Blocking Operations**: Workers process queues without blocking client threads
-- **Retry Logic**: Automatic retry mechanism for failed operations
-- **Health Monitoring**: Continuous monitoring of worker thread health
-
-#### **Performance Characteristics**
-- **Throughput**: ~260K operations/second (26x improvement over legacy baseline)
-- **Latency**: <3ms P90 latency
-- **Success Rate**: 99.9995% under extreme load (3x improvement)
-- **Scalability**: Linear scaling with additional shards
-- **Worker Thread Pools**: Background task processing
-- **Atomic Operations**: Thread-safe metrics collection
+#### **Concurrent Memory Architecture**
+- **Concurrent Hash Maps**: Series lookup and insertion without global locks
+- **Shared Mutexes**: Reader-writer locks for series data protection
+- **Sharded Index**: Inverted index partitioned to allow parallel updates
 
 ### **Memory Management**
 - **Object Pooling**: 99% memory allocation reduction
@@ -189,28 +171,12 @@ The high-concurrency layer provides enterprise-grade performance through:
 - **Resource Limits**: Memory and CPU limits
 - **Isolation**: Process and data isolation
 
-## 📈 **Performance Achievements (December 2024)**
+## 📈 **Performance Design**
 
-### **Throughput**
-- **Write Throughput**: **2,002,400 samples/sec** (2M+) ✅
-- **Read Throughput**: 550+ queries/sec ✅
-- **OTEL Ingestion**: 260K metrics/sec ✅
-
-### **Latency**
-- **Write P99**: 65ms (down from 185ms)
-- **Read P99**: 56ms (down from 1.8s → **32x improvement**)
-- **Write P50**: 0.23ms ✅
-- **Cache Lookup**: < 0.5µs ✅
-
-### **Concurrency (Phase 4b Fix)**
-- **Mutex Contention**: **0.1%** (down from 83% → **830x reduction**)
-- **Write Throughput**: **2.7x improvement** after lock-free fix
-
-### **Efficiency**
-- **Memory per Series**: < 1KB ✅
-- **Compression Ratio**: 4-6x ✅
-- **Cache Hit Ratio**: 98.52% ✅
-- **Object Pool Reuse**: 99% ✅
+The architecture is designed to achieve:
+- **High Throughput**: Via async WAL and sharded locking
+- **Low Latency**: Via O(1) cache lookups and in-memory hot tier
+- **Efficiency**: Via object pooling and adaptive compression
 
 ## 🔄 **Deployment Architecture**
 

@@ -61,9 +61,9 @@
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 │                                                                                 │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐           │
-│  │  Sharded    │  │  Lock-Free  │  │  Atomic     │  │ Performance │           │
-│  │  Write      │  │   Queue     │  │  Metrics    │  │   Config    │           │
-│  │  Buffers    │  │             │  │             │  │             │           │
+│  │  Sharded    │  │  Sync       │  │  Atomic     │  │ Performance │           │
+│  │  WAL        │  │  Maps       │  │  Metrics    │  │   Config    │           │
+│  │             │  │             │  │             │  │             │           │
 │  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘           │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                     │
@@ -225,13 +225,13 @@
   - SamplePool
 - **Features**: 99% memory reduction, thread-safe operations, configurable sizes
 
-#### **Sharded Write Buffers**
-- **Purpose**: Parallel write processing
+#### **Sharded WAL**
+- **Purpose**: Low-latency persistence
 - **Components**:
-  - Multiple write shards
-  - Load balancer
+  - Multiple WAL shards
+  - Async persistence queues
   - Background flusher
-- **Features**: 3-5x throughput improvement, concurrent access, load balancing
+- **Features**: Reduced contention, decoupled I/O latency
 
 #### **Background Processor**
 - **Purpose**: Asynchronous task processing
@@ -311,17 +311,17 @@ ICompressor ← Compression Engine
 ## 📈 **Performance Characteristics**
 
 ### **Throughput by Component**
-- **API Gateway**: 100K+ requests/sec
-- **Query Engine**: 10M+ queries/sec
-- **Storage Engine**: 4.8M+ writes/sec
-- **Cache Hierarchy**: 98.52% hit ratio
-- **Background Processor**: 2-3x latency improvement
+- **API Gateway**: High-throughput non-blocking I/O
+- **Query Engine**: Vectorized execution
+- **Storage Engine**: Concurrent write path
+- **Cache Hierarchy**: High hit ratio design
+- **Background Processor**: Asynchronous maintenance
 
 ### **Memory Usage by Component**
-- **Object Pooling**: 99% allocation reduction
-- **Cache Hierarchy**: <1KB per active series
-- **Compression**: 20-60% storage reduction
-- **Working Set**: Efficient memory utilization
+- **Object Pooling**: Significant allocation reduction
+- **Cache Hierarchy**: Efficient working set management
+- **Compression**: Tiered compression strategy
+- **Working Set**: LRU-based memory limits
 
 ---
 

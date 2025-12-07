@@ -517,22 +517,22 @@ Sanitized Data
 ## 📊 **Data Flow Metrics**
 
 ### **Throughput by Operation**
-- **Write Operations**: 4.8M metrics/sec
-- **Read Operations**: 10M queries/sec
-- **Background Tasks**: 100K tasks/sec
-- **Cache Operations**: 50M cache ops/sec
+- **Write Operations**: Optimized for high throughput
+- **Read Operations**: Optimized for query latency
+- **Background Tasks**: Scheduled task execution
+- **Cache Operations**: High-frequency access
 
 ### **Latency by Stage**
-- **API Gateway**: <1ms
-- **Query Processing**: <5ms
-- **Cache Lookup**: <0.1ms
-- **Storage I/O**: <10ms
-- **Background Processing**: <100ms
+- **API Gateway**: Minimal overhead
+- **Query Processing**: Parse and plan time
+- **Cache Lookup**: In-memory access speed
+- **Storage I/O**: Block read latency
+- **Background Processing**: Asynchronous execution
 
 ### **Data Volume by Stage**
 - **Input Data**: Raw OTEL metrics
-- **Processed Data**: Internal format (20% larger)
-- **Compressed Data**: Storage format (40% smaller)
+- **Processed Data**: Internal format
+- **Compressed Data**: Storage format
 - **Response Data**: JSON/Protocol Buffers
 
 ---
