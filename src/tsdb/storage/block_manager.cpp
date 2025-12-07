@@ -544,7 +544,7 @@ core::Result<std::map<uint64_t, std::string>> BlockManager::demoteBlocksToParque
     
     std::stringstream date_ss;
     date_ss << std::put_time(&tm, "%Y/%m/%d");
-    std::string partition_dir = data_dir_ + "/" + date_ss.str();
+    std::string partition_dir = data_dir_ + "/2/" + date_ss.str();
     
     // Create directory
     std::filesystem::create_directories(partition_dir);

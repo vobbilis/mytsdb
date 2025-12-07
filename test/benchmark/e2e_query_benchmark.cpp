@@ -24,13 +24,14 @@
 
 #include "tsdb/storage/storage_impl.h"
 #include "tsdb/prometheus/promql/engine.h"
-#include "tsdb/prometheus/promql/storage_adapter.h"
+#include "tsdb/prometheus/storage/tsdb_adapter.h"
 #include "tsdb/core/types.h"
 #include "tsdb/core/config.h"
 
 using namespace tsdb;
 using namespace tsdb::storage;
 using namespace tsdb::prometheus::promql;
+using tsdb::prometheus::storage::TSDBAdapter;
 
 namespace {
 
@@ -80,6 +81,38 @@ public:
         return ss.str();
     }
     
+    LatencyTracker() = default;
+
+    LatencyTracker(const LatencyTracker& other) {
+        std::lock_guard<std::mutex> lock(other.mutex_);
+        latencies_ = other.latencies_;
+    }
+
+    LatencyTracker& operator=(const LatencyTracker& other) {
+        if (this != &other) {
+            std::lock_guard<std::mutex> lock(other.mutex_);
+            std::lock_guard<std::mutex> my_lock(mutex_);
+            latencies_ = other.latencies_;
+        }
+        return *this;
+    }
+
+    // Move constructor
+    LatencyTracker(LatencyTracker&& other) noexcept {
+        std::lock_guard<std::mutex> lock(other.mutex_);
+        latencies_ = std::move(other.latencies_);
+    }
+
+    // Move assignment
+    LatencyTracker& operator=(LatencyTracker&& other) noexcept {
+        if (this != &other) {
+            std::unique_lock<std::mutex> lock(other.mutex_);
+            std::lock_guard<std::mutex> my_lock(mutex_);
+            latencies_ = std::move(other.latencies_);
+        }
+        return *this;
+    }
+
 private:
     int64_t Percentile(int p) const {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -116,8 +149,9 @@ protected:
         storage_->init(config);
         
         // Create engine
+        adapter_ = std::make_shared<TSDBAdapter>(storage_);
         EngineOptions opts;
-        opts.storage_adapter = std::make_shared<StorageAdapter>(storage_);
+        opts.storage_adapter = adapter_.get();
         opts.lookback_delta = std::chrono::minutes(5);
         engine_ = std::make_unique<Engine>(opts);
         
@@ -158,12 +192,14 @@ protected:
             labels.add("instance", "localhost:9090");
             labels.add("job", "kubelet");
             
+            core::TimeSeries series(labels);
             int64_t t = now_ - (samples_per_series * interval_ms);
             for (int i = 0; i < samples_per_series; i++) {
                 core::Sample sample(t, dist(gen));
-                storage_->append(labels, sample);
+                series.add_sample(sample);
                 t += interval_ms;
             }
+            storage_->write(series);
         }
         
         // Also add some other metrics
@@ -173,12 +209,14 @@ protected:
             labels.add("namespace", "ns-" + std::to_string(s % 10));
             labels.add("pod", "pod-" + std::to_string(s));
             
+            core::TimeSeries series(labels);
             int64_t t = now_ - (samples_per_series * interval_ms);
             for (int i = 0; i < samples_per_series; i++) {
                 core::Sample sample(t, dist(gen) * 1e9);  // Bytes
-                storage_->append(labels, sample);
+                series.add_sample(sample);
                 t += interval_ms;
             }
+            storage_->write(series);
         }
         
         // Flush to blocks
@@ -233,6 +271,7 @@ protected:
     
     std::string temp_dir_;
     std::shared_ptr<StorageImpl> storage_;
+    std::shared_ptr<TSDBAdapter> adapter_;
     std::unique_ptr<Engine> engine_;
     int64_t now_;
     std::map<std::string, LatencyTracker> results_;

@@ -58,12 +58,11 @@ test/integration/test/data/
 test/data/
 data/
 
-# Unit test build artifacts
-test/unit/Makefile
-test/unit/common/
-test/unit/src/
-test/unit/include/
-test/unit/tools/
-test/unit/tsdb-config.cmake
-test/unit/tsdb-config-version.cmake
-test/unit/compile_commands.json
+# Test specific build artifacts
+test/**/Makefile
+test/**/tsdb-config*.cmake
+test/unit/include/tsdb/config.h
+
+# Logs
+*.log
+

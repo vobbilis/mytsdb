@@ -41,10 +41,7 @@ endif()
 # Phase 1: Memory Access Pattern Optimization Tests
 
 # Orphaned tests that were not integrated into main test suites
-# NOTE: test/core and test/histogram use outdated APIs (metric_impl.h, DDSketch::create)
-#       that no longer exist. They require refactoring before integration.
-# add_subdirectory(core)     # Uses metric_impl.h which doesn't exist
-# add_subdirectory(histogram) # Uses DDSketch::create which doesn't exist
+add_subdirectory(load)
 add_subdirectory(storage)
 # add_subdirectory(tsdb)     # Nested tests - most have missing dependencies
 
@@ -222,14 +219,7 @@ add_custom_target(test-all-performance
 )
 
 # Unit test categories
-add_custom_target(test-core-unit
-    COMMAND ${CMAKE_COMMAND} -E echo "Running core unit tests - 38 tests"
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/core-unit
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
-        timeout 60 ./test/unit/tsdb_core_unit_tests --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/core-unit/core_unit_tests.xml
-    DEPENDS tsdb_core_unit_tests
-    COMMENT "Running core unit tests - 38 tests (1min timeout)"
-)
+
 
 add_custom_target(test-storage-unit
     COMMAND ${CMAKE_COMMAND} -E echo "Running storage unit tests - 60 tests"
@@ -276,14 +266,7 @@ add_custom_target(test-compression-unit
     COMMENT "Running compression unit tests - 19 tests (1min timeout)"
 )
 
-add_custom_target(test-histogram-unit
-    COMMAND ${CMAKE_COMMAND} -E echo "Running histogram unit tests - 22 tests"
-    COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_BINARY_DIR}/test-results/histogram-unit
-    COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR} 
-        timeout 60 ./test/unit/tsdb_histogram_unit_tests --gtest_output=xml:${CMAKE_BINARY_DIR}/test-results/histogram-unit/histogram_unit_tests.xml
-    DEPENDS tsdb_histogram_unit_tests
-    COMMENT "Running histogram unit tests - 22 tests (1min timeout)"
-)
+
 
 # OTEL/gRPC E2E Tests
 if(HAVE_GRPC AND ENABLE_OTEL)

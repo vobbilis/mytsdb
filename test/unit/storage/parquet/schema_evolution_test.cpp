@@ -89,7 +89,7 @@ TEST_F(SchemaEvolutionTest, TestChangingDimensions) {
     
     std::string cold_dir = test_dir_ + "/2"; // Cold tier
     std::string parquet_path;
-    for (const auto& entry : std::filesystem::directory_iterator(cold_dir)) {
+    for (const auto& entry : std::filesystem::recursive_directory_iterator(cold_dir)) {
         if (entry.path().extension() == ".parquet") {
             parquet_path = entry.path().string();
             break;
