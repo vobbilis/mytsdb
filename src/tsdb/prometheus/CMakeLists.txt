@@ -112,8 +112,8 @@ endif()
 if(HAVE_PROTOBUF)
     target_link_libraries(tsdb_prometheus PRIVATE protobuf::libprotobuf)
     if(TARGET tsdb_proto)
-        target_link_libraries(tsdb_prometheus PRIVATE tsdb_proto)
-        target_include_directories(tsdb_prometheus PRIVATE ${CMAKE_BINARY_DIR}/common)
+        target_link_libraries(tsdb_prometheus PUBLIC tsdb_proto)
+        # target_include_directories(tsdb_prometheus PRIVATE ${CMAKE_BINARY_DIR}/common) # Not needed if tsdb_proto has it PUBLIC
     endif()
 endif()
 

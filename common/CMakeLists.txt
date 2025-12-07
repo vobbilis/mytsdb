@@ -27,5 +27,17 @@ if(Protobuf_FOUND)
     
     add_library(tsdb_proto STATIC ${PROTO_SRCS})
     target_link_libraries(tsdb_proto PUBLIC protobuf::libprotobuf)
-    target_include_directories(tsdb_proto PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
+    target_include_directories(tsdb_proto PUBLIC
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
+        $<INSTALL_INTERFACE:include>
+    )
+
+    install(TARGETS tsdb_proto
+        EXPORT tsdb-targets
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    )
+    install(FILES ${PROTO_HDRS} DESTINATION include)
 endif()

@@ -240,62 +240,56 @@ add_executable(tsdb_atomic_ref_counted_unit_tests
 if(HAVE_RAPIDJSON)
     find_package(absl QUIET)
 
-    # add_executable(tsdb_prometheus_unit_tests
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/types_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/http_server_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/labels_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_engine_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_parser_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/vector_matching_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/functions_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/aggregation_advanced_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/label_manipulation_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/utility_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remaining_functions_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remote/test_converter.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/auth/test_authenticators.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql/vectorized_evaluator_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/unit/result_minimal_test.cpp
-    #     ${CMAKE_SOURCE_DIR}/test/main.cpp
-    # )
+    add_executable(tsdb_prometheus_unit_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/types_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/http_server_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/labels_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_engine_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql_parser_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/vector_matching_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/functions_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/aggregation_advanced_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/label_manipulation_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/utility_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remaining_functions_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/remote/test_converter.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/auth/test_authenticators.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/prometheus/promql/vectorized_evaluator_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/unit/result_minimal_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
 
-    # target_include_directories(tsdb_prometheus_unit_tests
-    #     PRIVATE
-    #         ${CMAKE_SOURCE_DIR}/src
-    #         ${CMAKE_SOURCE_DIR}/include
-    #         ${RAPIDJSON_INCLUDE_DIRS}
-    #         ${CMAKE_BINARY_DIR}/common
-    # )
+    target_include_directories(tsdb_prometheus_unit_tests
+        PRIVATE
+            ${CMAKE_SOURCE_DIR}/src
+            ${CMAKE_SOURCE_DIR}/include
+            ${RAPIDJSON_INCLUDE_DIRS}
+
+    )
     
-    # target_link_libraries(tsdb_prometheus_unit_tests
-    #     PRIVATE
-    #         tsdb_test_common
-    #         tsdb_prometheus
-    #         GTest::gmock
-    # )
+    target_link_libraries(tsdb_prometheus_unit_tests
+        PRIVATE
+            tsdb_test_common
+            tsdb_prometheus
+            GTest::gmock
+    )
     
-    # if(TARGET tsdb_proto)
-    #     target_link_libraries(tsdb_prometheus_unit_tests PRIVATE tsdb_proto)
-    # endif()
 
-    # if(HAVE_HTTPLIB)
-    #     target_link_libraries(tsdb_prometheus_unit_tests PRIVATE httplib::httplib)
-    # endif()
 
-        # Brute force: Link all absl dynamic libraries from the canonical path to resolve complex transitive dependencies
-        # file(GLOB ABSL_LIBS "/opt/homebrew/opt/abseil/lib/libabsl_*.dylib")
-        # target_link_libraries(tsdb_prometheus_unit_tests PRIVATE ${ABSL_LIBS})
+    if(HAVE_HTTPLIB)
+        target_link_libraries(tsdb_prometheus_unit_tests PRIVATE httplib::httplib)
+    endif()
+
+    if(HAVE_RAPIDJSON)
+        target_link_libraries(tsdb_prometheus_unit_tests PRIVATE ${RAPIDJSON_LIBRARIES})
     endif()
     
-    # if(HAVE_RAPIDJSON)
-    #     target_link_libraries(tsdb_prometheus_unit_tests PRIVATE ${RAPIDJSON_LIBRARIES})
-    # endif()
-    
-    # gtest_discover_tests(tsdb_prometheus_unit_tests
-    #     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    #     PROPERTIES
-    #         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-    # )
+    gtest_discover_tests(tsdb_prometheus_unit_tests
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        PROPERTIES
+            ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+    )
+endif()
     
     # Query metrics unit tests
     add_executable(tsdb_query_metrics_unit_tests
