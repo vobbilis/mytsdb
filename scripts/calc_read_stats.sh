@@ -1,5 +1,8 @@
 #!/bin/bash
 # Use $7 for the duration value
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 grep "SLOW QUERY" benchmarks/server.log | awk '{print $7}' | sed 's/ms//' | sort -n > durations.txt
 count=$(wc -l < durations.txt)
 echo "Total Read Queries: $count"

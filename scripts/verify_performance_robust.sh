@@ -1,5 +1,8 @@
 #!/bin/bash
 set +e # Continue on error
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
 CLIENT_LOG="benchmarks/run.log"
 SERVER_LOG="benchmarks/server.log"
