@@ -38,11 +38,15 @@ The TSDB (Time Series Database) is designed as a high-performance, distributed-c
 - **Concurrent Data Structures**: Lock-free maps for series management
 - **Shared Locking**: Optimization for high-read-concurrency workloads
 
-### **5. Query Layer**
-- **PromQL Engine**: Query parsing and execution
+### **5. Query & Recording Layer**
+- **PromQL Engine**: Full PromQL query parsing and execution (100% function coverage)
 - **Query Cache**: Two-level O(1) cache for high-cardinality workloads
+- **Aggregation Pushdown**: Storage-side aggregation (~785x speedup)
 - **AST Processing**: Abstract Syntax Tree operations
 - **Query Planning**: Query optimization and planning
+- **Recording Rules**: Derived metrics with scheduling and error backoff
+- **Rule Groups**: Sequential rule execution with shared intervals
+- **Rate Limiting**: Request throttling for API protection
 
 ### **6. Integration Layer**
 - **OpenTelemetry Bridge**: OTEL metrics conversion

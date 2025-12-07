@@ -15,6 +15,9 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 
 - ✅ **Prometheus-Compatible** - Label-based time series identification
 - ✅ **PromQL Engine** - 100% complete (All functions, aggregation pushdown, 200+ tests, **O(1) Cache Lookup**)
+- ✅ **Recording Rules (Derived Metrics)** - Pre-computed aggregations with error backoff, label filtering, staleness detection
+- ✅ **Rate Limiting** - Configurable request throttling for API protection
+- ✅ **Aggregation Pushdown** - ~785x speedup with storage-side computation
 - ✅ **Write-Ahead Log (WAL)** - Crash recovery, durability, and **Safe Replay (Lock-free Init)**
 - ✅ **Inverted Index** - Fast label-based queries
 - ✅ **Multi-Tier Storage** - HOT/WARM/COLD tiers with automatic management
@@ -24,7 +27,6 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 - ✅ **Predictive Caching** - Pattern-based prefetching
 - ✅ **Background Processing** - Async compaction and cleanup
 - ✅ **Thread-Safe** - Lock-free data structures with Intel TBB
-- ✅ **Aggregation Pushdown** - ~785x speedup for aggregations
 - ✅ **OpenTelemetry Support** - Native OTEL metric ingestion bridge
 - ✅ **gRPC API** - High-performance query service
 - ✅ **Prometheus Remote Storage** - Remote Write/Read API (18 tests passing)
@@ -70,7 +72,13 @@ MyTSDB is a high-performance, Prometheus-compatible time series database written
 - `CacheHierarchy` - Multi-level caching (L1 active, L2 disabled)
 - `PredictiveCache` - Pattern-based prefetching
 - `BackgroundProcessor` - Async task execution
-- `AggregationPushdown` - Storage-side aggregation execution
+- `AggregationPushdown` - Storage-side aggregation execution (~785x speedup)
+- `RateLimiter` - Request rate limiting for API protection
+
+**Query & Recording Layer:**
+- `PromQLEngine` - Full PromQL query parser and executor
+- `DerivedMetricManager` - Recording rules with scheduling, backoff, and staleness
+- `RuleGroup` - Sequential rule execution with shared intervals
 
 **Integration Layer:**
 - `OTELBridge` - OpenTelemetry metric conversion and ingestion
@@ -375,6 +383,9 @@ See [`examples/prometheus_remote_storage/`](examples/prometheus_remote_storage/)
 
 ### Advanced Features
 
+- **[PromQL & Recording Rules](docs/features/PROMQL_AND_RECORDING_RULES.md)** - Complete PromQL and derived metrics guide
+- **[Aggregation Pushdown](docs/features/AGGREGATION_PUSHDOWN.md)** - Storage-side aggregation (~785x speedup)
+- **[Rate Limiting](docs/features/RATE_LIMITING.md)** - API rate limiting configuration
 - **[Semantic Vector Architecture](docs/architecture/SEMANTIC_VECTOR_ARCHITECTURE.md)** - Optional semantic vectors
 - **[PromQL Engine](docs/planning/PROMQL_ENGINE_AGENT_TASKS.md)** - Query engine tasks
 - **[LSM Implementation Plan](docs/planning/LSM_IMPLEMENTATION_PLAN.md)** - Future LSM storage
