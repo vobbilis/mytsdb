@@ -66,3 +66,4 @@ test/unit/include/tsdb/config.h
 # Logs
 *.log
 
+benchmarks/server.log
