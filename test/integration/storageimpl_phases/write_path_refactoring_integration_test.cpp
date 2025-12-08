@@ -267,12 +267,13 @@ TEST_F(WritePathRefactoringIntegrationTest, Phase2_MultipleSeriesIndependentBloc
 
 TEST_F(WritePathRefactoringIntegrationTest, Phase3_BlockPersistenceToDisk) {
     // Write enough data to trigger block sealing and persistence
-    auto series = createTestSeries("persistence_test", 150);
+    // LIMIT IS 10,000 samples per block (hardcoded in Series::append)
+    auto series = createTestSeries("persistence_test", 10050);
     auto result = storage_->write(series);
     ASSERT_TRUE(result.ok()) << "Write should succeed: " << result.error();
     
     // Give time for persistence operations
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Verify block files were created on disk
     EXPECT_TRUE(blockFilesExist()) 
@@ -281,11 +282,11 @@ TEST_F(WritePathRefactoringIntegrationTest, Phase3_BlockPersistenceToDisk) {
 
 TEST_F(WritePathRefactoringIntegrationTest, Phase3_SerializedBlockContainsData) {
     // Write data and verify the serialized block contains actual data (not empty)
-    auto series = createTestSeries("serialization_test", 150);
+    auto series = createTestSeries("serialization_test", 10050);
     auto result = storage_->write(series);
     ASSERT_TRUE(result.ok());
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Check that block files have non-zero size
     std::vector<std::string> tier_dirs = {"0"};  // Check hot tier
@@ -313,17 +314,32 @@ TEST_F(WritePathRefactoringIntegrationTest, Phase3_SerializedBlockContainsData) 
 
 TEST_F(WritePathRefactoringIntegrationTest, Phase3_MultipleBlocksCreatedForLargeDataset) {
     // Write a large dataset that should create multiple blocks
-    auto series = createTestSeries("large_dataset_test", 500);  // Should create ~4 blocks
-    auto result = storage_->write(series);
-    ASSERT_TRUE(result.ok());
+    // We split this into multiple write calls to trigger the natural block rotation logic
+    // which happens between writes (or when checking block fullness).
+    // Writing 30k samples in one go might just create one huge block depending on implementation,
+    // so we mimic a realistic ingestion pattern.
     
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    int64_t start_time = 1000;
+    
+    // Batch 1: 10050 samples (should fill block 1)
+    auto series1 = createTestSeries("large_dataset_test", 10050, start_time);
+    ASSERT_TRUE(storage_->write(series1).ok());
+    
+    // Batch 2: 10050 samples (should seal block 1 and fill block 2)
+    auto series2 = createTestSeries("large_dataset_test", 10050, start_time + 10050000);
+    ASSERT_TRUE(storage_->write(series2).ok());
+    
+    // Batch 3: 10050 samples (should seal block 2 and fill block 3)
+    auto series3 = createTestSeries("large_dataset_test", 10050, start_time + 20100000);
+    ASSERT_TRUE(storage_->write(series3).ok());
+    
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     
     int block_count = countBlockFiles();
     std::cout << "Created " << block_count << " block files" << std::endl;
     
-    // We expect at least 1 block, potentially more
-    EXPECT_GT(block_count, 0) << "Should create at least one block file";
+    // We expect at least 2 sealed blocks persisted to disk
+    EXPECT_GT(block_count, 1) << "Should create multiple block files";
 }
 
 // ============================================================================
@@ -332,36 +348,36 @@ TEST_F(WritePathRefactoringIntegrationTest, Phase3_MultipleBlocksCreatedForLarge
 
 TEST_F(WritePathRefactoringIntegrationTest, EndToEnd_CompleteWritePipeline) {
     // Test the complete pipeline: API -> WAL -> Series -> Block -> Serialize -> Persist
-    auto series = createTestSeries("pipeline_test", 200);
+    auto series = createTestSeries("pipeline_test", 10050);
     
     // Step 1: Write the series
     auto write_result = storage_->write(series);
     ASSERT_TRUE(write_result.ok()) << "Write operation should succeed";
     
     // Step 2: Give async WAL worker time to process
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
     
     // Step 3: Verify WAL persistence
     EXPECT_TRUE(walFilesExist()) << "Data should be logged to WAL";
     
     // Step 4: Wait for block sealing and persistence
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
     
     // Step 5: Verify block persistence
     EXPECT_TRUE(blockFilesExist()) << "Sealed blocks should be persisted to disk";
     
     // Step 6: Verify data can be read back
-    auto read_result = storage_->read(series.labels(), 0, 300000);
+    auto read_result = storage_->read(series.labels(), 0, 30000000); // Larger time range
     EXPECT_TRUE(read_result.ok()) << "Data should be readable";
 }
 
 TEST_F(WritePathRefactoringIntegrationTest, EndToEnd_ConcurrentWritesWithPersistence) {
     // Test concurrent writes with block sealing and persistence
-    const int num_series = 10;
+    const int num_series = 5; // Reduce concurrency slightly to avoid timeout with large writes
     std::vector<std::future<bool>> futures;
     
     auto write_task = [&](int series_id) {
-        auto series = createTestSeries("concurrent_persist_" + std::to_string(series_id), 150);
+        auto series = createTestSeries("concurrent_persist_" + std::to_string(series_id), 10050);
         auto result = storage_->write(series);
         return result.ok();
     };
@@ -380,7 +396,7 @@ TEST_F(WritePathRefactoringIntegrationTest, EndToEnd_ConcurrentWritesWithPersist
     EXPECT_EQ(successful, num_series) << "All concurrent writes should succeed";
     
     // Wait for persistence
-    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     
     // Verify blocks were created
     int block_count = countBlockFiles();

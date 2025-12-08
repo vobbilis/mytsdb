@@ -166,6 +166,9 @@ size_t Series::NumSamples() const {
     for (const auto& block : blocks_) {
         total += block->num_samples();
     }
+    if (current_block_) {
+        total += current_block_->num_samples();
+    }
     return total;
 }
 

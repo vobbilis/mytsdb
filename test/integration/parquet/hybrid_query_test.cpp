@@ -78,6 +78,8 @@ TEST_F(HybridQueryTest, TestHotAndColdQuery) {
     
     // Trigger background flush
     // threshold_ms = 0 means flush everything that is sealed
+    ASSERT_TRUE(storage_->flush().ok());
+    
     auto flush_res = storage_->execute_background_flush(0);
     ASSERT_TRUE(flush_res.ok());
     
@@ -132,6 +134,7 @@ TEST_F(HybridQueryTest, TestPersistenceAndRecovery) {
     ASSERT_TRUE(storage_->write(series).ok());
     
     // Flush to Parquet
+    ASSERT_TRUE(storage_->flush().ok());
     auto flush_res = storage_->execute_background_flush(0);
     ASSERT_TRUE(flush_res.ok());
     
@@ -169,6 +172,7 @@ TEST_F(HybridQueryTest, TestSchemaEvolutionQuery) {
         series1.add_sample(core::Sample(start_time + i * 10, 10.0 + i));
     }
     ASSERT_TRUE(storage_->write(series1).ok());
+    ASSERT_TRUE(storage_->flush().ok());
     ASSERT_TRUE(storage_->execute_background_flush(0).ok());
     
     // Batch 2: New field "location"
@@ -207,6 +211,7 @@ TEST_F(HybridQueryTest, TestQueryOnlyCold) {
         series.add_sample(core::Sample(start_time + i * 10, 50.0 + i));
     }
     ASSERT_TRUE(storage_->write(series).ok());
+    ASSERT_TRUE(storage_->flush().ok());
     ASSERT_TRUE(storage_->execute_background_flush(0).ok());
     
     // Query range that covers only this data
@@ -229,6 +234,7 @@ TEST_F(HybridQueryTest, TestCompaction) {
         series.add_sample(core::Sample(start_time + i * 10, 10.0 + i));
     }
     ASSERT_TRUE(storage_->write(series).ok());
+    ASSERT_TRUE(storage_->flush().ok());
     ASSERT_TRUE(storage_->execute_background_flush(0).ok());
     
     // Create Block 2 (Small)
@@ -237,6 +243,7 @@ TEST_F(HybridQueryTest, TestCompaction) {
         series2.add_sample(core::Sample(start_time + i * 10, 10.0 + i));
     }
     ASSERT_TRUE(storage_->write(series2).ok());
+    ASSERT_TRUE(storage_->flush().ok());
     ASSERT_TRUE(storage_->execute_background_flush(0).ok());
     
     // Verify we have 2 blocks (implicit check via query or logs, but hard to check internal state directly)

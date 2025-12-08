@@ -1552,9 +1552,26 @@ core::Result<void> StorageImpl::flush_nolock() {
                 auto persist_result = block_manager_->seal_and_persist_block(sealed_block);
                 if (!persist_result.ok()) {
                     TSDB_WARN("Failed to persist block for series " + std::to_string(series->GetID()) + ": " + persist_result.error());
+                } else {
+                    // Update metadata for the persisted block so it can be picked up by compaction/demotion
+                    auto seal_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                        std::chrono::system_clock::now().time_since_epoch()).count();
+                    auto series_id = series->GetID();
+                    
+                    // Update series_blocks_ (concurrent map)
+                    SeriesBlocksMap::accessor blocks_accessor;
+                    series_blocks_.insert(blocks_accessor, series_id);
+                    blocks_accessor->second.push_back(sealed_block);
+                    
+                    // Update compaction maps (protected by mutex_, which is held by caller)
+                    // Note: flush_nolock assumes mutex_ is held
+                    block_to_series_[sealed_block].insert(series_id);
+                    label_to_blocks_[series->Labels()].push_back(sealed_block);
+                    block_seal_times_[sealed_block] = seal_time_ms;
                 }
             }
         }
+
         count++;
     }
     TSDB_INFO("StorageImpl::flush_nolock - Processed " + std::to_string(count) + " series");
@@ -2656,7 +2673,8 @@ core::Result<void> StorageImpl::execute_background_flush(int64_t threshold_ms) {
                      sample_seal_time = seal_time;  // Debug
                      
                      // Demote if block was sealed more than threshold_ms ago
-                     if (seal_time < now_ms - threshold_ms) {
+                     // Special case: threshold_ms == 0 means "force immediate flush", so we include even if seal_time == now_ms
+                     if (threshold_ms == 0 || seal_time < now_ms - threshold_ms) {
                          candidates.push_back({series, block});
                      } else {
                          blocks_too_new++;
