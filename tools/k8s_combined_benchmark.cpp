@@ -377,7 +377,7 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateMetricBatch(
     std::uniform_real_distribution<> val_dist(0.0, 100.0);
     
     for (int i = 0; i < num_samples; ++i) {
-        ARROW_RETURN_NOT_OK(ts_builder.Append(base_timestamp + i * 15000000000)); // 15s interval
+        ARROW_RETURN_NOT_OK(ts_builder.Append(base_timestamp + i * 15000)); // 15s interval in milliseconds
         ARROW_RETURN_NOT_OK(val_builder.Append(val_dist(gen)));
         
         ARROW_RETURN_NOT_OK(tags_builder.Append());
@@ -443,7 +443,7 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateHistogramBatch(
     static thread_local std::mt19937 gen(rd());
     
     for (int t = 0; t < num_timestamps; ++t) {
-        int64_t timestamp = base_timestamp + t * 15000000000; // 15s interval
+        int64_t timestamp = base_timestamp + t * 15000; // 15s interval in milliseconds
         
         // Generate realistic latency distribution (most in lower buckets)
         double base_count = 1000.0 + t * 10;  // Cumulative count increases
@@ -553,11 +553,15 @@ private:
         std::mt19937 gen(rd());
         std::uniform_int_distribution<> metric_dist(0, K8S_METRICS.size() - 1);
         
-        // Start 30 mins in the past to ensure data exists for Hot queries
-        int64_t current_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
+        // Start timestamps 30 DAYS in the past.
+        // This ensures all data is "old" and eligible for demotion to cold storage (ParquetBlock).
+        // Queries can use (now - 30 days) to (now) to find all data.
+        // IMPORTANT: TSDB expects timestamps in MILLISECONDS, not nanoseconds!
+        int64_t current_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()
         ).count();
-        int64_t timestamp = current_time_ns - (30 * 60 * 1000000000LL);
+        // 30 days = 30 * 24 * 60 * 60 * 1000 ms = 2,592,000,000 ms
+        int64_t timestamp = current_time_ms - (30LL * 24 * 60 * 60 * 1000);
         
         // Open the stream ONCE
         arrow::flight::FlightCallOptions call_options;
@@ -569,7 +573,10 @@ private:
         // We need the schema from the first batch to open the stream. 
         // But we want to reuse the schema.
         // Let's create a dummy batch to get the schema.
-        auto dummy_res = CreateMetricBatch(K8S_METRICS[0], 1, timestamp, "init", "init");
+        int64_t dummy_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::system_clock::now().time_since_epoch()
+        ).count();
+        auto dummy_res = CreateMetricBatch(K8S_METRICS[0], 1, dummy_ts, "init", "init");
         if (!dummy_res.ok()) {
              std::cerr << "Worker " << worker_id_ << ": Failed to create schema: " << dummy_res.status().ToString() << "\n";
              return;
@@ -617,9 +624,10 @@ private:
             if (status.ok()) {
                 latencies.record(latency_ms);
                 total_samples.fetch_add(samples);
-                // Advance time by small increment (1ms) to simulate concurrent ingestion
-                // This keeps data within a useful window for queries
-                timestamp += 1000000LL; 
+                // Advance time by 1 minute per batch.
+                // With 30 days = 43,200 minutes available, this allows ~43k batches before
+                // reaching current time. Most benchmarks write far fewer batches.
+                timestamp += 60000LL;  // 60,000 ms = 1 minute per batch 
                 
                 // Every 10th batch, also write histogram buckets for histogram_quantile testing
                 static thread_local int batch_counter = 0;
@@ -721,18 +729,24 @@ private:
             
             std::string path;
             if (query.is_instant) {
-                path = "/api/v1/query?query=" + httplib::detail::encode_url(query.query);
+                // For instant queries, we need to specify a time in the past where data exists
+                // Data starts 30 days ago, so query at (now - 15 days) to find data
+                auto now = std::chrono::system_clock::now();
+                auto query_time_sec = std::chrono::duration_cast<std::chrono::seconds>(
+                    now.time_since_epoch()).count() - (15LL * 24 * 60 * 60);  // 15 days ago
+                path = "/api/v1/query?query=" + httplib::detail::encode_url(query.query) +
+                       "&time=" + std::to_string(query_time_sec);
             } else {
                 auto now = std::chrono::system_clock::now();
                 auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(
                     now.time_since_epoch()).count();
                 
-                int range_sec = 3600;  // Default 1h
-                if (query.duration == "6h") range_sec = 21600;
-                else if (query.duration == "24h") range_sec = 86400;
+                // Query from 30 days ago to now to cover all data
+                // Data is written starting 30 days in the past
+                int64_t start_sec = now_sec - (30LL * 24 * 60 * 60);  // 30 days ago
                 
                 path = "/api/v1/query_range?query=" + httplib::detail::encode_url(query.query) +
-                       "&start=" + std::to_string(now_sec - range_sec) +
+                       "&start=" + std::to_string(start_sec) +
                        "&end=" + std::to_string(now_sec) +
                        "&step=" + query.step;
             }
@@ -955,6 +969,18 @@ private:
         double read_decomp = get_metric("mytsdb_read_decompression_seconds_total");
         double read_cache_hits = get_metric("mytsdb_read_cache_hits_total");
         
+        // Detailed Breakdown
+        double read_active_lookup = get_metric("mytsdb_read_active_series_lookup_seconds_total");
+        double read_active_read = get_metric("mytsdb_read_active_series_read_seconds_total");
+        double read_rg_read = get_metric("mytsdb_read_row_group_read_seconds_total");
+        double read_decoding = get_metric("mytsdb_read_decoding_seconds_total");
+        double read_processing = get_metric("mytsdb_read_processing_seconds_total");
+        
+        double read_block_filter = get_metric("mytsdb_read_block_filter_seconds_total");
+        double read_data_extraction = get_metric("mytsdb_read_data_extraction_seconds_total");
+        double read_result_construction = get_metric("mytsdb_read_result_construction_seconds_total");
+        double read_data_copy = get_metric("mytsdb_read_data_copy_seconds_total");
+        
         std::cout << "  Total Reads:       " << fmt_count(read_total) << std::endl;
         std::cout << "  Avg Read Time:     " << (read_total > 0 ? fmt_time(read_duration / read_total) : "N/A") << std::endl;
         std::cout << "  Index Search:      " << fmt_time(read_index) << std::endl;
@@ -962,6 +988,17 @@ private:
         std::cout << "  Block Read I/O:    " << fmt_time(read_block_read) << std::endl;
         std::cout << "  Decompression:     " << fmt_time(read_decomp) << std::endl;
         std::cout << "  Cache Hits:        " << fmt_count(read_cache_hits) << std::endl;
+        
+        std::cout << "\n  --- Detailed Breakdown ---" << std::endl;
+        std::cout << "  Active Series Lookup: " << fmt_time(read_active_lookup) << std::endl;
+        std::cout << "  Active Series Read:   " << fmt_time(read_active_read) << std::endl;
+        std::cout << "  Row Group Read:    " << fmt_time(read_rg_read) << std::endl;
+        std::cout << "  Decoding (ToMap):  " << fmt_time(read_decoding) << std::endl;
+        std::cout << "  Processing:        " << fmt_time(read_processing) << std::endl;
+        std::cout << "  Block Filter:      " << fmt_time(read_block_filter) << std::endl;
+        std::cout << "  Data Extraction:   " << fmt_time(read_data_extraction) << std::endl;
+        std::cout << "  Data Copy:         " << fmt_time(read_data_copy) << std::endl;
+        std::cout << "  Result Construct:  " << fmt_time(read_result_construction) << std::endl;
 
         // ========== SECONDARY INDEX METRICS (Phase A: B+ Tree) ==========
         std::cout << "\n--- Secondary Index Metrics ---" << std::endl;
@@ -981,6 +1018,21 @@ private:
         std::cout << "  Avg Lookup:        " << (idx_lookups > 0 ? fmt_time(idx_lookup_time / idx_lookups) : "N/A") << std::endl;
         std::cout << "  Build Time:        " << fmt_time(idx_build_time) << std::endl;
         std::cout << "  RG Selected:       " << fmt_count(idx_rg_selected) << std::endl;
+
+        // ========== BLOOM FILTER METRICS (Phase 0: Pre-B+ Tree) ==========
+        std::cout << "\n--- Bloom Filter Metrics ---" << std::endl;
+        double bloom_checks = get_metric("mytsdb_bloom_filter_checks_total");
+        double bloom_skips = get_metric("mytsdb_bloom_filter_skips_total");
+        double bloom_passes = get_metric("mytsdb_bloom_filter_passes_total");
+        double bloom_lookup_time = get_metric("mytsdb_bloom_filter_lookup_seconds_total");
+
+        std::cout << "  Bloom Checks:      " << fmt_count(bloom_checks) << std::endl;
+        std::cout << "  Bloom Skips:       " << fmt_count(bloom_skips) << std::endl;
+        std::cout << "  Bloom Passes:      " << fmt_count(bloom_passes) << std::endl;
+        std::cout << "  Bloom Skip Rate:   " << std::fixed << std::setprecision(1) 
+                  << (bloom_checks > 0 ? (bloom_skips / bloom_checks * 100) : 0) << "%" << std::endl;
+        std::cout << "  Lookup Time:       " << fmt_time(bloom_lookup_time) << std::endl;
+        std::cout << "  Avg Lookup:        " << (bloom_checks > 0 ? fmt_time(bloom_lookup_time / bloom_checks) : "N/A") << std::endl;
 
         // ========== STORAGE METRICS ==========
         std::cout << "\n--- Storage Metrics ---" << std::endl;

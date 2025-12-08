@@ -82,9 +82,7 @@ endif()
 
 # Register tests
 add_test(NAME benchmark_write COMMAND write_perf_bench)
-# NOTE: benchmark_read is disabled due to flaky SEGFAULT during parallel test execution
-# The test passes when run individually. This is a known issue with resource contention.
-# add_test(NAME benchmark_read COMMAND read_perf_bench)
+add_test(NAME benchmark_read COMMAND read_perf_bench)
 add_test(NAME benchmark_mixed COMMAND mixed_perf_bench)
 add_test(NAME benchmark_latency COMMAND latency_perf_bench)
 add_test(NAME benchmark_concurrency COMMAND concurrency_perf_bench)
@@ -139,6 +137,54 @@ add_executable(e2e_query_benchmark e2e_query_benchmark.cpp)
 target_include_directories(e2e_query_benchmark PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(e2e_query_benchmark PRIVATE tsdb_test_common tsdb_lib GTest::gtest GTest::gtest_main)
 add_test(NAME benchmark_e2e_query COMMAND e2e_query_benchmark)
+
+# ============================================================================
+# Test Properties for Parallel Execution Safety
+# ============================================================================
+# Benchmark tests use shared resources (storage, temp dirs, ports) and must
+# run with resource locks to prevent interference during parallel test runs.
+
+# All benchmarks that use storage should lock the TSDB_STORAGE resource
+set_tests_properties(
+    benchmark_write
+    benchmark_mixed
+    benchmark_latency
+    benchmark_concurrency
+    benchmark_new_vs_update
+    benchmark_rule_manager
+    benchmark_filtering_storage
+    benchmark_scale
+    benchmark_promql_cache
+    PROPERTIES
+        RESOURCE_LOCK TSDB_STORAGE
+        TIMEOUT 600
+)
+
+# Read benchmarks are memory-intensive and prone to SEGFAULTs when run in parallel
+# with other tests. Mark them as RUN_SERIAL to ensure they run alone.
+set_tests_properties(
+    benchmark_read
+    benchmark_e2e_query
+    PROPERTIES
+        RUN_SERIAL TRUE
+        TIMEOUT 600
+)
+
+# Parquet benchmarks also need the storage lock
+if(HAVE_ARROW AND HAVE_PARQUET)
+    set_tests_properties(benchmark_parquet PROPERTIES
+        RESOURCE_LOCK TSDB_STORAGE
+        TIMEOUT 600
+    )
+endif()
+
+# OTEL benchmark uses network resources
+if(TARGET otel_write_perf_bench)
+    set_tests_properties(benchmark_otel_write PROPERTIES
+        RESOURCE_LOCK "TSDB_STORAGE;GRPC_PORT"
+        TIMEOUT 600
+    )
+endif()
 
 
 

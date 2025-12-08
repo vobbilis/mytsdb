@@ -319,14 +319,25 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
         should_start_background_processing = cache_config.enable_background_processing;
         cache_hierarchy_ = std::make_unique<CacheHierarchy>(cache_config);
         
-        // Wire L3 persistence callback to BlockManager for Parquet demotion
-        if (block_manager_) {
-            cache_hierarchy_->set_l3_persistence_callback(
-                [this](core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series) {
-                    return block_manager_->persistSeriesToParquet(series_id, series);
-                });
-            TSDB_INFO("StorageImpl::init() - L3 Parquet persistence callback wired");
-        }
+        // NOTE: L3 persistence callback is DISABLED to avoid creating duplicate Parquet files.
+        // The block-based flush path (execute_background_flush -> demoteBlocksToParquet) handles
+        // Parquet persistence in a way that's trackable for compaction.
+        // Having two paths creates:
+        //   1. File naming collisions (block_id vs series_id)
+        //   2. Data duplication
+        //   3. Compaction blindness (L3 files aren't tracked in block_to_series_)
+        //   4. Inconsistent recovery state
+        // 
+        // TODO: If L3 persistence is needed, it should coordinate with block_to_series_ tracking.
+        //
+        // if (block_manager_) {
+        //     cache_hierarchy_->set_l3_persistence_callback(
+        //         [this](core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series) {
+        //             return block_manager_->persistSeriesToParquet(series_id, series);
+        //         });
+        //     TSDB_INFO("StorageImpl::init() - L3 Parquet persistence callback wired");
+        // }
+        TSDB_INFO("StorageImpl::init() - L3 Parquet persistence DISABLED (using block-based flush only)");
     }
     
     // Start background processing for cache hierarchy (only if enabled)
@@ -530,6 +541,10 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
         
         // Update series_blocks_ using concurrent accessor (no global lock needed!)
         if (block_persisted && persisted_block) {
+            // Record seal time for hot/cold tiering decisions
+            auto seal_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            
             {
                 WriteScopedTimer timer(metrics.mutex_lock_us, perf_enabled);
                 // Use concurrent_hash_map accessor - no global lock contention
@@ -542,8 +557,13 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             // These maps are used by execute_background_compaction() to find blocks to compact
             {
                 std::unique_lock<std::shared_mutex> lock(mutex_);
+                // DEBUG: Log the block pointer being added
+                TSDB_DEBUG("Adding to block_to_series_: block=" + std::to_string(reinterpret_cast<uintptr_t>(persisted_block.get())) + 
+                           " series=" + std::to_string(series_id));
                 block_to_series_[persisted_block].insert(series_id);
                 label_to_blocks_[series.labels()].push_back(persisted_block);
+                // Track seal time for hot/cold tiering
+                block_seal_times_[persisted_block] = seal_time_ms;
             }
         }
         
@@ -681,9 +701,7 @@ core::Result<core::TimeSeries> StorageImpl::read_nolock(
         bool found = false;
         {
             ReadScopedTimer lookup_timer(metrics.active_series_lookup_us);
-            // DEBUG: Force block-based read to ensure sorted merging and avoid Series::Read errors
-            // found = active_series_.find(accessor, series_id);
-            found = false; 
+            found = active_series_.find(accessor, series_id);
         }
         
         if (found) {
@@ -902,24 +920,16 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
     
     // DEADLOCK FIX #1: Acquire Index mutex BEFORE StorageImpl mutex to prevent lock ordering violation
     // This ensures consistent lock ordering: Index → StorageImpl (matching write() order)
-    // Get all index data first (series IDs and labels) before acquiring StorageImpl mutex
-    std::vector<core::SeriesID> series_ids;
-    std::map<core::SeriesID, core::Labels> series_labels_map;
+    // OPTIMIZATION: Use find_series_with_labels to get both IDs and labels in one call
+    // instead of N separate get_labels calls (eliminates ~110K lock acquisitions)
+    std::vector<std::pair<core::SeriesID, core::Labels>> series_with_labels;
     {
         ReadScopedTimer index_timer(metrics.index_search_us);
-        auto series_ids_result = index_->find_series(matchers);
-        if (!series_ids_result.ok()) {
-            return core::Result<std::vector<core::TimeSeries>>::error("Index query failed: " + series_ids_result.error());
+        auto result = index_->find_series_with_labels(matchers);
+        if (!result.ok()) {
+            return core::Result<std::vector<core::TimeSeries>>::error("Index query failed: " + result.error());
         }
-        series_ids = series_ids_result.value();
-        
-        // Get all labels while Index mutex is still held (or immediately after, before StorageImpl mutex)
-        for (const auto& series_id : series_ids) {
-            auto labels_result = index_->get_labels(series_id);
-            if (labels_result.ok()) {
-                series_labels_map[series_id] = labels_result.value();
-            }
-        }
+        series_with_labels = std::move(result.value());
     }
     // Index mutex is now released, all index operations are complete
     
@@ -937,14 +947,15 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
         size_t series_checked = 0;
         
         // Reserve space for results to avoid reallocations
-        results.reserve(std::min(series_ids.size(), MAX_QUERY_RESULTS));
+        results.reserve(std::min(series_with_labels.size(), MAX_QUERY_RESULTS));
         
         // CATEGORY 2 FIX: Add query timeout to prevent indefinite hangs
         const auto query_start_time = std::chrono::steady_clock::now();
         const auto query_timeout = std::chrono::seconds(30); // 30 second timeout for queries
         
-        // For each matching series ID, read the data
-        for (const auto& series_id : series_ids) {
+        // For each matching series, read the data
+        // OPTIMIZATION: series_with_labels already contains (id, labels) pairs from batch lookup
+        for (const auto& [series_id, labels] : series_with_labels) {
             // Check for query timeout
             auto elapsed = std::chrono::steady_clock::now() - query_start_time;
             if (elapsed > query_timeout) {
@@ -961,14 +972,6 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
             }
             series_checked++;
             
-            // Get labels from pre-fetched map (no Index mutex needed)
-            auto labels_it = series_labels_map.find(series_id);
-            if (labels_it == series_labels_map.end()) {
-                continue; // Skip if we don't have labels
-            }
-            
-            const auto& labels = labels_it->second;
-            
             // CATEGORY 2 FIX: Check timeout before calling read() which might be slow
             elapsed = std::chrono::steady_clock::now() - query_start_time;
             if (elapsed > query_timeout) {
@@ -979,7 +982,6 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
             // Read the series data
             // CATEGORY 2 FIX: Use read_nolock() since we already hold the shared lock
             // std::shared_mutex does NOT support recursive locking, so we must use the no-lock version
-            // auto read_result = read_nolock(labels, start_time, end_time);
             core::Result<core::TimeSeries> read_result = core::Result<core::TimeSeries>::error("Not run");
             try {
                  read_result = read_nolock(labels, start_time, end_time, metrics);
@@ -2377,17 +2379,19 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
         
         // Read from all blocks for this series
         for (const auto& block : blocks) {
+            ReadScopedTimer filter_timer(metrics.block_filter_us);
             if (!block) continue;
             
             // Check if block overlaps with time range
             if (block->end_time() < start_time || block->start_time() > end_time) {
                 continue;  // Block doesn't overlap with requested range
             }
+            filter_timer.stop();
             
             // Read columns directly
             std::pair<std::vector<int64_t>, std::vector<double>> columns;
             {
-                ReadScopedTimer read_timer(metrics.block_read_us);
+                ReadScopedTimer extract_timer(metrics.data_extraction_us);
                 columns = block->read_columns(labels);
             }
             
@@ -2395,6 +2399,7 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
             const auto& block_vals = columns.second;
             
             // Filter and append
+            ReadScopedTimer copy_timer(metrics.data_copy_us);
             for (size_t i = 0; i < block_ts.size(); ++i) {
                 if (block_ts[i] >= start_time && block_ts[i] <= end_time) {
                     all_timestamps.push_back(block_ts[i]);
@@ -2404,6 +2409,7 @@ core::Result<core::TimeSeries> StorageImpl::read_from_blocks_nolock(
         }
         
         // Sort samples by timestamp
+        ReadScopedTimer construct_timer(metrics.result_construction_us);
         if (!all_timestamps.empty()) {
             // Create permutation index for sorting
             std::vector<size_t> p(all_timestamps.size());
@@ -2593,38 +2599,74 @@ void StorageImpl::schedule_background_flush() {
 
 /**
  * @brief Execute background flush
+ * @param threshold_ms Age threshold in milliseconds. Blocks older than this are demoted.
+ *                     -1 = use config_.block_config.demotion_threshold (default 60000ms)
+ *                      0 = force immediate demotion of all sealed blocks
  */
 core::Result<void> StorageImpl::execute_background_flush(int64_t threshold_ms) {
     try {
+        // Use config value if threshold_ms is -1 (default)
+        if (threshold_ms < 0) {
+            threshold_ms = config_.block_config.demotion_threshold;
+            // If config threshold is not set or invalid, use a LONGER default to keep data in memory
+            // This is critical for read performance - hot data should NOT hit Parquet
+            // Default: 10 minutes (600,000ms) - data younger than 10 min stays in memory
+            if (threshold_ms <= 0) {
+                threshold_ms = 600000;  // 10 minutes: hot data stays in memory for fast reads
+                TSDB_INFO("Background flush: using default threshold={}ms (10 min) - hot data stays in memory", threshold_ms);
+            }
+        }
+        
         size_t flushed_count = 0;
         std::vector<std::pair<std::shared_ptr<Series>, std::shared_ptr<internal::BlockInternal>>> candidates;
         
-        // Identify candidates
+        // Identify candidates based on SEAL TIME, not data timestamp
+        // This is critical for hot/cold tiering: recently sealed blocks stay in memory
+        // even if they contain old data (like benchmark data with 30-day-old timestamps)
         auto now = std::chrono::system_clock::now();
         auto now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        
+        size_t total_series = 0;
+        size_t total_blocks = 0;
+        size_t blocks_too_new = 0;
+        size_t blocks_no_seal_time = 0;
+        int64_t sample_seal_time = 0;  // Debug: track a sample block's seal time
 
         {
              std::shared_lock<std::shared_mutex> lock(mutex_);
              for (auto it = active_series_.begin(); it != active_series_.end(); ++it) {
                  auto series = it->second;
                  if (!series) continue;
+                 total_series++;
 
                  auto blocks = series->GetBlocks();
                  for (const auto& block : blocks) {
-                     if (block->end_time() < now_ms - threshold_ms) {
-                         // Check if already cold (ParquetBlock)
-                         // We can check if dynamic_cast returns ParquetBlock, or check BlockManager tier
-                         // For now, let's rely on BlockManager::demoteToParquet handling already-cold blocks gracefully
-                         // But wait, demoteToParquet returns error if not found or already cold?
-                         // Actually BlockManager checks tier.
-                         // But we should avoid trying to demote ParquetBlock.
-                         // ParquetBlock doesn't have a way to check type easily without RTTI.
-                         // But we can check if it's in candidates.
+                     total_blocks++;
+                     
+                     // Use seal time for demotion decision, NOT data timestamp
+                     // This ensures recently written data stays in memory for fast reads
+                     auto seal_time_it = block_seal_times_.find(block);
+                     if (seal_time_it == block_seal_times_.end()) {
+                         // No seal time recorded - might be an old block or already a ParquetBlock
+                         blocks_no_seal_time++;
+                         continue;  // Skip - can't determine if hot or cold
+                     }
+                     
+                     int64_t seal_time = seal_time_it->second;
+                     sample_seal_time = seal_time;  // Debug
+                     
+                     // Demote if block was sealed more than threshold_ms ago
+                     if (seal_time < now_ms - threshold_ms) {
                          candidates.push_back({series, block});
+                     } else {
+                         blocks_too_new++;
                      }
                  }
              }
         }
+        
+        TSDB_INFO("Background flush: series={}, blocks={}, too_new={}, no_seal_time={}, candidates={}, threshold={}ms, now_ms={}, sample_seal_time={}",
+                  total_series, total_blocks, blocks_too_new, blocks_no_seal_time, candidates.size(), threshold_ms, now_ms, sample_seal_time);
         
         // Sort candidates by series ID to match some deterministic order?
         // Or leave them in loop order. Use a vector of pairs for batch API.
@@ -2677,10 +2719,16 @@ core::Result<void> StorageImpl::execute_background_flush(int64_t threshold_ms) {
                          }
                          
                          // 3. Update block_to_series_
+                         // DEBUG: Log the block pointer being looked up
+                         TSDB_DEBUG("Looking up block_to_series_: block=" + 
+                                    std::to_string(reinterpret_cast<uintptr_t>(block.get())) +
+                                    " found=" + std::to_string(block_to_series_.count(block)));
                          if (block_to_series_.count(block)) {
                              auto series_ids = block_to_series_[block];
                              block_to_series_.erase(block);
                              block_to_series_[parquet_block] = std::move(series_ids);
+                             TSDB_DEBUG("Updated block_to_series_ with parquet_block=" + 
+                                        std::to_string(reinterpret_cast<uintptr_t>(parquet_block.get())));
                          }
                          
                          flushed_count++;
@@ -2716,9 +2764,16 @@ core::Result<void> StorageImpl::execute_background_flush(int64_t threshold_ms) {
  * @brief Execute background compaction
  */
 core::Result<void> StorageImpl::execute_background_compaction() {
+    TSDB_INFO("execute_background_compaction() - Starting compaction check");
     try {
         // 1. Identify candidates for compaction
         // We look for small ParquetBlocks in the cold tier.
+        // IMPROVED: Compact files smaller than 1MB, up to 100 files or 64MB total
+        constexpr size_t MIN_FILE_SIZE_THRESHOLD = 1 * 1024 * 1024;  // 1MB - files smaller than this are candidates
+        constexpr size_t MAX_FILES_PER_COMPACTION = 100;              // Max files to compact at once
+        constexpr size_t TARGET_OUTPUT_SIZE = 64 * 1024 * 1024;       // Target 64MB output file
+        constexpr size_t MIN_FILES_TO_COMPACT = 5;                    // Need at least 5 files to bother compacting
+        
         std::vector<std::shared_ptr<parquet::ParquetBlock>> candidates;
         std::vector<std::string> input_paths;
         
@@ -2727,33 +2782,64 @@ core::Result<void> StorageImpl::execute_background_compaction() {
         int64_t max_end = std::numeric_limits<int64_t>::min();
         size_t total_samples = 0;
         size_t total_series = 0; // Approximate
+        size_t total_estimated_size = 0;
         
         {
             std::shared_lock<std::shared_mutex> lock(mutex_);
+            TSDB_INFO("execute_background_compaction() - Scanning " + std::to_string(block_to_series_.size()) + " blocks for candidates");
+            size_t parquet_blocks_found = 0;
+            size_t small_files_found = 0;
             for (const auto& [block, series_ids] : block_to_series_) {
                 auto pb = std::dynamic_pointer_cast<parquet::ParquetBlock>(block);
                 if (pb) {
-                    // Check if small (e.g. < 1MB)
-                    // For testing, we just pick the first 2 we find to verify logic.
-                    // In production, we would have smarter heuristics.
-                    if (candidates.size() < 2) {
+                    parquet_blocks_found++;
+                    // Check file size - only compact small files
+                    size_t file_size = 0;
+                    try {
+                        file_size = std::filesystem::file_size(pb->path());
+                    } catch (...) {
+                        continue; // Skip if we can't get file size
+                    }
+                    
+                    if (file_size < MIN_FILE_SIZE_THRESHOLD) {
+                        small_files_found++;
+                    }
+                    
+                    // Only select files smaller than threshold
+                    if (file_size < MIN_FILE_SIZE_THRESHOLD && 
+                        candidates.size() < MAX_FILES_PER_COMPACTION &&
+                        total_estimated_size < TARGET_OUTPUT_SIZE) {
                         candidates.push_back(pb);
                         input_paths.push_back(pb->path());
                         
                         min_start = std::min(min_start, pb->start_time());
                         max_end = std::max(max_end, pb->end_time());
                         total_samples += pb->num_samples();
-                        total_series += pb->num_series(); // This might overcount if series overlap
+                        total_series += pb->num_series();
+                        total_estimated_size += file_size;
                     }
                 }
             }
+            TSDB_INFO("execute_background_compaction() - ParquetBlocks in map: " + std::to_string(parquet_blocks_found) + 
+                      ", small files: " + std::to_string(small_files_found));
         }
         
-        if (candidates.size() < 2) {
-            return core::Result<void>(); // Nothing to compact
+        TSDB_INFO("execute_background_compaction() - Found " + std::to_string(candidates.size()) + 
+                  " candidates with total size " + std::to_string(total_estimated_size / 1024) + " KB");
+        
+        if (candidates.size() < MIN_FILES_TO_COMPACT) {
+            TSDB_INFO("execute_background_compaction() - Not enough candidates (need " + 
+                      std::to_string(MIN_FILES_TO_COMPACT) + "), rescheduling");
+            // Not enough small files to compact, but reschedule to check again later
+            std::thread([this]() {
+                std::this_thread::sleep_for(config_.background_config.compaction_interval);
+                schedule_background_compaction();
+            }).detach();
+            return core::Result<void>(); 
         }
         
-        TSDB_INFO("Compacting " + std::to_string(candidates.size()) + " Parquet blocks");
+        TSDB_INFO("Compacting {} Parquet blocks, total size: {} KB, samples: {}", 
+                  candidates.size(), total_estimated_size / 1024, total_samples);
         
         // 2. Perform compaction (IO heavy, no lock)
         // Generate new block ID
@@ -2831,8 +2917,19 @@ core::Result<void> StorageImpl::execute_background_compaction() {
         
         TSDB_INFO("Compaction complete. Created " + output_path);
         
+        // Reschedule compaction to run again after the interval
+        std::thread([this]() {
+            std::this_thread::sleep_for(config_.background_config.compaction_interval);
+            schedule_background_compaction();
+        }).detach();
+        
         return core::Result<void>();
     } catch (const std::exception& e) {
+        // Even on error, reschedule compaction
+        std::thread([this]() {
+            std::this_thread::sleep_for(config_.background_config.compaction_interval);
+            schedule_background_compaction();
+        }).detach();
         return core::Result<void>::error("Background compaction failed: " + std::string(e.what()));
     }
 }

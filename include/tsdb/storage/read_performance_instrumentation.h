@@ -48,12 +48,30 @@ public:
         
         double pruning_time_us = 0.0;
         
+        // Detailed Breakdown
+        double row_group_read_us = 0.0;      // Time spent in ReadRowGroup (I/O)
+        double decoding_us = 0.0;            // Time spent in ToSeriesMap (CPU/Decoding)
+        double processing_us = 0.0;          // Time spent filtering/collecting samples (CPU)
+
+        // New granular metrics for StorageImpl/BlockImpl
+        double block_filter_us = 0.0;
+        double data_extraction_us = 0.0;
+        double result_construction_us = 0.0;
+        double data_copy_us = 0.0;
+
         // Secondary Index Metrics (Phase A: B+ Tree)
         bool secondary_index_used = false;           // Whether index was used for this query
         double secondary_index_lookup_us = 0.0;      // Time spent in index lookup
         double secondary_index_build_us = 0.0;       // Time to build index (if newly built)
         size_t secondary_index_hits = 0;             // Number of series found in index
         size_t secondary_index_row_groups_selected = 0; // Row groups selected via index
+        
+        // Bloom Filter Metrics (Phase 0: Pre-B+ Tree filtering)
+        bool bloom_filter_used = false;              // Whether bloom filter was checked
+        double bloom_filter_lookup_us = 0.0;         // Time spent checking bloom filter
+        size_t bloom_filter_checks = 0;              // Number of bloom filter checks
+        size_t bloom_filter_skips = 0;               // Files skipped (definite not present)
+        size_t bloom_filter_passes = 0;              // Files passed to B+ Tree (might be present)
 
         void reset() {
             index_search_us = 0.0;
@@ -82,6 +100,14 @@ public:
             bytes_read = 0;
             
             pruning_time_us = 0.0;
+            row_group_read_us = 0.0;
+            decoding_us = 0.0;
+            processing_us = 0.0;
+            
+            block_filter_us = 0.0;
+            data_extraction_us = 0.0;
+            result_construction_us = 0.0;
+            data_copy_us = 0.0;
             
             // Secondary Index reset
             secondary_index_used = false;
@@ -89,6 +115,13 @@ public:
             secondary_index_build_us = 0.0;
             secondary_index_hits = 0;
             secondary_index_row_groups_selected = 0;
+            
+            // Bloom Filter reset
+            bloom_filter_used = false;
+            bloom_filter_lookup_us = 0.0;
+            bloom_filter_checks = 0;
+            bloom_filter_skips = 0;
+            bloom_filter_passes = 0;
         }
 
         std::string to_string() const {
@@ -114,6 +147,13 @@ public:
             ss << ", Samples: " << samples_scanned;
             ss << ", Blocks: " << blocks_accessed;
             ss << ", CacheHit: " << (cache_hit ? "Yes" : "No");
+            ss << ", BloomFilter: " << (bloom_filter_used ? "Yes" : "No");
+            if (bloom_filter_used) {
+                ss << " (lookup: " << bloom_filter_lookup_us / 1000.0 << "ms";
+                ss << ", checks: " << bloom_filter_checks;
+                ss << ", skips: " << bloom_filter_skips;
+                ss << ", passes: " << bloom_filter_passes << ")";
+            }
             ss << ", SecondaryIdx: " << (secondary_index_used ? "Yes" : "No");
             if (secondary_index_used) {
                 ss << " (lookup: " << secondary_index_lookup_us / 1000.0 << "ms";
@@ -172,6 +212,20 @@ public:
         bytes_skipped_ += metrics.bytes_skipped;
         bytes_read_ += metrics.bytes_read;
         
+        // Active Series Metrics
+        total_active_series_lookup_us_ += metrics.active_series_lookup_us;
+        total_active_series_read_us_ += metrics.active_series_read_us;
+        
+        // Detailed Breakdown
+        total_row_group_read_us_ += metrics.row_group_read_us;
+        total_decoding_us_ += metrics.decoding_us;
+        total_processing_us_ += metrics.processing_us;
+        
+        total_block_filter_us_ += metrics.block_filter_us;
+        total_data_extraction_us_ += metrics.data_extraction_us;
+        total_result_construction_us_ += metrics.result_construction_us;
+        total_data_copy_us_ += metrics.data_copy_us;
+        
         // Secondary Index aggregation
         if (metrics.secondary_index_used) {
             secondary_index_lookups_++;
@@ -182,6 +236,14 @@ public:
         } else if (metrics.row_groups_total > 0) {
             // Index was not used but we had row groups to scan
             secondary_index_misses_++;
+        }
+        
+        // Bloom Filter aggregation
+        if (metrics.bloom_filter_used) {
+            bloom_filter_checks_ += metrics.bloom_filter_checks;
+            bloom_filter_skips_ += metrics.bloom_filter_skips;
+            bloom_filter_passes_ += metrics.bloom_filter_passes;
+            bloom_filter_lookup_time_us_ += metrics.bloom_filter_lookup_us;
         }
         
         // Record to GlobalMetrics for self-monitoring
@@ -196,6 +258,47 @@ public:
         } else {
             tsdb::storage::internal::GlobalMetrics::getInstance().recordCacheMiss();
         }
+    }
+    
+    /**
+     * @brief Record secondary index usage directly (for read_columns path)
+     * This is called when secondary index is used in read_columns() which doesn't
+     * use the full ReadPerformanceMetrics struct.
+     * 
+     * @param hit True if index found the series, false if miss
+     * @param lookup_time_us Time spent in index lookup
+     * @param row_groups_selected Number of row groups selected by index
+     */
+    void recordSecondaryIndexUsage(bool hit, double lookup_time_us = 0, size_t row_groups_selected = 0) {
+        if (!enabled_.load(std::memory_order_relaxed)) return;
+        std::lock_guard<std::mutex> lock(stats_mutex_);
+        secondary_index_lookups_++;
+        if (hit) {
+            secondary_index_hits_++;
+            secondary_index_row_groups_selected_ += row_groups_selected;
+        } else {
+            secondary_index_misses_++;
+        }
+        secondary_index_lookup_time_us_ += lookup_time_us;
+    }
+    
+    /**
+     * @brief Record Bloom filter usage directly (for Phase 0 filtering)
+     * This is called when bloom filter is checked before B+ Tree lookup.
+     * 
+     * @param skipped True if series was definitely not present (file skipped)
+     * @param lookup_time_us Time spent checking bloom filter
+     */
+    void recordBloomFilterUsage(bool skipped, double lookup_time_us = 0) {
+        if (!enabled_.load(std::memory_order_relaxed)) return;
+        std::lock_guard<std::mutex> lock(stats_mutex_);
+        bloom_filter_checks_++;
+        if (skipped) {
+            bloom_filter_skips_++;  // Definite not present - file skipped
+        } else {
+            bloom_filter_passes_++;  // Might be present - proceed to B+ Tree
+        }
+        bloom_filter_lookup_time_us_ += lookup_time_us;
     }
 
     // Getters for SelfMonitor
@@ -218,6 +321,20 @@ public:
         uint64_t bytes_skipped;
         uint64_t bytes_read;
         
+        // Active Series Metrics
+        double total_active_series_lookup_us;
+        double total_active_series_read_us;
+        
+        // Detailed Breakdown
+        double total_row_group_read_us;
+        double total_decoding_us;
+        double total_processing_us;
+        
+        double total_block_filter_us;
+        double total_data_extraction_us;
+        double total_result_construction_us;
+        double total_data_copy_us;
+        
         // Secondary Index Metrics
         uint64_t secondary_index_lookups;
         uint64_t secondary_index_hits;
@@ -225,6 +342,12 @@ public:
         double secondary_index_lookup_time_us;
         double secondary_index_build_time_us;
         uint64_t secondary_index_row_groups_selected;
+        
+        // Bloom Filter Metrics (Phase 0: Pre-B+ Tree filtering)
+        uint64_t bloom_filter_checks;
+        uint64_t bloom_filter_skips;
+        uint64_t bloom_filter_passes;
+        double bloom_filter_lookup_time_us;
     };
 
     AggregateStats get_stats() const {
@@ -245,12 +368,25 @@ public:
             row_groups_read_,
             bytes_skipped_,
             bytes_read_,
+            total_active_series_lookup_us_,
+            total_active_series_read_us_,
+            total_row_group_read_us_,
+            total_decoding_us_,
+            total_processing_us_,
+            total_block_filter_us_,
+            total_data_extraction_us_,
+            total_result_construction_us_,
+            total_data_copy_us_,
             secondary_index_lookups_,
             secondary_index_hits_,
             secondary_index_misses_,
             secondary_index_lookup_time_us_,
             secondary_index_build_time_us_,
-            secondary_index_row_groups_selected_
+            secondary_index_row_groups_selected_,
+            bloom_filter_checks_,
+            bloom_filter_skips_,
+            bloom_filter_passes_,
+            bloom_filter_lookup_time_us_
         };
     }
 
@@ -262,6 +398,15 @@ public:
         total_block_lookup_us_ = 0;
         total_block_read_us_ = 0;
         total_decompression_us_ = 0;
+        total_row_group_read_us_ = 0;
+        total_decoding_us_ = 0;
+        total_processing_us_ = 0;
+        
+        total_block_filter_us_ = 0;
+        total_data_extraction_us_ = 0;
+        total_result_construction_us_ = 0;
+        total_data_copy_us_ = 0;
+        
         total_samples_scanned_ = 0;
         total_blocks_accessed_ = 0;
         cache_hits_ = 0;
@@ -279,6 +424,11 @@ public:
         secondary_index_lookup_time_us_ = 0;
         secondary_index_build_time_us_ = 0;
         secondary_index_row_groups_selected_ = 0;
+        
+        bloom_filter_checks_ = 0;
+        bloom_filter_skips_ = 0;
+        bloom_filter_passes_ = 0;
+        bloom_filter_lookup_time_us_ = 0;
     }
 
 private:
@@ -293,6 +443,15 @@ private:
     double total_block_lookup_us_ = 0;
     double total_block_read_us_ = 0;
     double total_decompression_us_ = 0;
+    double total_row_group_read_us_ = 0;
+    double total_decoding_us_ = 0;
+    double total_processing_us_ = 0;
+    
+    double total_block_filter_us_ = 0;
+    double total_data_extraction_us_ = 0;
+    double total_result_construction_us_ = 0;
+    double total_data_copy_us_ = 0;
+    
     uint64_t total_samples_scanned_ = 0;
     uint64_t total_blocks_accessed_ = 0;
     uint64_t cache_hits_ = 0;
@@ -305,6 +464,10 @@ private:
     uint64_t bytes_skipped_ = 0;
     uint64_t bytes_read_ = 0;
     
+    // Active Series Metrics
+    double total_active_series_lookup_us_ = 0;
+    double total_active_series_read_us_ = 0;
+    
     // Secondary Index Metrics
     uint64_t secondary_index_lookups_ = 0;
     uint64_t secondary_index_hits_ = 0;
@@ -312,6 +475,12 @@ private:
     double secondary_index_lookup_time_us_ = 0;
     double secondary_index_build_time_us_ = 0;
     uint64_t secondary_index_row_groups_selected_ = 0;
+    
+    // Bloom Filter Metrics (Phase 0: Pre-B+ Tree filtering)
+    uint64_t bloom_filter_checks_ = 0;
+    uint64_t bloom_filter_skips_ = 0;
+    uint64_t bloom_filter_passes_ = 0;
+    double bloom_filter_lookup_time_us_ = 0;
 };
 
 class ReadScopedTimer {

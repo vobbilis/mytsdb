@@ -14,6 +14,8 @@
 #include <chrono>
 #include <mutex>
 #include <iostream>
+#include <numeric>  // For std::iota
+#include <algorithm> // For std::sort, std::is_sorted
 
 namespace tsdb {
 namespace storage {
@@ -587,42 +589,48 @@ core::Result<std::map<uint64_t, std::string>> BlockManager::demoteBlocksToParque
     for (const auto& [labels, block] : sorted_blocks) {
         // Read columns (Zero-Copy!)
         auto columns = block->read_columns(labels);
-        const auto& ts = columns.first;
-        const auto& vals = columns.second;
+        auto ts = columns.first;   // Make copies since we may need to sort
+        auto vals = columns.second;
         
         if (ts.empty()) continue;
         
-        // Append to batch
-        batch_timestamps.insert(batch_timestamps.end(), ts.begin(), ts.end());
-        batch_values.insert(batch_values.end(), vals.begin(), vals.end());
+        // IMPORTANT: Sort data by timestamp for Parquet optimization
+        // Parquet predicate pushdown and row group pruning work best with sorted data
+        // This enables min/max statistics to filter out irrelevant row groups
+        if (!std::is_sorted(ts.begin(), ts.end())) {
+            // Create index array for sorting
+            std::vector<size_t> indices(ts.size());
+            std::iota(indices.begin(), indices.end(), 0);
+            std::sort(indices.begin(), indices.end(), 
+                      [&ts](size_t i, size_t j) { return ts[i] < ts[j]; });
+            
+            // Apply sort order to both arrays
+            std::vector<int64_t> sorted_ts(ts.size());
+            std::vector<double> sorted_vals(vals.size());
+            for (size_t i = 0; i < indices.size(); ++i) {
+                sorted_ts[i] = ts[indices[i]];
+                sorted_vals[i] = vals[indices[i]];
+            }
+            ts = std::move(sorted_ts);
+            vals = std::move(sorted_vals);
+        }
         
-        // For tags, we need to repeat them for each sample! 
-        // SchemaMapper::ToRecordBatch expects sample-level tags?
-        // Let's check SchemaMapper.
-        // SchemaMapper::ToRecordBatch takes (timestamps, values, labels).
-        // It internally duplicates labels for each sample (inefficient RLE wise if unchecked, but Parquet handles RLE).
-        // Wait, SchemaMapper::ToRecordBatch takes ONE Labels object.
-        // So we can only write ONE series per call to SchemaMapper::ToRecordBatch.
-        // This defeats the purpose of "Batching multiple series into one Row Group" if ParquetWriter::WriteBatch creates a new Row Group?
-        // No, `writer.WriteBatch` writes a RecordBatch. 
-        // ParquetWriter implementation might buffer?
-        // Let's check ParquetWriter::WriteBatch.
-        // If it calls `GetRecordBatchReader`, it writes.
-        // If we want multiple series in one Row Group, we need to construct a RecordBatch that contains multiple series.
-        // SchemaMapper::ToRecordBatch (singular) creates a batch for 1 series.
-        // We need a SchemaMapper::ToRecordBatch (plural).
+        // Add series to Bloom filter for fast "definitely not present" checks
+        // Build canonical label string for series_id computation
+        std::vector<std::pair<std::string, std::string>> sorted_labels;
+        for (const auto& [k, v] : labels.map()) {
+            sorted_labels.emplace_back(k, v);
+        }
+        std::sort(sorted_labels.begin(), sorted_labels.end());
+        std::string labels_str;
+        for (const auto& [k, v] : sorted_labels) {
+            if (!labels_str.empty()) labels_str += ",";
+            labels_str += k + "=" + v;
+        }
+        writer.AddSeriesToBloomFilterByLabels(labels_str);
         
-        // For now, let's just write series by series.
-        // If ParquetWriter does NOT flush row group on every WriteBatch, we are good.
-        // If it DOES flush, we still have small row groups.
-        // Arrow Parquet Writer generally buffers until RowGroupSize is reached.
-        // So calling WriteBatch multiple times with small batches is FINE, *provided* we don't force a flush.
-        // My ParquetWriter wrapper `WriteBatch` calls `writer_->WriteRecordBatch(*batch)`.
-        // This usually appends to the current Row Group.
-        
-        // So, we just need to iterate and write.
-        // Sorting by Labels ensures they are contiguous in the Row Group.
-        
+        // Write series data - already sorted by Labels at outer level, now sorted by timestamp within
+        // Arrow Parquet writer buffers multiple WriteBatch calls until RowGroupSize is reached
         auto batch = parquet::SchemaMapper::ToRecordBatch(ts, vals, labels.map());
         writer.WriteBatch(batch);
     }

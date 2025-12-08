@@ -16,9 +16,16 @@ core::Result<void> Index::add_series(core::SeriesID id, const core::Labels& labe
     series_labels_[id] = labels;
     
     // Add to inverted index for each label pair
+    // Insert in sorted order to avoid sorting on every query
     for (const auto& [key, value] : labels.map()) {
         auto label_pair = std::make_pair(key, value);
-        postings_[label_pair].push_back(id);
+        auto& posting_list = postings_[label_pair];
+        // Binary search to find insertion point (maintain sorted order)
+        auto insert_pos = std::lower_bound(posting_list.begin(), posting_list.end(), id);
+        // Only insert if not already present
+        if (insert_pos == posting_list.end() || *insert_pos != id) {
+            posting_list.insert(insert_pos, id);
+        }
     }
     
     return core::Result<void>();
@@ -79,17 +86,16 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
             }
 
             if (!candidates_initialized) {
+                // Postings lists are now maintained in sorted order at insert time
                 candidates = it->second;
-                std::sort(candidates.begin(), candidates.end());
                 candidates_initialized = true;
             } else {
                 // Intersect with existing candidates
-                // Note: postings lists are NOT sorted because SeriesID is a hash
-                // We must sort before using set_intersection
-                std::vector<core::SeriesID> current_posting = it->second;
-                std::sort(current_posting.begin(), current_posting.end());
+                // Postings lists are pre-sorted, so no sorting needed here
+                const auto& current_posting = it->second;
                 
                 std::vector<core::SeriesID> intersection;
+                intersection.reserve(std::min(candidates.size(), current_posting.size()));
                 std::set_intersection(
                     candidates.begin(), candidates.end(),
                     current_posting.begin(), current_posting.end(),
@@ -181,6 +187,31 @@ core::Result<core::Labels> Index::get_labels(core::SeriesID id) {
         return core::Result<core::Labels>(it->second);
     }
     return core::Result<core::Labels>::error("Series not found");
+}
+
+core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>> Index::find_series_with_labels(
+    const std::vector<core::LabelMatcher>& matchers) {
+    
+    // First get the series IDs using existing logic (already holds lock internally)
+    auto ids_result = find_series(matchers);
+    if (!ids_result.ok()) {
+        return core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>>::error(ids_result.error());
+    }
+    
+    const auto& ids = ids_result.value();
+    std::vector<std::pair<core::SeriesID, core::Labels>> results;
+    results.reserve(ids.size());
+    
+    // Single lock acquisition for ALL label lookups
+    std::shared_lock<std::shared_mutex> lock(mutex_);
+    for (const auto& id : ids) {
+        auto it = series_labels_.find(id);
+        if (it != series_labels_.end()) {
+            results.emplace_back(id, it->second);
+        }
+    }
+    
+    return core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>>(std::move(results));
 }
 
 } // namespace storage

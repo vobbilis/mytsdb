@@ -189,6 +189,13 @@ if(BUILD_TESTS)
         include(GoogleTest)
         enable_testing()
         set(HAVE_GTEST TRUE)
+        
+        # Configure CTest custom settings
+        configure_file(
+            ${CMAKE_CURRENT_SOURCE_DIR}/cmake/CTestCustom.cmake.in
+            ${CMAKE_BINARY_DIR}/CTestCustom.cmake
+            @ONLY
+        )
     else()
         message(STATUS "GTest not found, skipping tests")
         set(BUILD_TESTS OFF)

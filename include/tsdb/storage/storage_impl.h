@@ -200,8 +200,11 @@ public:
 
     /**
      * @brief Execute background flush (public for testing)
+     * @param threshold_ms Age threshold in milliseconds. Blocks older than this are demoted.
+     *                     -1 = use config_.block_config.demotion_threshold (default 60000ms)
+     *                      0 = force immediate demotion of all sealed blocks
      */
-    core::Result<void> execute_background_flush(int64_t threshold_ms = 60000);
+    core::Result<void> execute_background_flush(int64_t threshold_ms = -1);
 
     /**
      * @brief Execute background compaction (public for testing)
@@ -256,6 +259,9 @@ private:
     // Block indexing for fast lookups
     std::map<core::Labels, std::vector<std::shared_ptr<internal::BlockInternal>>> label_to_blocks_;
     std::map<std::shared_ptr<internal::BlockInternal>, std::set<core::SeriesID>> block_to_series_;
+    // Track when each block was sealed (wall-clock time) for hot/cold tiering
+    // Key: block pointer, Value: seal time in milliseconds since epoch
+    std::map<std::shared_ptr<internal::BlockInternal>, int64_t> block_seal_times_;
     size_t total_blocks_created_;
     
     // Block lifecycle management

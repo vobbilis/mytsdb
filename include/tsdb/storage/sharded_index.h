@@ -42,6 +42,10 @@ public:
     // Get labels for a series ID
     core::Result<core::Labels> get_labels(core::SeriesID id);
     
+    // Optimized: Returns series IDs with their labels in a single operation
+    core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>> find_series_with_labels(
+        const std::vector<core::LabelMatcher>& matchers);
+    
     // Get stats
     IndexStats get_stats() const;
 

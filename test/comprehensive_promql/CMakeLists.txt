@@ -32,5 +32,6 @@ gtest_discover_tests(comprehensive_promql_test_harness
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_SOURCE_DIR}/test/data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 120
 )

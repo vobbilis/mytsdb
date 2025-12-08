@@ -61,6 +61,25 @@ core::Result<core::Labels> ShardedIndex::get_labels(core::SeriesID id) {
     return shards_[shard_idx]->get_labels(id);
 }
 
+core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>> ShardedIndex::find_series_with_labels(
+    const std::vector<core::LabelMatcher>& matchers) {
+    
+    metrics_.total_lookups++;
+    
+    std::vector<std::pair<core::SeriesID, core::Labels>> result;
+    
+    // Scatter-Gather from all shards - each shard returns IDs+Labels together
+    for (const auto& shard : shards_) {
+        auto shard_result = shard->find_series_with_labels(matchers);
+        if (shard_result.ok()) {
+            const auto& shard_data = shard_result.value();
+            result.insert(result.end(), shard_data.begin(), shard_data.end());
+        }
+    }
+    
+    return core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>>(std::move(result));
+}
+
 IndexStats ShardedIndex::get_stats() const {
     return IndexStats{
         metrics_.total_series.load(),

@@ -49,6 +49,7 @@ set_tests_properties(prometheus_http_server PROPERTIES
     TIMEOUT 60
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     FIXTURES_REQUIRED test_env
+    RESOURCE_LOCK HTTP_PORT
 )
 
 set_tests_properties(prometheus_labels_api PROPERTIES

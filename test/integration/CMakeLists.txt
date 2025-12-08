@@ -286,7 +286,42 @@ target_link_libraries(tsdb_secondary_index_integration_test
         GTest::gtest_main
 )
 
-gtest_discover_tests(tsdb_secondary_index_integration_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+gtest_discover_tests(tsdb_secondary_index_integration_test 
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        RESOURCE_LOCK TSDB_STORAGE
+        TIMEOUT 300
+)
+
+# Bloom Filter + B+ Tree Integration Test - tests Phase 0 + Phase 1 working together
+add_executable(tsdb_bloom_btree_integration_test
+    parquet/bloom_btree_integration_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_bloom_btree_integration_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_bloom_btree_integration_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+        Arrow::arrow_shared
+        Parquet::parquet_shared
+        GTest::gtest
+        GTest::gtest_main
+)
+
+gtest_discover_tests(tsdb_bloom_btree_integration_test 
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        RESOURCE_LOCK TSDB_STORAGE
+        TIMEOUT 300
+)
 
 # Query instrumentation integration test
 add_executable(tsdb_query_instrumentation_integration_test
@@ -402,6 +437,7 @@ gtest_discover_tests(tsdb_integration_test_suite
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 1800  # 30 minutes timeout for integration tests
 )
 
@@ -409,6 +445,7 @@ gtest_discover_tests(tsdb_core_storage_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for core-storage integration tests
 )
 
@@ -416,6 +453,7 @@ gtest_discover_tests(tsdb_storage_histogram_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for storage-histogram integration tests
 )
 
@@ -423,6 +461,7 @@ gtest_discover_tests(tsdb_config_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_CONFIG
         TIMEOUT 300   # 5 minutes timeout for config integration tests
 )
 
@@ -476,6 +515,7 @@ gtest_discover_tests(tsdb_query_instrumentation_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for query instrumentation tests
 )
 
@@ -503,6 +543,7 @@ gtest_discover_tests(tsdb_storage_persistence_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for storage persistence tests
 )
 
@@ -530,5 +571,6 @@ gtest_discover_tests(tsdb_storage_demotion_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for storage demotion tests
 )

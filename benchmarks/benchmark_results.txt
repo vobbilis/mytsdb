@@ -1,48 +1,24 @@
 
 === K8s Combined Benchmark ===
-Preset: medium
-Total Pods: 2400
-Total Time Series: 480000
-Write Workers: 0
-Read Workers: 8
-Write Duration: 60s
-Read Duration: 60s
+Preset: quick
+Total Pods: 12
+Total Time Series: 240
+Write Workers: 4
+Read Workers: 4
+Write Duration: 10s
+Read Duration: 10s
+Clean Start: no
+Generate 10M: no
 
 === Phase 1: Write Warm-up ===
+Worker 2: Failed to open DoPut stream: Worker Worker 1: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable3: Failed to open DoPut stream: 
+IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
+Worker IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
+0: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_status:14, grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused"}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
 Warm-up writes: 0 samples
 
 === Phase 2: Combined Write+Read ===
-[10s] Writes: 0 samples/sec, Reads: 0 queries/sec
-[20s] Writes: 0 samples/sec, Reads: 0 queries/sec
-[30s] Writes: 0 samples/sec, Reads: 0 queries/sec
-[40s] Writes: 0 samples/sec, Reads: 0 queries/sec
-[50s] Writes: 0 samples/sec, Reads: 0 queries/sec
-[60s] Writes: 0 samples/sec, Reads: 0 queries/sec
-
-=== Phase 3: Read Cool-down ===
-Cool-down queries: 0
-
-========================================
-         BENCHMARK RESULTS
-========================================
-
---- Write Performance ---
-Total Samples: 0
-Throughput: 0 samples/sec
-Latency p50: 0.00 ms
-Latency p99: 0.00 ms
-Latency max: 0.00 ms
-
---- Read Performance ---
-Total Queries: 0
-Throughput: 0.0 queries/sec
-Latency p50: 0.00 ms
-Latency p99: 0.00 ms
-Latency max: 0.00 ms
-
---- SLA Compliance ---
-Write p99 < 100ms: PASS
-Read p50 < 50ms:   PASS
-Read p99 < 500ms:  PASS
-========================================
-
+Worker 1: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_status:14, grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused"}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
+Worker 0: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
+Worker 2: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable
+Worker 3: Failed to open DoPut stream: IOError: Flight returned unavailable error, with message: failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused. gRPC client debug context: UNKNOWN:Error received from peer  {grpc_message:"failed to connect to all addresses; last error: UNKNOWN: ipv4:127.0.0.1:8815: Failed to connect to remote host: Connection refused", grpc_status:14}. Additionally, could not finish writing record batches before closing. Client context: IOError: Could not write record batch to stream (server disconnect?). Detail: flight::ServerErrorTagStatusDetail. Detail: Unavailable

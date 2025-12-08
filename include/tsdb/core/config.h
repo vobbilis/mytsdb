@@ -254,7 +254,7 @@ struct BackgroundConfig {
         config.enable_background_processing = true;
         config.background_threads = 2;
         config.task_interval = std::chrono::milliseconds(1000);
-        config.compaction_interval = std::chrono::milliseconds(60000);    // 1 minute
+        config.compaction_interval = std::chrono::milliseconds(10000);    // 10 seconds (was 60s)
         config.cleanup_interval = std::chrono::milliseconds(300000);      // 5 minutes
         config.metrics_interval = std::chrono::milliseconds(10000);       // 10 seconds
         config.enable_auto_compaction = true;

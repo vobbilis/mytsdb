@@ -1,6 +1,7 @@
 #include "tsdb/storage/parquet/parquet_block.hpp"
 #include "tsdb/storage/parquet/schema_mapper.hpp"
 #include "tsdb/storage/parquet/secondary_index.h"
+#include "tsdb/storage/parquet/bloom_filter_manager.h"
 #include "tsdb/storage/read_performance_instrumentation.h"
 #include "tsdb/storage/parquet_catalog.h"
 #include "tsdb/core/matcher.h"
@@ -138,8 +139,46 @@ core::TimeSeries ParquetBlock::read(const core::Labels& labels) const {
 std::pair<std::vector<int64_t>, std::vector<double>> ParquetBlock::read_columns(const core::Labels& labels) const {
     std::lock_guard<std::mutex> lock(mutex_);
     
+    // Build canonical label string for SeriesID computation (needed by both Bloom and B+ Tree)
+    std::vector<std::pair<std::string, std::string>> sorted_labels;
+    for (const auto& [k, v] : labels.map()) {
+        sorted_labels.emplace_back(k, v);
+    }
+    std::sort(sorted_labels.begin(), sorted_labels.end());
+    
+    std::string labels_str;
+    for (const auto& [k, v] : sorted_labels) {
+        if (!labels_str.empty()) labels_str += ",";
+        labels_str += k + "=" + v;
+    }
+    core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+    
     // =========================================================================
-    // PHASE A: Use Secondary Index for O(log n) row group selection
+    // PHASE 0: Bloom Filter Check - O(1) "definitely not present" test
+    // =========================================================================
+    auto bloom_start = std::chrono::high_resolution_clock::now();
+    auto bloom_filter = BloomFilterCache::Instance().GetOrLoad(path_);
+    if (bloom_filter && bloom_filter->IsValid()) {
+        if (!bloom_filter->MightContain(series_id)) {
+            // Series is DEFINITELY NOT in this file - skip entirely!
+            auto bloom_end = std::chrono::high_resolution_clock::now();
+            double bloom_time_us = std::chrono::duration_cast<std::chrono::nanoseconds>(bloom_end - bloom_start).count() / 1000.0;
+            
+            // Record metrics: skipped (definite not present)
+            ReadPerformanceInstrumentation::instance().recordBloomFilterUsage(true, bloom_time_us);
+            
+            return {}; // Empty result - series not present
+        }
+        // Bloom says "might be present" - continue to B+ Tree lookup
+        auto bloom_end = std::chrono::high_resolution_clock::now();
+        double bloom_time_us = std::chrono::duration_cast<std::chrono::nanoseconds>(bloom_end - bloom_start).count() / 1000.0;
+        
+        // Record metrics: passed (might be present)
+        ReadPerformanceInstrumentation::instance().recordBloomFilterUsage(false, bloom_time_us);
+    }
+    
+    // =========================================================================
+    // PHASE 1: B+ Tree Secondary Index - O(log n) row group selection
     // =========================================================================
     
     if (reader_) {
@@ -160,64 +199,96 @@ std::pair<std::vector<int64_t>, std::vector<double>> ParquetBlock::read_columns(
     bool use_index = false;
     
     if (index) {
-        // Build canonical label string for SeriesID computation
-        std::vector<std::pair<std::string, std::string>> sorted_labels;
-        for (const auto& [k, v] : labels.map()) {
-            sorted_labels.emplace_back(k, v);
-        }
-        std::sort(sorted_labels.begin(), sorted_labels.end());
-        
-        std::string labels_str;
-        for (const auto& [k, v] : sorted_labels) {
-            if (!labels_str.empty()) labels_str += ",";
-            labels_str += k + "=" + v;
-        }
-        
-        core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+        // Time the index lookup
+        auto lookup_start = std::chrono::high_resolution_clock::now();
         auto locations = index->Lookup(series_id);
+        auto lookup_end = std::chrono::high_resolution_clock::now();
+        double lookup_time_us = std::chrono::duration<double, std::micro>(lookup_end - lookup_start).count();
         
         if (!locations.empty()) {
             use_index = true;
             for (const auto& loc : locations) {
                 target_row_groups.insert(loc.row_group_id);
             }
-            spdlog::debug("read_columns: Secondary index hit, {} row groups to scan", target_row_groups.size());
+            // Record secondary index HIT in global stats
+            ReadPerformanceInstrumentation::instance().recordSecondaryIndexUsage(
+                true, lookup_time_us, target_row_groups.size());
+        } else {
+            // Record secondary index MISS in global stats
+            ReadPerformanceInstrumentation::instance().recordSecondaryIndexUsage(
+                false, lookup_time_us, 0);
         }
     }
     
+    // Get current metrics for detailed instrumentation
+    auto* metrics = ReadPerformanceInstrumentation::GetCurrentMetrics();
+
     // Read batches - either from targeted row groups or all
     int current_row_group = 0;
     while (true) {
         std::shared_ptr<arrow::RecordBatch> batch;
+        
+        // Instrument I/O
+        auto io_start = std::chrono::high_resolution_clock::now();
         auto result = reader_->ReadBatch(&batch);
+        if (metrics) {
+             auto io_end = std::chrono::high_resolution_clock::now();
+             metrics->row_group_read_us += std::chrono::duration<double, std::micro>(io_end - io_start).count();
+        }
+
         if (!result.ok()) {
             throw std::runtime_error("Failed to read batch: " + result.error());
         }
         if (!batch) break; // EOF
         
+        int this_row_group = current_row_group++;
+
         // If using index, skip row groups not in our target set
-        if (use_index && target_row_groups.find(current_row_group) == target_row_groups.end()) {
-            current_row_group++;
-            continue;
+        if (use_index) {
+             bool is_target = target_row_groups.find(this_row_group) != target_row_groups.end();
+             if (!is_target) {
+                continue;
+             }
         }
-        current_row_group++;
         
-        auto tags_res = SchemaMapper::ExtractTags(batch);
-        if (!tags_res.ok()) continue;
-        core::Labels batch_labels(tags_res.value());
+        if (metrics) {
+            metrics->row_groups_read++;
+        }
         
-        if (batch_labels == labels) {
-             // We found the series, extract columns
-            auto samples_res = SchemaMapper::ToSamples(batch);
-            if (!samples_res.ok()) continue;
-            auto samples = samples_res.value();
+        // Use ToSeriesMap to handle batches containing multiple series
+        // Instrument Decoding
+        auto decode_start = std::chrono::high_resolution_clock::now();
+        auto series_map_res = SchemaMapper::ToSeriesMap(batch);
+        if (metrics) {
+             auto decode_end = std::chrono::high_resolution_clock::now();
+             metrics->decoding_us += std::chrono::duration<double, std::micro>(decode_end - decode_start).count();
+        }
+
+        if (!series_map_res.ok()) {
+             continue;
+        }
+        auto batch_series_map = series_map_res.value();
+
+        // Instrument Processing
+        auto proc_start = std::chrono::high_resolution_clock::now();
+        for (const auto& [tags, samples] : batch_series_map) {
+            core::Labels batch_labels(tags);
             
-            for (const auto& sample : samples) {
-                if (sample.timestamp() >= header_.start_time && sample.timestamp() <= header_.end_time) {
-                    timestamps.push_back(sample.timestamp());
-                    values.push_back(sample.value());
+            if (batch_labels == labels) {
+                if (metrics) {
+                    metrics->samples_scanned += samples.size();
+                }
+                for (const auto& sample : samples) {
+                    if (sample.timestamp() >= header_.start_time && sample.timestamp() <= header_.end_time) {
+                        timestamps.push_back(sample.timestamp());
+                        values.push_back(sample.value());
+                    }
                 }
             }
+        }
+        if (metrics) {
+             auto proc_end = std::chrono::high_resolution_clock::now();
+             metrics->processing_us += std::chrono::duration<double, std::micro>(proc_end - proc_start).count();
         }
     }
     
@@ -371,20 +442,28 @@ std::vector<core::TimeSeries> ParquetBlock::query(
 
         // 2. Read full data for matching row group
         // Note: Per-row tag filtering is done after reading via ToSeriesMap
+        auto rg_read_start = std::chrono::high_resolution_clock::now();
         auto batch_res = reader_->ReadRowGroup(i);
         if (!batch_res.ok()) {
             throw std::runtime_error("Failed to read row group: " + batch_res.error());
         }
         auto batch = batch_res.value();
+        auto rg_read_end = std::chrono::high_resolution_clock::now();
+        m.row_group_read_us += std::chrono::duration<double, std::micro>(rg_read_end - rg_read_start).count();
+
         m.row_groups_read++;
         m.bytes_read += rg_byte_size;
         
         // Use ToSeriesMap to properly extract samples grouped by their actual per-row tags
+        auto decode_start = std::chrono::high_resolution_clock::now();
         auto series_map_res = SchemaMapper::ToSeriesMap(batch);
         if (!series_map_res.ok()) continue;
         auto batch_series_map = series_map_res.value();
+        auto decode_end = std::chrono::high_resolution_clock::now();
+        m.decoding_us += std::chrono::duration<double, std::micro>(decode_end - decode_start).count();
         
         // Process each series in the batch
+        auto proc_start = std::chrono::high_resolution_clock::now();
         for (auto& [tags, samples] : batch_series_map) {
             m.samples_scanned += samples.size();
             
@@ -415,6 +494,8 @@ std::vector<core::TimeSeries> ParquetBlock::query(
                 }
             }
         }
+        auto proc_end = std::chrono::high_resolution_clock::now();
+        m.processing_us += std::chrono::duration<double, std::micro>(proc_end - proc_start).count();
     }
     
     // Sort and add samples to time series in chronological order

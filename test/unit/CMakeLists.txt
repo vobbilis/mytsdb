@@ -62,6 +62,15 @@ if(HAVE_ARROW)
     target_link_libraries(tsdb_secondary_index_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
     gtest_discover_tests(tsdb_secondary_index_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
+    # Bloom Filter unit tests - Phase 0
+    add_executable(tsdb_bloom_filter_unit_tests
+        ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/bloom_filter_test.cpp
+        ${CMAKE_SOURCE_DIR}/test/main.cpp
+    )
+    target_include_directories(tsdb_bloom_filter_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
+    target_link_libraries(tsdb_bloom_filter_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
+    gtest_discover_tests(tsdb_bloom_filter_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
     add_executable(tsdb_parquet_advanced_unit_tests
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/advanced_test.cpp
         ${CMAKE_SOURCE_DIR}/test/main.cpp
@@ -162,6 +171,7 @@ gtest_discover_tests(tsdb_sharded_wal_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
 )
 
 # Sharded index unit tests
@@ -297,6 +307,7 @@ if(HAVE_RAPIDJSON)
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTIES
             ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+            RESOURCE_LOCK HTTP_PORT
     )
 endif()
     
@@ -717,12 +728,14 @@ gtest_discover_tests(tsdb_storage_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
 )
 
 gtest_discover_tests(tsdb_integration_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_STORAGE
 )
 
 
@@ -763,6 +776,7 @@ gtest_discover_tests(tsdb_background_processor_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        RESOURCE_LOCK TSDB_THREADS
 )
 
 gtest_discover_tests(tsdb_lock_free_queue_unit_tests

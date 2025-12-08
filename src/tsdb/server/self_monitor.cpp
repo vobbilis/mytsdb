@@ -178,6 +178,18 @@ void SelfMonitor::ScrapeAndWrite() {
     add_metric("mytsdb_read_blocks_accessed_total", read_stats.total_blocks_accessed, "counter");
     add_metric("mytsdb_read_cache_hits_total", read_stats.cache_hits, "counter");
     
+    // Detailed Read Breakdown
+    add_metric("mytsdb_read_active_series_lookup_seconds_total", read_stats.total_active_series_lookup_us / 1e6, "counter");
+    add_metric("mytsdb_read_active_series_read_seconds_total", read_stats.total_active_series_read_us / 1e6, "counter");
+    add_metric("mytsdb_read_row_group_read_seconds_total", read_stats.total_row_group_read_us / 1e6, "counter");
+    add_metric("mytsdb_read_decoding_seconds_total", read_stats.total_decoding_us / 1e6, "counter");
+    add_metric("mytsdb_read_processing_seconds_total", read_stats.total_processing_us / 1e6, "counter");
+    
+    add_metric("mytsdb_read_block_filter_seconds_total", read_stats.total_block_filter_us / 1e6, "counter");
+    add_metric("mytsdb_read_data_extraction_seconds_total", read_stats.total_data_extraction_us / 1e6, "counter");
+    add_metric("mytsdb_read_result_construction_seconds_total", read_stats.total_result_construction_us / 1e6, "counter");
+    add_metric("mytsdb_read_data_copy_seconds_total", read_stats.total_data_copy_us / 1e6, "counter");
+    
     // Secondary Index Metrics (Phase A: B+ Tree)
     add_metric("mytsdb_secondary_index_lookups_total", read_stats.secondary_index_lookups, "counter");
     add_metric("mytsdb_secondary_index_hits_total", read_stats.secondary_index_hits, "counter");
@@ -185,6 +197,12 @@ void SelfMonitor::ScrapeAndWrite() {
     add_metric("mytsdb_secondary_index_lookup_seconds_total", read_stats.secondary_index_lookup_time_us / 1e6, "counter");
     add_metric("mytsdb_secondary_index_build_seconds_total", read_stats.secondary_index_build_time_us / 1e6, "counter");
     add_metric("mytsdb_secondary_index_row_groups_selected_total", read_stats.secondary_index_row_groups_selected, "counter");
+    
+    // Bloom Filter Metrics (Phase 0: Pre-B+ Tree filtering)
+    add_metric("mytsdb_bloom_filter_checks_total", read_stats.bloom_filter_checks, "counter");
+    add_metric("mytsdb_bloom_filter_skips_total", read_stats.bloom_filter_skips, "counter");
+    add_metric("mytsdb_bloom_filter_passes_total", read_stats.bloom_filter_passes, "counter");
+    add_metric("mytsdb_bloom_filter_lookup_seconds_total", read_stats.bloom_filter_lookup_time_us / 1e6, "counter");
 
     std::cout << "[SelfMonitor] Writing " << metrics.size() << " metric series to storage..." << std::endl;
     

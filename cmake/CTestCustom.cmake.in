@@ -1,0 +1,32 @@
+# ============================================================================
+# CTest Custom Configuration
+# ============================================================================
+# This file configures CTest behavior for the TSDB project.
+# It is automatically copied to the build directory by CMake.
+
+# Limit default parallel test execution to 2 jobs
+# Individual tests may override this with RUN_SERIAL property
+set(CTEST_PARALLEL_LEVEL 2 CACHE STRING "Number of parallel tests to run")
+
+# Custom pre-test script (if needed)
+# set(CTEST_CUSTOM_PRE_TEST "")
+
+# Custom post-test script (if needed)
+# set(CTEST_CUSTOM_POST_TEST "")
+
+# Tests that should be excluded from memcheck
+set(CTEST_CUSTOM_MEMCHECK_IGNORE
+    benchmark_promql_cache  # Long-running benchmark
+    benchmark_scale         # Resource-intensive
+)
+
+# Additional test output for failures
+set(CTEST_CUSTOM_MAXIMUM_FAILED_TEST_OUTPUT_SIZE 102400)  # 100KB
+set(CTEST_CUSTOM_MAXIMUM_PASSED_TEST_OUTPUT_SIZE 10240)   # 10KB
+
+# Coverage exclusions
+set(CTEST_CUSTOM_COVERAGE_EXCLUDE
+    ".*/test/.*"
+    ".*/build/.*"
+    ".*_deps/.*"
+)

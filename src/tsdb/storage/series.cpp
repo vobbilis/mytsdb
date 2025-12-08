@@ -1,5 +1,6 @@
 #include "tsdb/storage/series.h"
 #include "tsdb/storage/internal/block_impl.h"
+#include "tsdb/common/logger.h"
 #include <algorithm>
 
 namespace tsdb {
@@ -42,10 +43,10 @@ bool Series::append(const core::Sample& sample) {
     // Append the sample to the current block using the block's append method
     current_block_->append(metadata_.labels, sample);
 
-    // A real implementation would check if the block is full based on size or number of samples.
-    // For now, we'll simulate this by sealing the block after a certain number of samples.
-    // This logic will be properly implemented in Phase 3.
-    return current_block_->num_samples() >= 120; // Placeholder for "is full" logic
+    // Block is "full" when it reaches a reasonable size for efficient Parquet storage
+    // 10,000 samples per block balances write latency vs file count
+    // With 15s scrape interval, this covers ~41 hours of data per series per block
+    return current_block_->num_samples() >= 10000;
 }
 
 std::shared_ptr<internal::BlockImpl> Series::seal_block() {
@@ -60,6 +61,7 @@ std::shared_ptr<internal::BlockImpl> Series::seal_block() {
 
     auto sealed_block = current_block_;
     blocks_.push_back(sealed_block); // Keep track of historical blocks
+    TSDB_DEBUG("Series::seal_block() - Added block to blocks_, size now: " + std::to_string(blocks_.size()));
     current_block_ = nullptr; // The series is now ready for a new head block
 
     return sealed_block;

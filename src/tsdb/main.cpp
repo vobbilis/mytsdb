@@ -66,6 +66,11 @@ public:
         config.block_size = 1024 * 1024;  // 1MB
         config.enable_compression = true;
         
+        // Enable background processing with aggressive compaction
+        config.background_config = core::BackgroundConfig::Default();
+        config.background_config.enable_auto_compaction = true;
+        config.background_config.compaction_interval = std::chrono::milliseconds(10000);  // 10 seconds
+        
         // 1. Create Base Storage (StorageImpl)
         auto base_storage = std::make_shared<storage::StorageImpl>();
         

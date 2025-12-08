@@ -1,6 +1,7 @@
 #include "tsdb/storage/parquet/writer.hpp"
 #include <arrow/io/file.h>
 #include <parquet/arrow/writer.h>
+#include <spdlog/spdlog.h>
 
 namespace tsdb {
 namespace storage {
@@ -18,6 +19,7 @@ ParquetWriter::~ParquetWriter() {
 }
 
 core::Result<void> ParquetWriter::Open(const std::string& path, std::shared_ptr<arrow::Schema> schema, int64_t max_row_group_length) {
+    path_ = path;
     schema_ = schema;
     
     // Open file output stream
@@ -27,27 +29,41 @@ core::Result<void> ParquetWriter::Open(const std::string& path, std::shared_ptr<
     }
     outfile_ = *outfile_result;
 
-    // Create Parquet writer
-    // Configure Writer Properties
+    // Create Parquet writer with optimized properties
     ::parquet::WriterProperties::Builder builder;
     builder.compression(::parquet::Compression::ZSTD);
     builder.enable_dictionary();
     builder.max_row_group_length(max_row_group_length);
     
+    // Enable statistics for all columns - helps with min/max pruning for time range queries
+    builder.enable_statistics();
+    
+    // Enable page index for better predicate pushdown
+    builder.enable_write_page_index();
+    
     std::shared_ptr<::parquet::WriterProperties> props = builder.build();
+    
+    // Configure Arrow writer properties for better statistics
+    auto arrow_props = ::parquet::ArrowWriterProperties::Builder()
+        .store_schema()  // Store Arrow schema for better interop
+        ->build();
 
     auto result = ::parquet::arrow::FileWriter::Open(
         *schema_,
         arrow::default_memory_pool(),
         outfile_,
         props,
-        ::parquet::default_arrow_writer_properties()
+        arrow_props
     );
 
     if (!result.ok()) {
         return core::Result<void>::error("Failed to create Parquet writer: " + result.status().ToString());
     }
     writer_ = std::move(result).ValueOrDie();
+    
+    // Create Bloom filter for this file
+    bloom_filter_ = std::make_unique<BloomFilterManager>();
+    bloom_filter_->CreateFilter();  // Use default NDV and FPP
 
     return core::Result<void>();
 }
@@ -67,7 +83,17 @@ core::Result<void> ParquetWriter::WriteBatch(std::shared_ptr<arrow::RecordBatch>
     return core::Result<void>();
 }
 
+void ParquetWriter::AddSeriesToBloomFilter(core::SeriesID series_id) {
+    if (bloom_filter_) {
+        bloom_filter_->AddSeriesId(series_id);
+    }
+}
 
+void ParquetWriter::AddSeriesToBloomFilterByLabels(const std::string& labels_str) {
+    if (bloom_filter_) {
+        bloom_filter_->AddSeriesByLabels(labels_str);
+    }
+}
 
 core::Result<void> ParquetWriter::Close() {
     if (writer_) {
@@ -84,6 +110,16 @@ core::Result<void> ParquetWriter::Close() {
             return core::Result<void>::error("Failed to close file: " + status.ToString());
         }
         outfile_.reset();
+    }
+    
+    // Save Bloom filter alongside Parquet file
+    if (bloom_filter_ && !path_.empty()) {
+        if (bloom_filter_->GetEntriesAdded() > 0) {
+            if (!bloom_filter_->SaveFilter(path_)) {
+                spdlog::warn("[ParquetWriter] Failed to save Bloom filter for {}", path_);
+            }
+        }
+        bloom_filter_.reset();
     }
 
     return core::Result<void>();

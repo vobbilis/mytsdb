@@ -20,6 +20,10 @@ public:
     core::Result<void> remove_series(core::SeriesID id);
     core::Result<std::vector<core::SeriesID>> find_series(const std::vector<core::LabelMatcher>& matchers);
     core::Result<core::Labels> get_labels(core::SeriesID id);
+    
+    // Optimized: Returns series IDs with their labels in a single lock acquisition
+    core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>> find_series_with_labels(
+        const std::vector<core::LabelMatcher>& matchers);
 
 private:
     // The inverted index: maps a label pair to a sorted list of series IDs.

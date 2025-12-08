@@ -6,6 +6,13 @@ storage:
   max_blocks_to_compact: 3
   cache_size: 1073741824  # 1GB
   enable_compression: true
+  
+  # Hot/Cold tiering - CRITICAL FOR READ PERFORMANCE
+  # Data younger than demotion_threshold stays in memory (fast reads)
+  # Data older than demotion_threshold is demoted to Parquet (cold storage)
+  # NOTE: Threshold is based on block SEAL time, not data timestamp
+  # Set very high (1 hour = 3600000ms) to keep hot data in memory during benchmarks
+  demotion_threshold: 3600000  # 1 hour in ms - blocks stay in memory for 1h after sealing
 
   # Retention configuration
   retention:
