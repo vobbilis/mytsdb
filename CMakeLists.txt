@@ -220,7 +220,13 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Compiler flags
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra")
+    # Suppress all warnings as requested
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -w")
+    
+    # Suppress unused argument warnings (specifically for AVX flags on macOS Clang)
+    if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Qunused-arguments")
+    endif()
     # Remove -Werror for now to allow build with warnings
     set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
     set(CMAKE_CXX_FLAGS_RELEASE "-O3")
