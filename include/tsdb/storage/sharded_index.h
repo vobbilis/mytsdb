@@ -5,20 +5,42 @@
 #include <memory>
 #include <atomic>
 #include "tsdb/storage/index.h"
+#include "tsdb/storage/index_metrics.h"
 #include "tsdb/core/result.h"
 #include "tsdb/core/types.h"
+#include "tsdb/core/matcher.h"
 
 namespace tsdb {
 namespace storage {
 
+// Basic stats for external API compatibility
 struct IndexStats {
     uint64_t total_series;
     uint64_t total_lookups;
 };
 
-struct IndexMetrics {
-    std::atomic<uint64_t> total_series{0};
-    std::atomic<uint64_t> total_lookups{0};
+// Aggregated metrics from all shards
+struct AggregatedIndexMetrics {
+    // Counts
+    uint64_t total_add_count{0};
+    uint64_t total_lookup_count{0};
+    uint64_t total_intersect_count{0};
+    
+    // Timing in microseconds
+    uint64_t total_add_time_us{0};
+    uint64_t total_lookup_time_us{0};
+    uint64_t total_intersect_time_us{0};
+    
+    // Computed averages in microseconds
+    double avg_add_time_us() const { 
+        return total_add_count > 0 ? static_cast<double>(total_add_time_us) / total_add_count : 0.0; 
+    }
+    double avg_lookup_time_us() const { 
+        return total_lookup_count > 0 ? static_cast<double>(total_lookup_time_us) / total_lookup_count : 0.0; 
+    }
+    double avg_intersect_time_us() const { 
+        return total_intersect_count > 0 ? static_cast<double>(total_intersect_time_us) / total_intersect_count : 0.0; 
+    }
 };
 
 class ShardedIndex {
@@ -31,10 +53,6 @@ public:
     // Remove series from appropriate shard
     core::Result<void> remove_series(core::SeriesID id);
     
-#include "tsdb/core/matcher.h"
-
-// ...
-
     // Find series matching matchers (scatter-gather)
     core::Result<std::vector<core::SeriesID>> find_series(
         const std::vector<core::LabelMatcher>& matchers);
@@ -46,13 +64,20 @@ public:
     core::Result<std::vector<std::pair<core::SeriesID, core::Labels>>> find_series_with_labels(
         const std::vector<core::LabelMatcher>& matchers);
     
-    // Get stats
+    // Get basic stats (for backward compatibility)
     IndexStats get_stats() const;
+    
+    // Get detailed aggregated metrics from all shards
+    AggregatedIndexMetrics get_aggregated_metrics() const;
+    
+    // Reset metrics across all shards
+    void reset_metrics();
 
 private:
     const size_t num_shards_;
     std::vector<std::unique_ptr<Index>> shards_;
-    mutable IndexMetrics metrics_;
+    mutable std::atomic<uint64_t> total_series_{0};
+    mutable std::atomic<uint64_t> total_lookups_{0};
     
     size_t get_shard_index(core::SeriesID id) const;
 };

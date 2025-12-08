@@ -100,6 +100,18 @@ if(HAVE_PARQUET)
     target_link_libraries(tsdb_storage_impl PUBLIC Parquet::parquet_shared)
 endif()
 
+# Find and link CRoaring for optimized bitmap operations
+find_library(ROARING_LIBRARY roaring HINTS /opt/homebrew/lib)
+find_path(ROARING_INCLUDE_DIR roaring/roaring.h HINTS /opt/homebrew/include)
+if(ROARING_LIBRARY AND ROARING_INCLUDE_DIR)
+    message(STATUS "Found CRoaring: ${ROARING_LIBRARY}")
+    target_include_directories(tsdb_storage_impl PUBLIC ${ROARING_INCLUDE_DIR})
+    target_link_libraries(tsdb_storage_impl PUBLIC ${ROARING_LIBRARY})
+    target_compile_definitions(tsdb_storage_impl PUBLIC HAVE_ROARING=1)
+else()
+    message(WARNING "CRoaring not found - using std::vector for posting lists (slower)")
+endif()
+
 # Install headers
 install(FILES
     block_types.h

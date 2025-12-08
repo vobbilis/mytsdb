@@ -200,6 +200,30 @@ gtest_discover_tests(tsdb_sharded_index_unit_tests
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
+# Index Roaring Bitmap Performance Tests
+add_executable(tsdb_index_roaring_unit_tests
+    ${CMAKE_SOURCE_DIR}/test/unit/storage/index_roaring_test.cpp
+)
+
+target_include_directories(tsdb_index_roaring_unit_tests
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_index_roaring_unit_tests
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+)
+
+gtest_discover_tests(tsdb_index_roaring_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
 # Background processor unit tests
 add_executable(tsdb_background_processor_unit_tests
     ${CMAKE_SOURCE_DIR}/test/unit/storage/background_processor_test.cpp

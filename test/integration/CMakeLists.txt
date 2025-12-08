@@ -574,3 +574,32 @@ gtest_discover_tests(tsdb_storage_demotion_test
         RESOURCE_LOCK TSDB_STORAGE
         TIMEOUT 600   # 10 minutes timeout for storage demotion tests
 )
+
+# Index Performance Integration Test (Roaring Bitmap validation)
+add_executable(tsdb_index_performance_integration_test
+    index_performance_integration_test.cpp
+    ${CMAKE_SOURCE_DIR}/test/main.cpp
+)
+
+target_include_directories(tsdb_index_performance_integration_test
+    PRIVATE
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/include
+)
+
+target_link_libraries(tsdb_index_performance_integration_test
+    PRIVATE
+        tsdb_test_common
+        tsdb_storage_impl
+        tsdb_core_impl
+        GTest::gtest
+        GTest::gtest_main
+        Threads::Threads
+)
+
+gtest_discover_tests(tsdb_index_performance_integration_test
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+        TIMEOUT 300  # 5 minutes for performance tests
+)
