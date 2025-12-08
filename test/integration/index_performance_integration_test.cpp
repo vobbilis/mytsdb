@@ -31,7 +31,7 @@ Labels generate_k8s_labels(int pod_num, int container_num) {
     std::string container_name = "container-" + std::to_string(container_num);
     std::string node_name = "node-" + std::to_string(pod_num % 10);
     
-    return Labels{
+    return Labels(Labels::Map{
         {"__name__", "container_cpu_usage_seconds_total"},
         {"namespace", namespace_name},
         {"pod", pod_name},
@@ -40,7 +40,7 @@ Labels generate_k8s_labels(int pod_num, int container_num) {
         {"cluster", "production-cluster"},
         {"region", "us-east-1"},
         {"instance", node_name + ":9090"}
-    };
+    });
 }
 
 // Simulates Prometheus HTTP server metrics
@@ -48,14 +48,14 @@ Labels generate_http_labels(int endpoint_num) {
     std::vector<std::string> methods = {"GET", "POST", "PUT", "DELETE", "PATCH"};
     std::vector<std::string> statuses = {"200", "201", "204", "400", "401", "403", "404", "500", "502", "503"};
     
-    return Labels{
+    return Labels(Labels::Map{
         {"__name__", "http_requests_total"},
         {"method", methods[endpoint_num % methods.size()]},
         {"status", statuses[endpoint_num % statuses.size()]},
         {"endpoint", "/api/v1/resource/" + std::to_string(endpoint_num)},
         {"service", "api-server"},
         {"instance", "api-" + std::to_string(endpoint_num % 5) + ":8080"}
-    };
+    });
 }
 
 struct BenchmarkResult {
@@ -140,21 +140,21 @@ TEST_F(IndexIntegrationTest, KubernetesMetricsWorkload) {
     // Simulate realistic queries
     std::vector<std::vector<LabelMatcher>> queries = {
         // Query 1: All pods in a namespace
-        {{"namespace", "namespace-5", LabelMatcher::Type::EQ}},
+        {{MatcherType::Equal, "namespace", "namespace-5"}},
         
         // Query 2: Specific container across all pods
-        {{"container", "container-0", LabelMatcher::Type::EQ}},
+        {{MatcherType::Equal, "container", "container-0"}},
         
         // Query 3: All pods on a node
-        {{"node", "node-3", LabelMatcher::Type::EQ}},
+        {{MatcherType::Equal, "node", "node-3"}},
         
         // Query 4: Specific pod (point query)
-        {{"namespace", "namespace-2", LabelMatcher::Type::EQ},
-         {"pod", "pod-250", LabelMatcher::Type::EQ}},
+        {{MatcherType::Equal, "namespace", "namespace-2"},
+         {MatcherType::Equal, "pod", "pod-250"}},
         
         // Query 5: Cross-namespace container query
-        {{"container", "container-1", LabelMatcher::Type::EQ},
-         {"cluster", "production-cluster", LabelMatcher::Type::EQ}}
+        {{MatcherType::Equal, "container", "container-1"},
+         {MatcherType::Equal, "cluster", "production-cluster"}}
     };
     
     for (int i = 0; i < NUM_QUERIES; ++i) {
@@ -225,21 +225,20 @@ TEST_F(IndexIntegrationTest, HTTPMetricsWorkload) {
         
         switch (i % 5) {
             case 0: // All GET requests
-                matchers = {{"method", "GET", LabelMatcher::Type::EQ}};
+                matchers = {{MatcherType::Equal, "method", "GET"}};
                 break;
             case 1: // All 500 errors
-                matchers = {{"status", "500", LabelMatcher::Type::EQ}};
+                matchers = {{MatcherType::Equal, "status", "500"}};
                 break;
             case 2: // GET with 200 status
-                matchers = {{"method", "GET", LabelMatcher::Type::EQ},
-                           {"status", "200", LabelMatcher::Type::EQ}};
+                matchers = {{MatcherType::Equal, "method", "GET"},
+                           {MatcherType::Equal, "status", "200"}};
                 break;
             case 3: // All error statuses (4xx, 5xx)
-                matchers = {{"status", "4.*|5.*", LabelMatcher::Type::RE}};
+                matchers = {{MatcherType::RegexMatch, "status", "4.*|5.*"}};
                 break;
             case 4: // Specific endpoint
-                matchers = {{"endpoint", "/api/v1/resource/" + std::to_string(i % 100), 
-                            LabelMatcher::Type::EQ}};
+                matchers = {{MatcherType::Equal, "endpoint", "/api/v1/resource/" + std::to_string(i % 100)}};
                 break;
         }
         
@@ -288,11 +287,11 @@ TEST_F(IndexIntegrationTest, HighCardinalityLabels) {
     auto start = std::chrono::high_resolution_clock::now();
     
     for (int i = 0; i < NUM_SERIES; ++i) {
-        Labels labels = {
+        Labels labels(Labels::Map{
             {"__name__", "metric"},
             {"unique_id", std::to_string(i)},  // High cardinality
             {"bucket", std::to_string(i % 100)}  // Medium cardinality
-        };
+        });
         auto result = index_.add_series(i, labels);
         ASSERT_TRUE(result.ok());
     }
@@ -307,7 +306,7 @@ TEST_F(IndexIntegrationTest, HighCardinalityLabels) {
     
     for (int i = 0; i < NUM_QUERIES; ++i) {
         std::vector<LabelMatcher> matchers = {
-            {"bucket", std::to_string(i % 100), LabelMatcher::Type::EQ}
+            {MatcherType::Equal, "bucket", std::to_string(i % 100)}
         };
         
         auto q_start = std::chrono::high_resolution_clock::now();
@@ -350,7 +349,7 @@ TEST_F(IndexIntegrationTest, FindSeriesWithLabelsPerformance) {
     
     for (int i = 0; i < NUM_QUERIES; ++i) {
         std::vector<LabelMatcher> matchers = {
-            {"node", "node-" + std::to_string(i % 10), LabelMatcher::Type::EQ}
+            {MatcherType::Equal, "node", "node-" + std::to_string(i % 10)}
         };
         
         // Method 1: find_series then get_labels separately
@@ -411,11 +410,11 @@ TEST_F(IndexIntegrationTest, ConcurrentAccess) {
             
             for (int i = 0; i < SERIES_PER_WRITER; ++i) {
                 SeriesID id = w * SERIES_PER_WRITER + i;
-                Labels labels = {
+                Labels labels(Labels::Map{
                     {"__name__", "concurrent_metric"},
                     {"writer", std::to_string(w)},
                     {"id", std::to_string(id)}
-                };
+                });
                 index_.add_series(id, labels);
                 series_added++;
             }
@@ -430,7 +429,7 @@ TEST_F(IndexIntegrationTest, ConcurrentAccess) {
             
             for (int i = 0; i < QUERIES_PER_READER; ++i) {
                 std::vector<LabelMatcher> matchers = {
-                    {"writer", std::to_string(i % NUM_WRITERS), LabelMatcher::Type::EQ}
+                    {MatcherType::Equal, "writer", std::to_string(i % NUM_WRITERS)}
                 };
                 
                 auto result = index_.find_series(matchers);
@@ -480,10 +479,10 @@ TEST_F(IndexIntegrationTest, MetricsAccuracyValidation) {
     
     // Add series
     for (int i = 0; i < NUM_SERIES; ++i) {
-        Labels labels = {
+        Labels labels(Labels::Map{
             {"__name__", "test"},
             {"group", std::to_string(i % 10)}
-        };
+        });
         index_.add_series(i, labels);
         expected_adds++;
     }
@@ -491,7 +490,7 @@ TEST_F(IndexIntegrationTest, MetricsAccuracyValidation) {
     // Perform queries
     for (int i = 0; i < NUM_QUERIES; ++i) {
         std::vector<LabelMatcher> matchers = {
-            {"group", std::to_string(i % 10), LabelMatcher::Type::EQ}
+            {MatcherType::Equal, "group", std::to_string(i % 10)}
         };
         index_.find_series(matchers);
         expected_lookups++;
@@ -517,7 +516,4 @@ TEST_F(IndexIntegrationTest, MetricsAccuracyValidation) {
 }
 
 // Main entry point
-int main(int argc, char** argv) {
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
-}
+
