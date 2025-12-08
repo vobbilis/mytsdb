@@ -729,11 +729,13 @@ private:
             
             std::string path;
             if (query.is_instant) {
-                // For instant queries, we need to specify a time in the past where data exists
-                // Data starts 30 days ago, so query at (now - 15 days) to find data
+                // For instant queries, use appropriate time based on query type
+                // HOT: query recent data (within last 2 hours for hot tier)
+                // COLD: query older data (15 days ago where cold data exists)
                 auto now = std::chrono::system_clock::now();
+                int64_t query_time_offset = use_hot ? (1LL * 60 * 60) : (15LL * 24 * 60 * 60);  // 1h vs 15 days
                 auto query_time_sec = std::chrono::duration_cast<std::chrono::seconds>(
-                    now.time_since_epoch()).count() - (15LL * 24 * 60 * 60);  // 15 days ago
+                    now.time_since_epoch()).count() - query_time_offset;
                 path = "/api/v1/query?query=" + httplib::detail::encode_url(query.query) +
                        "&time=" + std::to_string(query_time_sec);
             } else {
@@ -741,9 +743,29 @@ private:
                 auto now_sec = std::chrono::duration_cast<std::chrono::seconds>(
                     now.time_since_epoch()).count();
                 
-                // Query from 30 days ago to now to cover all data
-                // Data is written starting 30 days in the past
-                int64_t start_sec = now_sec - (30LL * 24 * 60 * 60);  // 30 days ago
+                // HOT queries: Use proper time range based on query's range field
+                // e.g., "1h" means query last 1 hour, "6h" means last 6 hours
+                // COLD queries: Query from 30 days ago (where cold data exists)
+                int64_t start_sec;
+                if (use_hot) {
+                    // Parse the duration from the query (e.g., "1h", "6h")
+                    // Hot queries should only access hot tier data (last 48h)
+                    int64_t range_seconds = 3600;  // Default 1h
+                    if (!query.duration.empty()) {
+                        // Parse duration like "1h", "6h", "24h"
+                        int64_t value = std::stoll(query.duration);
+                        char unit = query.duration.back();
+                        if (unit == 'h') range_seconds = value * 3600;
+                        else if (unit == 'm') range_seconds = value * 60;
+                        else if (unit == 's') range_seconds = value;
+                    }
+                    // Cap to hot tier (48h max to stay in hot tier)
+                    range_seconds = std::min(range_seconds, 48LL * 3600);
+                    start_sec = now_sec - range_seconds;
+                } else {
+                    // Cold queries: 30 days ago to now
+                    start_sec = now_sec - (30LL * 24 * 60 * 60);
+                }
                 
                 path = "/api/v1/query_range?query=" + httplib::detail::encode_url(query.query) +
                        "&start=" + std::to_string(start_sec) +
