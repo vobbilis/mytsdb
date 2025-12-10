@@ -121,7 +121,7 @@ public:
         
         // Measure conversion time
         {
-            storage::ScopedTimer timer(metrics.otel_conversion_us, perf_enabled);
+            storage::WriteScopedTimer timer(metrics.otel_conversion_us, perf_enabled);
             
             // Process resource_metrics sequentially (async overhead > benefit for this workload)
             for (const auto& resource_metric : resource_metrics) {
@@ -147,7 +147,7 @@ public:
         // Convert resource-level attributes (e.g., service.name)
         core::Labels::Map resource_labels_map;
         {
-            storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+            storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
             AppendAttributes(resource_metric.resource().attributes(), resource_labels_map);
         }
         core::Labels resource_labels(std::move(resource_labels_map));
@@ -156,7 +156,7 @@ public:
             // Convert instrumentation scope attributes
             core::Labels::Map scope_labels_map;
             {
-                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
                 AppendAttributes(scope_metrics.scope().attributes(), scope_labels_map);
             }
             core::Labels scope_labels(std::move(scope_labels_map));
@@ -223,7 +223,7 @@ private:
         storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
         bool perf_enabled) {
         
-        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        storage::WriteScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
         
         // Use map for attribute handling
         std::map<core::Labels, core::TimeSeries> batch;
@@ -246,7 +246,7 @@ private:
             core::Labels::Map labels_map = base_labels_map;
             
             {
-                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
                 AppendAttributes(point.attributes(), labels_map);
             }
             
@@ -284,7 +284,7 @@ private:
         storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
         bool perf_enabled) {
         
-        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        storage::WriteScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
         
         // Use map for attribute handling
         std::map<core::Labels, core::TimeSeries> batch;
@@ -306,7 +306,7 @@ private:
             core::Labels::Map labels_map = base_labels_map;
             
             {
-                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
                 AppendAttributes(point.attributes(), labels_map);
             }
             
@@ -344,7 +344,7 @@ private:
         storage::WritePerformanceInstrumentation::WriteMetrics& metrics,
         bool perf_enabled) {
         
-        storage::ScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
+        storage::WriteScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
         
         // Use map for attribute handling
         std::map<core::Labels, core::TimeSeries> batch;
@@ -372,7 +372,7 @@ private:
             core::Labels::Map labels_map = base_labels_map;
             
             {
-                storage::ScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
+                storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
                 AppendAttributes(point.attributes(), labels_map);
             }
             
@@ -471,7 +471,7 @@ grpc::Status MetricsService::Export(
     
     // Measure total gRPC handling time
     {
-        storage::ScopedTimer timer(metrics.grpc_handling_us, perf_enabled);
+        storage::WriteScopedTimer timer(metrics.grpc_handling_us, perf_enabled);
         
         try {
             // std::cerr << "MetricsService::Export called with " << request->resource_metrics_size() << " resource metrics" << std::endl;

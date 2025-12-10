@@ -10,7 +10,8 @@ all: configure build
 BUILD_DIR := build
 
 # CMake configuration (OTEL disabled to avoid compilation issues)
-CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON -DENABLE_OTEL=OFF -DHAVE_GRPC=OFF
+# CMake configuration (OTEL enabled for benchmarking)
+CMAKE_FLAGS := -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=ON -DTSDB_SEMVEC=OFF -DENABLE_PARQUET=ON -DENABLE_OTEL=ON -DHAVE_GRPC=ON
 
 # Configure the project with CMake
 configure:
@@ -331,12 +332,15 @@ help:
 SERVER_BIN := $(BUILD_DIR)/src/tsdb/tsdb_server
 BENCHMARK_BIN := $(BUILD_DIR)/tools/k8s_combined_benchmark
 DATA_DIR := /tmp/tsdb_data
+BENCHMARK_BIN := $(BUILD_DIR)/tools/k8s_combined_benchmark
+GRPC_BENCHMARK_BIN := $(BUILD_DIR)/tools/k8s_grpc_benchmark
+DATA_DIR := /tmp/tsdb_data
 BENCHMARK_LOG_DIR := benchmarks
 
 # Build only server and benchmark (avoids test build failures)
 build-benchmark: configure
 	@echo "Building server and benchmark..."
-	$(MAKE) -C $(BUILD_DIR) tsdb_server k8s_combined_benchmark -j$(shell nproc 2>/dev/null || echo 8)
+	$(MAKE) -C $(BUILD_DIR) tsdb_server k8s_combined_benchmark k8s_grpc_benchmark -j$(shell nproc 2>/dev/null || echo 8)
 
 # Start server (clean start - removes all data)
 server-start-clean: build-benchmark
@@ -431,16 +435,44 @@ benchmark-20m: server-start-clean
 		--generate-10m \
 		--generate-10m \
 		--duration 180 \
+		echo "Log saved to: $$LOG_FILE"
+	@$(MAKE) server-stop
+
+# K8s gRPC/OTEL Benchmark - 20M samples
+benchmark-grpc: server-start-clean
+	@echo "=============================================="
+	@echo "=== K8s gRPC/OTEL Benchmark (20M samples) ==="
+	@echo "=============================================="
+	@echo "Phase 1: Write 20M samples with realistic K8s metrics via OTLP/gRPC"
+	@echo "Phase 2: Execute 48 read queries (all PromQL functions)"
+	@echo "Phase 3: Report server + client metrics"
+	@echo "=============================================="
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_grpc_$$TIMESTAMP.log"; \
+	echo "Benchmark log: $$LOG_FILE"; \
+	echo "========================================" | tee $$LOG_FILE; \
+	echo "=== MYTSDB gRPC Benchmark Report ===" | tee -a $$LOG_FILE; \
+	echo "========================================" | tee -a $$LOG_FILE; \
+	echo "Started: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Target: 20M samples via gRPC/OTEL" | tee -a $$LOG_FILE; \
+	echo "Queries: 48 (all PromQL functions)" | tee -a $$LOG_FILE; \
+	echo "" | tee -a $$LOG_FILE; \
+	$(GRPC_BENCHMARK_BIN) \
+		--grpc-host localhost \
+		--grpc-port 4317 \
+		--http-port 9090 \
+		--generate-10m \
+		--duration 180 \
 		--write-workers 16 \
 		--read-workers 8 \
-		--write-batch-size 2000 \
-		--samples-per-metric 200 \
 	2>&1 | tee -a $$LOG_FILE; \
 	echo "" | tee -a $$LOG_FILE; \
 	echo "========================================" | tee -a $$LOG_FILE; \
 	echo "Completed: $$(date)" | tee -a $$LOG_FILE; \
 	echo "Log saved to: $$LOG_FILE"
 	@$(MAKE) server-stop
+
 
 # Show benchmark help
 benchmark-help:

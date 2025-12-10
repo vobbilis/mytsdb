@@ -62,7 +62,7 @@ TEST(GRPCPath, SimulateExportRequest) {
         *metrics_data.add_resource_metrics() = resource_metrics;
         
         std::cout << "Calling bridge_->ConvertMetrics..." << std::endl;
-        auto result = bridge->ConvertMetrics(metrics_data);
+        auto result = bridge->ConvertMetrics(metrics_data.resource_metrics());
         ASSERT_TRUE(result.ok()) << "Bridge conversion failed: " << result.error();
     }
     

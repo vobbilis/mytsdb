@@ -78,7 +78,7 @@ TEST_F(BridgeConversionTest, ConvertDataPointAttributes) {
     *metrics_data.add_resource_metrics() = request.resource_metrics(0);
     
     // Convert via bridge
-    auto result = bridge_->ConvertMetrics(metrics_data);
+    auto result = bridge_->ConvertMetrics(metrics_data.resource_metrics());
     ASSERT_TRUE(result.ok()) << "Bridge conversion failed: " << result.error();
     
 #include "tsdb/core/matcher.h"
@@ -147,7 +147,7 @@ TEST_F(BridgeConversionTest, ConvertManyAttributes) {
     opentelemetry::proto::metrics::v1::MetricsData metrics_data;
     *metrics_data.add_resource_metrics() = request.resource_metrics(0);
     
-    auto result = bridge_->ConvertMetrics(metrics_data);
+    auto result = bridge_->ConvertMetrics(metrics_data.resource_metrics());
     ASSERT_TRUE(result.ok());
     
     // Query and verify

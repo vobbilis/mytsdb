@@ -16,8 +16,25 @@ if(HAVE_GRPC AND ENABLE_OTEL)
     if(HAVE_HTTPLIB)
         target_link_libraries(benchmark_tool PRIVATE httplib::httplib)
     endif()
+
+    # K8s gRPC/OTEL Benchmark
+    add_executable(k8s_grpc_benchmark k8s_grpc_benchmark.cpp)
+    target_include_directories(k8s_grpc_benchmark PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/src
+        ${CMAKE_SOURCE_DIR}/src/tsdb/proto/gen
+    )
+    target_link_libraries(k8s_grpc_benchmark PRIVATE
+        tsdb_proto_lib
+        gRPC::grpc++
+        protobuf::libprotobuf
+        Threads::Threads
+    )
+    if(HAVE_HTTPLIB)
+        target_link_libraries(k8s_grpc_benchmark PRIVATE httplib::httplib)
+    endif()
 else()
-    message(STATUS "gRPC or OTEL not found/enabled, skipping data_gen and benchmark_tool")
+    message(STATUS "gRPC or OTEL not found/enabled, skipping data_gen, benchmark_tool, and k8s_grpc_benchmark")
 endif()
 
 # Arrow Flight benchmark tools (no gRPC/OTEL dependency)
