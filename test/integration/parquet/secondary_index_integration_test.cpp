@@ -16,6 +16,7 @@
 #include <fstream>
 #include <random>
 #include <chrono>
+#include <iostream>
 
 // Include the actual parquet block implementation
 #include "tsdb/storage/parquet/parquet_block.hpp"
@@ -144,6 +145,105 @@ protected:
     
     std::filesystem::path test_dir_;
 };
+
+// =============================================================================
+// Perf Evidence: Step 2.2 (RowLocation bounds are row-group-specific)
+//
+// This test prints end-to-end query wall time and how many row groups were read.
+// It is intentionally non-flaky:
+// - No timing assertions
+// - Passes under both pre-2.2 and post-2.2 behavior
+// =============================================================================
+TEST_F(SecondaryIndexIntegrationTest, RowGroupTimeBoundsReduceRowGroupsReadPerfEvidence) {
+    // Create a Parquet file with a SINGLE series split across TWO row groups
+    // with disjoint time ranges. With row-group-specific bounds, a narrow time
+    // query should read only 1 row group.
+
+    std::string file_path = (test_dir_ / "rg_time_bounds_perf.parquet").string();
+
+    arrow::Int64Builder timestamp_builder;
+    arrow::DoubleBuilder value_builder;
+    auto pool = arrow::default_memory_pool();
+    arrow::MapBuilder tags_builder(pool,
+        std::make_shared<arrow::StringBuilder>(pool),
+        std::make_shared<arrow::StringBuilder>(pool));
+
+    auto append_row = [&](int64_t ts, double val) {
+        ASSERT_TRUE(timestamp_builder.Append(ts).ok());
+        ASSERT_TRUE(value_builder.Append(val).ok());
+
+        ASSERT_TRUE(tags_builder.Append().ok());
+        auto key_builder = dynamic_cast<arrow::StringBuilder*>(tags_builder.key_builder());
+        auto value_builder_map = dynamic_cast<arrow::StringBuilder*>(tags_builder.item_builder());
+        ASSERT_NE(key_builder, nullptr);
+        ASSERT_NE(value_builder_map, nullptr);
+
+        // One fixed series (these matchers are used for index series_id computation)
+        ASSERT_TRUE(key_builder->Append("__name__").ok());
+        ASSERT_TRUE(value_builder_map->Append("rg_metric").ok());
+        ASSERT_TRUE(key_builder->Append("instance").ok());
+        ASSERT_TRUE(value_builder_map->Append("host1").ok());
+    };
+
+    // Force exactly 2 row groups by making chunk_size == rg_rows and writing 2*rg_rows rows.
+    const int64_t rg_rows = 1024;
+    for (int64_t i = 0; i < rg_rows; ++i) {
+        append_row(1'000'000 + i, static_cast<double>(i));
+    }
+    for (int64_t i = 0; i < rg_rows; ++i) {
+        append_row(5'000'000 + i, static_cast<double>(i));
+    }
+
+    std::shared_ptr<arrow::Array> timestamp_array, value_array, tags_array;
+    ASSERT_TRUE(timestamp_builder.Finish(&timestamp_array).ok());
+    ASSERT_TRUE(value_builder.Finish(&value_array).ok());
+    ASSERT_TRUE(tags_builder.Finish(&tags_array).ok());
+
+    auto tags_type = arrow::map(arrow::utf8(), arrow::utf8());
+    auto schema = arrow::schema({
+        arrow::field("timestamp", arrow::int64(), false),
+        arrow::field("value", arrow::float64(), false),
+        arrow::field("tags", tags_type, true),
+    });
+
+    auto table = arrow::Table::Make(schema, {timestamp_array, value_array, tags_array});
+
+    auto outfile_result = arrow::io::FileOutputStream::Open(file_path);
+    ASSERT_TRUE(outfile_result.ok());
+    auto outfile = *outfile_result;
+    ASSERT_TRUE(::parquet::arrow::WriteTable(*table, arrow::default_memory_pool(),
+        outfile, /*chunk_size=*/rg_rows).ok());
+
+    // Clear cache and reset instrumentation.
+    SecondaryIndexCache::Instance().ClearAll();
+    ReadPerformanceInstrumentation::instance().reset_stats();
+
+    // Create ParquetBlock and query only the early time window.
+    auto header = CreateBlockHeader(1'000'000, 5'000'000 + rg_rows);
+    ParquetBlock block(header, file_path);
+
+    std::vector<std::pair<std::string, std::string>> matchers = {
+        {"__name__", "rg_metric"},
+        {"instance", "host1"},
+    };
+
+    auto t0 = std::chrono::steady_clock::now();
+    auto result = block.query(matchers, /*start=*/1'000'000, /*end=*/1'000'100);
+    auto t1 = std::chrono::steady_clock::now();
+
+    auto stats = ReadPerformanceInstrumentation::instance().get_stats();
+
+    const double wall_us = std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(t1 - t0).count();
+
+    std::cout
+        << "[RG_TIME_BOUNDS_PERF] row_groups_total=" << stats.row_groups_total
+        << " row_groups_read=" << stats.row_groups_read
+        << " secondary_index_lookup_time_us=" << stats.secondary_index_lookup_time_us
+        << " total_row_group_read_us=" << stats.total_row_group_read_us
+        << " wall_us=" << wall_us
+        << " series_returned=" << result.size()
+        << std::endl;
+}
 
 // =============================================================================
 // Test: Secondary Index is built when ParquetBlock accesses the file

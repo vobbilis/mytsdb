@@ -409,6 +409,17 @@ Where possible, we will write tests that:
   - `make test-storage-unit`: ✅
   - `make test-integration`: ✅
 
+- **Performance evidence (end-to-end ParquetBlock query)**
+  - Evidence test: `SecondaryIndexIntegrationTest.RowGroupTimeBoundsReduceRowGroupsReadPerfEvidence`
+  - Query: single series spanning **two row groups** with **disjoint** time ranges; query a narrow time window so only one row group overlaps.
+  - Measured on this machine:
+    - baseline (pre-2.2, `333a9ec`): `row_groups_read=2`, `wall_us=6607.04`
+    - Step 2.2 (`9d9ac02`): `row_groups_read=1`, `wall_us=6001.33`
+    - Interpretation:
+      - **2× fewer row groups read** (2 → 1)
+      - **~1.10× wall-time improvement** in this small-file workload
+      - (bigger row groups / heavier scans should show a larger wall-time delta)
+
 ---
 
 #### Step 2.3 — Add explicit `series_id` column to Parquet schema
