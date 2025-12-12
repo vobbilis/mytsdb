@@ -3,6 +3,13 @@
 # machines, causing flaky build failures.
 set(CTEST_DISCOVERY_TIMEOUT 600)
 
+# gtest_discover_tests runs test executables at *build time* to enumerate tests.
+# On some machines, discovery can take longer than CMake's default timeout,
+# causing flaky build failures. Force an explicit timeout for every discovery call.
+function(tsdb_gtest_discover_tests target)
+    gtest_discover_tests(${target} ${ARGN} DISCOVERY_TIMEOUT 600)
+endfunction()
+
 # Unit test executables
 add_executable(tsdb_core_unit_tests
     ${CMAKE_SOURCE_DIR}/test/unit/core/result_test.cpp
@@ -30,7 +37,7 @@ add_executable(tsdb_result_repro_test
 )
 target_include_directories(tsdb_result_repro_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(tsdb_result_repro_test PRIVATE tsdb_core_impl tsdb_test_common)
-gtest_discover_tests(tsdb_result_repro_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+tsdb_gtest_discover_tests(tsdb_result_repro_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 # Parquet Schema Mapper unit tests
 if(HAVE_ARROW)
@@ -40,7 +47,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_schema_mapper_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_schema_mapper_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared)
-    gtest_discover_tests(tsdb_schema_mapper_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_schema_mapper_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_parquet_writer_unit_tests
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/writer_test.cpp
@@ -48,7 +55,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_parquet_writer_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_parquet_writer_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_parquet_writer_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_parquet_writer_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_parquet_reader_unit_tests
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/reader_test.cpp
@@ -56,7 +63,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_parquet_reader_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_parquet_reader_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_parquet_reader_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_parquet_reader_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     # Secondary Index (B+ Tree) unit tests - Phase A
     add_executable(tsdb_secondary_index_unit_tests
@@ -65,7 +72,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_secondary_index_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_secondary_index_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_secondary_index_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_secondary_index_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     # Bloom Filter unit tests - Phase 0
     add_executable(tsdb_bloom_filter_unit_tests
@@ -74,7 +81,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_bloom_filter_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_bloom_filter_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_bloom_filter_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_bloom_filter_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_parquet_advanced_unit_tests
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/advanced_test.cpp
@@ -82,7 +89,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_parquet_advanced_unit_tests PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_parquet_advanced_unit_tests PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_parquet_advanced_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_parquet_advanced_unit_tests WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_schema_mapper_roundtrip_test
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/schema_mapper_test.cpp
@@ -90,7 +97,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_schema_mapper_roundtrip_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_schema_mapper_roundtrip_test PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_schema_mapper_roundtrip_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_schema_mapper_roundtrip_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_block_impl_test
         ${CMAKE_SOURCE_DIR}/test/unit/storage/internal/block_impl_test.cpp
@@ -98,7 +105,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_block_impl_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_block_impl_test PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl)
-    gtest_discover_tests(tsdb_block_impl_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_block_impl_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_parquet_integration_test
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/integration_test.cpp
@@ -106,7 +113,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_parquet_integration_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_parquet_integration_test PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_parquet_integration_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_parquet_integration_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
     add_executable(tsdb_schema_evolution_test
         ${CMAKE_SOURCE_DIR}/test/unit/storage/parquet/schema_evolution_test.cpp
@@ -114,7 +121,7 @@ if(HAVE_ARROW)
     )
     target_include_directories(tsdb_schema_evolution_test PRIVATE ${CMAKE_SOURCE_DIR}/src ${CMAKE_SOURCE_DIR}/include)
     target_link_libraries(tsdb_schema_evolution_test PRIVATE tsdb_test_common tsdb_storage_impl tsdb_core_impl Arrow::arrow_shared Parquet::parquet_shared)
-    gtest_discover_tests(tsdb_schema_evolution_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+    tsdb_gtest_discover_tests(tsdb_schema_evolution_test WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 endif()
 
 
@@ -172,7 +179,7 @@ target_link_libraries(tsdb_sharded_wal_unit_tests
         tsdb_core_impl
 )
 
-gtest_discover_tests(tsdb_sharded_wal_unit_tests
+tsdb_gtest_discover_tests(tsdb_sharded_wal_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -199,7 +206,7 @@ target_link_libraries(tsdb_sharded_index_unit_tests
         tsdb_core_impl
 )
 
-gtest_discover_tests(tsdb_sharded_index_unit_tests
+tsdb_gtest_discover_tests(tsdb_sharded_index_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -223,7 +230,7 @@ target_link_libraries(tsdb_index_roaring_unit_tests
         tsdb_core_impl
 )
 
-gtest_discover_tests(tsdb_index_roaring_unit_tests
+tsdb_gtest_discover_tests(tsdb_index_roaring_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -266,7 +273,7 @@ target_link_libraries(tsdb_cache_hierarchy_repro_test
         tsdb_core_impl
 )
 
-gtest_discover_tests(tsdb_cache_hierarchy_repro_test
+tsdb_gtest_discover_tests(tsdb_cache_hierarchy_repro_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -332,7 +339,7 @@ if(HAVE_RAPIDJSON)
         target_link_libraries(tsdb_prometheus_unit_tests PRIVATE ${RAPIDJSON_LIBRARIES})
     endif()
     
-    gtest_discover_tests(tsdb_prometheus_unit_tests
+    tsdb_gtest_discover_tests(tsdb_prometheus_unit_tests
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTIES
             ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -358,7 +365,7 @@ endif()
             tsdb_prometheus
     )
     
-    gtest_discover_tests(tsdb_query_metrics_unit_tests
+    tsdb_gtest_discover_tests(tsdb_query_metrics_unit_tests
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         PROPERTIES
             ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -749,14 +756,14 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
     add_dependencies(tsdb_object_pool_unit_tests tsdb_copy_unit_test_data)
     add_dependencies(tsdb_working_set_cache_unit_tests tsdb_copy_unit_test_data)
 endif()
-gtest_discover_tests(tsdb_storage_unit_tests
+tsdb_gtest_discover_tests(tsdb_storage_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         RESOURCE_LOCK TSDB_STORAGE
 )
 
-gtest_discover_tests(tsdb_integration_tests
+tsdb_gtest_discover_tests(tsdb_integration_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -765,64 +772,64 @@ gtest_discover_tests(tsdb_integration_tests
 
 
 
-gtest_discover_tests(tsdb_object_pool_unit_tests
+tsdb_gtest_discover_tests(tsdb_object_pool_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_working_set_cache_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
-
-
-gtest_discover_tests(tsdb_delta_of_delta_encoder_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
-
-gtest_discover_tests(tsdb_atomic_metrics_unit_tests
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-    PROPERTIES
-        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
-)
-
-gtest_discover_tests(tsdb_performance_config_unit_tests
+tsdb_gtest_discover_tests(tsdb_working_set_cache_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
 
-gtest_discover_tests(tsdb_background_processor_unit_tests
+tsdb_gtest_discover_tests(tsdb_delta_of_delta_encoder_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
+tsdb_gtest_discover_tests(tsdb_atomic_metrics_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
+tsdb_gtest_discover_tests(tsdb_performance_config_unit_tests
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    PROPERTIES
+        ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
+)
+
+
+tsdb_gtest_discover_tests(tsdb_background_processor_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         RESOURCE_LOCK TSDB_THREADS
 )
 
-gtest_discover_tests(tsdb_lock_free_queue_unit_tests
+tsdb_gtest_discover_tests(tsdb_lock_free_queue_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_cache_hierarchy_unit_tests
+tsdb_gtest_discover_tests(tsdb_cache_hierarchy_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_predictive_cache_unit_tests
+tsdb_gtest_discover_tests(tsdb_predictive_cache_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
 )
 
-gtest_discover_tests(tsdb_atomic_ref_counted_unit_tests
+tsdb_gtest_discover_tests(tsdb_atomic_ref_counted_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"

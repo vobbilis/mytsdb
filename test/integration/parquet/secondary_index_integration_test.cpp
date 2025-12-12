@@ -264,6 +264,40 @@ TEST_F(SecondaryIndexIntegrationTest, RowGroupTimeBoundsReduceRowGroupsReadPerfE
 }
 
 // =============================================================================
+// Step 2.4: Verify .idx sidecar is written at Parquet write time (ParquetWriter::Close)
+// =============================================================================
+TEST_F(SecondaryIndexIntegrationTest, IndexSidecarIsWrittenAtParquetWriteTime) {
+    const std::string parquet_path = (test_dir_ / "writer_sidecar.parquet").string();
+    const std::string idx_path = parquet_path + ".idx";
+
+    // Write a small Parquet file using the project ParquetWriter (not parquet::arrow::WriteTable)
+    // so that ParquetWriter::Close can generate the .idx sidecar.
+    ParquetWriter writer;
+    ASSERT_TRUE(writer.Open(parquet_path, SchemaMapper::GetArrowSchema(), /*max_row_group_length=*/1024).ok());
+
+    // Build a single-series batch
+    std::vector<core::Sample> samples;
+    for (int i = 0; i < 2000; ++i) {
+        samples.emplace_back(1'000'000 + i, static_cast<double>(i));
+    }
+    std::map<std::string, std::string> tags = {
+        {"__name__", "sidecar_metric"},
+        {"instance", "host1"},
+    };
+
+    auto batch = SchemaMapper::ToRecordBatch(samples, tags);
+    ASSERT_NE(batch, nullptr);
+    ASSERT_TRUE(writer.WriteBatch(batch).ok());
+    ASSERT_TRUE(writer.Close().ok());
+
+    // Sidecar should exist and be loadable.
+    EXPECT_TRUE(std::filesystem::exists(idx_path)) << "Missing index sidecar: " << idx_path;
+    SecondaryIndex idx;
+    EXPECT_TRUE(idx.LoadFromFile(idx_path));
+    EXPECT_GT(idx.Size(), 0u);
+}
+
+// =============================================================================
 // Test: Secondary Index is built when ParquetBlock accesses the file
 // =============================================================================
 TEST_F(SecondaryIndexIntegrationTest, IndexIsBuiltOnFirstAccess) {

@@ -84,6 +84,17 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         
         auto file_metadata = arrow_reader->parquet_reader()->metadata();
         int num_row_groups = file_metadata->num_row_groups();
+
+        // Read Arrow schema once so we can selectively read only required columns.
+        std::shared_ptr<arrow::Schema> arrow_schema;
+        auto schema_status = arrow_reader->GetSchema(&arrow_schema);
+        if (!schema_status.ok()) {
+            spdlog::warn("Failed to read Arrow schema for {}: {}", parquet_path, schema_status.ToString());
+        }
+        const int series_id_col_idx =
+            (arrow_schema ? arrow_schema->GetFieldIndex("series_id") : -1);
+        const int tags_col_idx =
+            (arrow_schema ? arrow_schema->GetFieldIndex("tags") : -1);
         
         spdlog::debug("Building secondary index for {} with {} row groups", 
                       parquet_path, num_row_groups);
@@ -119,9 +130,19 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
 
             row_group_time_bounds[static_cast<size_t>(rg)] = {rg_min_ts, rg_max_ts};
             
-            // Read the row group to get labels
+            // Read only the required columns for this row group.
             std::shared_ptr<arrow::Table> table;
-            auto read_status = arrow_reader->ReadRowGroup(rg, &table);
+            ::arrow::Status read_status;
+            if (series_id_col_idx >= 0) {
+                // Fast path: series_id is numeric, so avoid decoding tags map.
+                read_status = arrow_reader->ReadRowGroup(rg, {series_id_col_idx}, &table);
+            } else if (tags_col_idx >= 0) {
+                // Legacy path: we need tags to compute series_id.
+                read_status = arrow_reader->ReadRowGroup(rg, {tags_col_idx}, &table);
+            } else {
+                // Worst case: read whole row group.
+                read_status = arrow_reader->ReadRowGroup(rg, &table);
+            }
             if (!read_status.ok()) {
                 spdlog::warn("Failed to read row group {}: {}", rg, read_status.ToString());
                 continue;

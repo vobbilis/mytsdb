@@ -7,6 +7,11 @@
 # Increase discovery timeout globally for this directory.
 set(CTEST_DISCOVERY_TIMEOUT 600)
 
+# Force an explicit discovery timeout for every gtest_discover_tests invocation.
+function(tsdb_gtest_discover_tests target)
+    gtest_discover_tests(${target} ${ARGN} DISCOVERY_TIMEOUT 600)
+endfunction()
+
 # Main integration test executable
 add_executable(tsdb_integration_test_suite
     core_storage_integration_test.cpp
@@ -295,7 +300,7 @@ target_link_libraries(tsdb_secondary_index_integration_test
         GTest::gtest_main
 )
 
-gtest_discover_tests(tsdb_secondary_index_integration_test 
+tsdb_gtest_discover_tests(tsdb_secondary_index_integration_test 
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         RESOURCE_LOCK TSDB_STORAGE
@@ -325,7 +330,7 @@ target_link_libraries(tsdb_bloom_btree_integration_test
         GTest::gtest_main
 )
 
-gtest_discover_tests(tsdb_bloom_btree_integration_test 
+tsdb_gtest_discover_tests(tsdb_bloom_btree_integration_test 
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         RESOURCE_LOCK TSDB_STORAGE
@@ -414,7 +419,7 @@ if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
 endif()
 
 # Register integration tests
-gtest_discover_tests(tsdb_integration_test_suite
+tsdb_gtest_discover_tests(tsdb_integration_test_suite
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -422,7 +427,7 @@ gtest_discover_tests(tsdb_integration_test_suite
         TIMEOUT 1800  # 30 minutes timeout for integration tests
 )
 
-gtest_discover_tests(tsdb_core_storage_integration_test
+tsdb_gtest_discover_tests(tsdb_core_storage_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -430,7 +435,7 @@ gtest_discover_tests(tsdb_core_storage_integration_test
         TIMEOUT 600   # 10 minutes timeout for core-storage integration tests
 )
 
-gtest_discover_tests(tsdb_storage_histogram_integration_test
+tsdb_gtest_discover_tests(tsdb_storage_histogram_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -438,7 +443,7 @@ gtest_discover_tests(tsdb_storage_histogram_integration_test
         TIMEOUT 600   # 10 minutes timeout for storage-histogram integration tests
 )
 
-gtest_discover_tests(tsdb_config_integration_test
+tsdb_gtest_discover_tests(tsdb_config_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -450,14 +455,14 @@ gtest_discover_tests(tsdb_config_integration_test
 add_subdirectory(prometheus)
 
 if(HAVE_GRPC AND ENABLE_OTEL)
-gtest_discover_tests(tsdb_otel_integration_test
+tsdb_gtest_discover_tests(tsdb_otel_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
         TIMEOUT 900   # 15 minutes timeout for OTEL integration tests
 )
 
-gtest_discover_tests(tsdb_grpc_integration_test
+tsdb_gtest_discover_tests(tsdb_grpc_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -466,7 +471,7 @@ gtest_discover_tests(tsdb_grpc_integration_test
 endif()
 
 if(HAVE_GRPC AND ENABLE_OTEL)
-gtest_discover_tests(tsdb_end_to_end_workflow_test
+tsdb_gtest_discover_tests(tsdb_end_to_end_workflow_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -475,7 +480,7 @@ gtest_discover_tests(tsdb_end_to_end_workflow_test
 endif()
 
 if(HAVE_GRPC AND ENABLE_OTEL)
-gtest_discover_tests(tsdb_multi_component_test
+tsdb_gtest_discover_tests(tsdb_multi_component_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -484,7 +489,7 @@ gtest_discover_tests(tsdb_multi_component_test
 endif()
 
 if(HAVE_GRPC AND ENABLE_OTEL)
-gtest_discover_tests(tsdb_error_handling_test
+tsdb_gtest_discover_tests(tsdb_error_handling_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -492,7 +497,7 @@ gtest_discover_tests(tsdb_error_handling_test
 )
 endif()
 
-gtest_discover_tests(tsdb_query_instrumentation_integration_test
+tsdb_gtest_discover_tests(tsdb_query_instrumentation_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -520,7 +525,7 @@ target_link_libraries(tsdb_storage_persistence_test
         GTest::gtest_main
 )
 
-gtest_discover_tests(tsdb_storage_persistence_test
+tsdb_gtest_discover_tests(tsdb_storage_persistence_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -548,7 +553,7 @@ target_link_libraries(tsdb_storage_demotion_test
         GTest::gtest_main
 )
 
-gtest_discover_tests(tsdb_storage_demotion_test
+tsdb_gtest_discover_tests(tsdb_storage_demotion_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"
@@ -578,7 +583,7 @@ target_link_libraries(tsdb_index_performance_integration_test
         Threads::Threads
 )
 
-gtest_discover_tests(tsdb_index_performance_integration_test
+tsdb_gtest_discover_tests(tsdb_index_performance_integration_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
     PROPERTIES
         ENVIRONMENT "TSDB_TEST_DATA_DIR=${CMAKE_CURRENT_SOURCE_DIR}/../data"

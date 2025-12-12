@@ -1,4 +1,5 @@
 #include "tsdb/storage/parquet/writer.hpp"
+#include "tsdb/storage/parquet/secondary_index.h"
 #include <arrow/io/file.h>
 #include <parquet/arrow/writer.h>
 #include <spdlog/spdlog.h>
@@ -120,6 +121,26 @@ core::Result<void> ParquetWriter::Close() {
             }
         }
         bloom_filter_.reset();
+    }
+
+    // Phase 2 Step 2.4: Build and persist SecondaryIndex sidecar at write time.
+    // This avoids a cold-start scan on first read.
+    if (!path_.empty()) {
+        try {
+            const std::string index_path = path_ + ".idx";
+            SecondaryIndex idx;
+            if (!idx.BuildFromParquetFile(path_)) {
+                spdlog::warn("[ParquetWriter] Failed to build secondary index for {}", path_);
+            } else if (!idx.SaveToFile(index_path)) {
+                spdlog::warn("[ParquetWriter] Failed to save secondary index sidecar {}", index_path);
+            } else {
+                spdlog::debug("[ParquetWriter] Wrote secondary index sidecar {}", index_path);
+            }
+        } catch (const std::exception& e) {
+            spdlog::warn("[ParquetWriter] Exception building secondary index sidecar: {}", e.what());
+        } catch (...) {
+            spdlog::warn("[ParquetWriter] Unknown exception building secondary index sidecar");
+        }
     }
 
     return core::Result<void>();

@@ -501,6 +501,25 @@ Where possible, we will write tests that:
 - Add a cold-read integration test:
   - write → flush → close → new process/storage init → query → assert no “build from parquet scan” path triggers (instrumentation/log evidence if available; otherwise infer by timing/metrics counter).
 
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - `src/tsdb/storage/parquet/writer.cpp`:
+    - `ParquetWriter::Close()` now builds and writes the SecondaryIndex sidecar `*.parquet.idx` at write time.
+  - `src/tsdb/storage/parquet/secondary_index.cpp`:
+    - `BuildFromParquetFile` now reads **only** the needed column(s) per row group:
+      - prefers `series_id` column (numeric) when present
+      - falls back to `tags` when `series_id` is absent
+    - This makes any remaining build paths cheaper, and also keeps backward compatibility.
+  - `test/unit/CMakeLists.txt`, `test/integration/CMakeLists.txt`:
+    - Wrapped `gtest_discover_tests` to always pass `DISCOVERY_TIMEOUT 600` to prevent flaky build-time discovery timeouts.
+- **Integration coverage**:
+  - `test/integration/parquet/secondary_index_integration_test.cpp`:
+    - `IndexSidecarIsWrittenAtParquetWriteTime` asserts that `ParquetWriter::Close()` produces `*.idx` and `SecondaryIndex::LoadFromFile` succeeds.
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
+
 ---
 
 #### Step 2.5 — Collision defense for SeriesID
