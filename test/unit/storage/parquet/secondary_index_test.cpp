@@ -143,7 +143,8 @@ TEST_F(SecondaryIndexTest, GetAllSeriesIDs) {
     auto result = index_->GetAllSeriesIDs();
     EXPECT_EQ(result.size(), expected.size());
     
-    // Since it's a B+ tree (ordered), result should be sorted
+    // Order is not guaranteed (hash map); compare as sets.
+    std::sort(result.begin(), result.end());
     std::sort(expected.begin(), expected.end());
     EXPECT_EQ(result, expected);
 }

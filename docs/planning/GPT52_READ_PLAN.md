@@ -352,6 +352,26 @@ Where possible, we will write tests that:
   - `make test-storage-unit`
   - `make test-integration`
 
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - `include/tsdb/storage/parquet/secondary_index.h`, `src/tsdb/storage/parquet/secondary_index.cpp`:
+    - Switched the core index structure to `std::unordered_map<SeriesID, vector<RowLocation>>`.
+    - Switched locking to `std::shared_mutex` (shared locks for lookups/stats, exclusive for build/load/insert/clear).
+    - Reduced lock hold time by building/loading into a local map and swapping under a single exclusive lock.
+  - `test/unit/storage/parquet/secondary_index_test.cpp`:
+    - Updated `GetAllSeriesIDs` test to not assume ordered iteration (hash map).
+- **Performance evidence (in-memory lookup microbench)**:
+  - Benchmark: `./build/test/unit/tsdb_secondary_index_unit_tests --gtest_filter=SecondaryIndexTest.LookupPerformance`
+    - Setup: 10,000 series inserted; 1,000 random `Lookup()` calls; Release build.
+  - Measured on this machine:
+    - baseline (std::map + mutex): **0.169 µs** avg lookup
+    - Step 2.1 (unordered_map + shared_mutex): **0.058 µs** avg lookup
+    - **~2.9× speedup** for `SecondaryIndex::Lookup()` in this workload.
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
+
 ---
 
 #### Step 2.2 — Fix RowLocation time-range fidelity (row-group-specific)

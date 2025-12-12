@@ -35,13 +35,18 @@ SecondaryIndex::SecondaryIndex() {
 SecondaryIndex::~SecondaryIndex() = default;
 
 SecondaryIndex::SecondaryIndex(SecondaryIndex&& other) noexcept 
-    : index_(std::move(other.index_))
-    , stats_(std::move(other.stats_)) {
+    : index_()
+    , stats_() {
+    // Move ctor is not expected to be used concurrently; still, take exclusive lock for safety.
+    std::unique_lock<std::shared_mutex> lock(other.mutex_);
+    index_ = std::move(other.index_);
+    stats_ = std::move(other.stats_);
 }
 
 SecondaryIndex& SecondaryIndex::operator=(SecondaryIndex&& other) noexcept {
     if (this != &other) {
-        std::lock_guard<std::mutex> lock(mutex_);
+        // Lock both mutexes without deadlock.
+        std::scoped_lock lock(mutex_, other.mutex_);
         index_ = std::move(other.index_);
         stats_ = std::move(other.stats_);
     }
@@ -83,11 +88,8 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         spdlog::debug("Building secondary index for {} with {} row groups", 
                       parquet_path, num_row_groups);
         
-        // Clear existing index
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            index_.clear();
-        }
+        // Build into local structures, then publish with a single swap under exclusive lock.
+        std::unordered_map<core::SeriesID, std::vector<RowLocation>> local_index;
         
         // Track all unique series across the file
         std::unordered_map<core::SeriesID, std::set<int>> series_row_groups;
@@ -208,14 +210,13 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         }
         
         // Now build the index from aggregated data
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            for (const auto& [series_id, row_groups] : series_row_groups) {
-                auto& time_range = series_time_range[series_id];
-                for (int rg : row_groups) {
-                    RowLocation location(rg, 0, time_range.first, time_range.second);
-                    index_[series_id].push_back(location);
-                }
+        for (const auto& [series_id, row_groups] : series_row_groups) {
+            auto& time_range = series_time_range[series_id];
+            auto& vec = local_index[series_id];
+            vec.reserve(vec.size() + row_groups.size());
+            for (int rg : row_groups) {
+                RowLocation location(rg, 0, time_range.first, time_range.second);
+                vec.push_back(location);
             }
         }
         
@@ -225,10 +226,11 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
             end_time - start_time);
         
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            index_.swap(local_index);
             stats_.num_series = index_.size();
             stats_.num_locations = TotalLocations();
-            stats_.memory_bytes = stats_.num_series * sizeof(core::SeriesID) + 
+            stats_.memory_bytes = stats_.num_series * sizeof(core::SeriesID) +
                                   stats_.num_locations * sizeof(RowLocation);
             stats_.build_time_us = duration.count();
             stats_.source_file = parquet_path;
@@ -276,32 +278,29 @@ bool SecondaryIndex::LoadFromFile(const std::string& index_path) {
         size_t num_series;
         file.read(reinterpret_cast<char*>(&num_series), sizeof(num_series));
         
-        // Clear and populate index
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            index_.clear();
+        std::unordered_map<core::SeriesID, std::vector<RowLocation>> local_index;
+        local_index.reserve(num_series);
+
+        for (size_t i = 0; i < num_series; ++i) {
+            core::SeriesID series_id;
+            size_t num_locations;
             
-            for (size_t i = 0; i < num_series; ++i) {
-                core::SeriesID series_id;
-                size_t num_locations;
-                
-                file.read(reinterpret_cast<char*>(&series_id), sizeof(series_id));
-                file.read(reinterpret_cast<char*>(&num_locations), sizeof(num_locations));
-                
-                std::vector<RowLocation> locations(num_locations);
-                for (size_t j = 0; j < num_locations; ++j) {
-                    file.read(reinterpret_cast<char*>(&locations[j].row_group_id), 
-                              sizeof(locations[j].row_group_id));
-                    file.read(reinterpret_cast<char*>(&locations[j].row_offset), 
-                              sizeof(locations[j].row_offset));
-                    file.read(reinterpret_cast<char*>(&locations[j].min_timestamp), 
-                              sizeof(locations[j].min_timestamp));
-                    file.read(reinterpret_cast<char*>(&locations[j].max_timestamp), 
-                              sizeof(locations[j].max_timestamp));
-                }
-                
-                index_[series_id] = std::move(locations);
+            file.read(reinterpret_cast<char*>(&series_id), sizeof(series_id));
+            file.read(reinterpret_cast<char*>(&num_locations), sizeof(num_locations));
+            
+            std::vector<RowLocation> locations(num_locations);
+            for (size_t j = 0; j < num_locations; ++j) {
+                file.read(reinterpret_cast<char*>(&locations[j].row_group_id),
+                          sizeof(locations[j].row_group_id));
+                file.read(reinterpret_cast<char*>(&locations[j].row_offset),
+                          sizeof(locations[j].row_offset));
+                file.read(reinterpret_cast<char*>(&locations[j].min_timestamp),
+                          sizeof(locations[j].min_timestamp));
+                file.read(reinterpret_cast<char*>(&locations[j].max_timestamp),
+                          sizeof(locations[j].max_timestamp));
             }
+            
+            local_index[series_id] = std::move(locations);
         }
         
         auto end_time = std::chrono::high_resolution_clock::now();
@@ -309,10 +308,11 @@ bool SecondaryIndex::LoadFromFile(const std::string& index_path) {
             end_time - start_time);
         
         {
-            std::lock_guard<std::mutex> lock(mutex_);
+            std::unique_lock<std::shared_mutex> lock(mutex_);
+            index_.swap(local_index);
             stats_.num_series = index_.size();
             stats_.num_locations = TotalLocations();
-            stats_.memory_bytes = stats_.num_series * sizeof(core::SeriesID) + 
+            stats_.memory_bytes = stats_.num_series * sizeof(core::SeriesID) +
                                   stats_.num_locations * sizeof(RowLocation);
             stats_.build_time_us = duration.count();
         }
@@ -341,7 +341,7 @@ bool SecondaryIndex::SaveToFile(const std::string& index_path) const {
         file.write(reinterpret_cast<const char*>(&INDEX_MAGIC), sizeof(INDEX_MAGIC));
         file.write(reinterpret_cast<const char*>(&INDEX_VERSION), sizeof(INDEX_VERSION));
         
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::shared_lock<std::shared_mutex> lock(mutex_);
         
         // Write number of entries
         size_t num_series = index_.size();
@@ -379,7 +379,7 @@ bool SecondaryIndex::SaveToFile(const std::string& index_path) const {
 }
 
 std::vector<RowLocation> SecondaryIndex::Lookup(core::SeriesID series_id) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     
     auto it = index_.find(series_id);
     if (it != index_.end()) {
@@ -394,7 +394,7 @@ std::vector<RowLocation> SecondaryIndex::LookupInTimeRange(
     int64_t start_time,
     int64_t end_time) const {
     
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     
     auto it = index_.find(series_id);
     if (it == index_.end()) {
@@ -414,7 +414,7 @@ std::vector<RowLocation> SecondaryIndex::LookupInTimeRange(
 }
 
 void SecondaryIndex::Insert(core::SeriesID series_id, const RowLocation& location) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     index_[series_id].push_back(location);
     
     // Update stats
@@ -425,12 +425,12 @@ void SecondaryIndex::Insert(core::SeriesID series_id, const RowLocation& locatio
 }
 
 bool SecondaryIndex::Contains(core::SeriesID series_id) const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     return index_.find(series_id) != index_.end();
 }
 
 size_t SecondaryIndex::Size() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     return index_.size();
 }
 
@@ -444,7 +444,7 @@ size_t SecondaryIndex::TotalLocations() const {
 }
 
 void SecondaryIndex::Clear() {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::shared_mutex> lock(mutex_);
     index_.clear();
     stats_.num_series = 0;
     stats_.num_locations = 0;
@@ -452,12 +452,12 @@ void SecondaryIndex::Clear() {
 }
 
 bool SecondaryIndex::Empty() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     return index_.empty();
 }
 
 std::vector<core::SeriesID> SecondaryIndex::GetAllSeriesIDs() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     
     std::vector<core::SeriesID> result;
     result.reserve(index_.size());
@@ -470,7 +470,7 @@ std::vector<core::SeriesID> SecondaryIndex::GetAllSeriesIDs() const {
 }
 
 SecondaryIndex::IndexStats SecondaryIndex::GetStats() const {
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::shared_lock<std::shared_mutex> lock(mutex_);
     return stats_;
 }
 

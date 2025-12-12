@@ -3,11 +3,11 @@
 
 #include "tsdb/core/types.h"
 #include <cstdint>
-#include <map>
 #include <unordered_map>
 #include <vector>
 #include <string>
 #include <mutex>
+#include <shared_mutex>
 #include <memory>
 #include <optional>
 
@@ -38,21 +38,21 @@ struct RowLocation {
 };
 
 /**
- * @brief B+ Tree Secondary Index for Parquet files
+ * @brief Secondary Index for Parquet files
  * 
- * This class provides O(log n) lookup from SeriesID to RowLocation,
+ * This class provides O(1) average-case lookup from SeriesID to RowLocation,
  * dramatically improving cold storage read performance by avoiding
  * full file scans.
  * 
  * Architecture:
- * - Uses std::map (red-black tree) as B+ tree implementation
+ * - Uses std::unordered_map as the core index structure
  * - Supports multiple row locations per series (series spanning row groups)
  * - Thread-safe with read-write locking
  * - Persists index to sidecar file for fast startup
  * 
  * Performance:
- * - Lookup: O(log n) where n = number of unique series
- * - Insert: O(log n)
+ * - Lookup: O(1) average-case where n = number of unique series
+ * - Insert: O(1) average-case
  * - Space: O(n * sizeof(RowLocation))
  * 
  * Usage:
@@ -191,15 +191,11 @@ public:
     IndexStats GetStats() const;
 
 private:
-    // B+ tree implementation using std::map (red-black tree)
-    // Key: SeriesID, Value: vector of RowLocations (series can span row groups)
-    std::map<core::SeriesID, std::vector<RowLocation>> index_;
-    
-    // Alternative: flat hash map for O(1) average case
-    // std::unordered_map<core::SeriesID, std::vector<RowLocation>> hash_index_;
+    // Hash index: Key: SeriesID, Value: vector of RowLocations (series can span row groups)
+    std::unordered_map<core::SeriesID, std::vector<RowLocation>> index_;
     
     // Thread safety
-    mutable std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
     
     // Statistics
     mutable IndexStats stats_;
