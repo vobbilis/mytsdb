@@ -4,6 +4,8 @@
 #include "tsdb/core/result.h"
 #include "tsdb/storage/storage.h"
 #include "tsdb/storage/storage_impl.h"
+#include "test_util/temp_dir.h"
+#include "tsdb/storage/read_performance_instrumentation.h"
 #include <filesystem>
 #include <random>
 #include <thread>
@@ -32,7 +34,7 @@ class StorageTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Create temporary directory for test data
-        test_dir_ = std::filesystem::temp_directory_path() / "tsdb_test";
+        test_dir_ = tsdb::testutil::MakeUniqueTestDir("tsdb_storage_test");
         std::filesystem::create_directories(test_dir_);
         
         core::StorageConfig config;
@@ -177,6 +179,59 @@ TEST_F(StorageTest, MultipleSeries) {
     
     EXPECT_TRUE(found_cpu);
     EXPECT_TRUE(found_memory);
+}
+
+TEST_F(StorageTest, QueryPrunesSeriesByTimeBoundsBeforeRead) {
+    // Two series match the same label selector, but only one overlaps the query time range.
+    auto early = CreateTestTimeSeries("metric_early", "host1", {
+        core::Sample(1000, 1.0),
+        core::Sample(2000, 2.0),
+    });
+    auto late = CreateTestTimeSeries("metric_late", "host1", {
+        core::Sample(100000, 3.0),
+        core::Sample(101000, 4.0),
+    });
+
+    ASSERT_TRUE(storage_->write(early).ok());
+    ASSERT_TRUE(storage_->write(late).ok());
+
+    tsdb::storage::ReadPerformanceInstrumentation::instance().reset_stats();
+
+    std::vector<core::LabelMatcher> matchers;
+    matchers.emplace_back(core::MatcherType::Equal, "instance", "host1");
+
+    auto query_result = storage_->query(matchers, 0, 5000);
+    ASSERT_TRUE(query_result.ok()) << query_result.error();
+    ASSERT_EQ(query_result.value().size(), 1);
+    ASSERT_EQ(query_result.value()[0].labels().get("__name__").value(), "metric_early");
+
+    auto stats = tsdb::storage::ReadPerformanceInstrumentation::instance().get_stats();
+    EXPECT_GE(stats.series_time_bounds_checks, 1u);
+    EXPECT_EQ(stats.series_time_bounds_pruned, 1u);
+}
+
+TEST_F(StorageTest, QueryDoesNotPruneWhenSeriesBoundsOverlapAfterUpdate) {
+    // Write disjoint sample ranges for the same series, bounds should expand.
+    auto series = CreateTestTimeSeries("metric_bounds", "host1", { core::Sample(1000, 1.0) });
+    ASSERT_TRUE(storage_->write(series).ok());
+
+    // Second write extends max_ts far into the future.
+    auto series2 = CreateTestTimeSeries("metric_bounds", "host1", { core::Sample(100000, 2.0) });
+    ASSERT_TRUE(storage_->write(series2).ok());
+
+    tsdb::storage::ReadPerformanceInstrumentation::instance().reset_stats();
+
+    std::vector<core::LabelMatcher> matchers;
+    matchers.emplace_back(core::MatcherType::Equal, "instance", "host1");
+    matchers.emplace_back(core::MatcherType::Equal, "__name__", "metric_bounds");
+
+    auto query_result = storage_->query(matchers, 90000, 110000);
+    ASSERT_TRUE(query_result.ok()) << query_result.error();
+    ASSERT_EQ(query_result.value().size(), 1);
+
+    auto stats = tsdb::storage::ReadPerformanceInstrumentation::instance().get_stats();
+    EXPECT_GE(stats.series_time_bounds_checks, 1u);
+    EXPECT_EQ(stats.series_time_bounds_pruned, 0u);
 }
 
 TEST_F(StorageTest, LabelOperations) {

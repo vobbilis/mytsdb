@@ -209,13 +209,31 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
                 index_->add_series(series_id, series.labels());
                 
             }
-            
+
+            // Phase 1.4: Update per-series time bounds from WAL samples (single-threaded replay)
+            int64_t min_ts = std::numeric_limits<int64_t>::max();
+            int64_t max_ts = std::numeric_limits<int64_t>::min();
+
             // 5. Write sample to series
             // We need to write all samples from the input series
             // Add samples to the series (this locks Series mutex)
             // Note: During replay, we're single-threaded, so no deadlock risk
             for (const auto& sample : series.samples()) {
                 accessor->second->append(sample);
+                min_ts = std::min<int64_t>(min_ts, sample.timestamp());
+                max_ts = std::max<int64_t>(max_ts, sample.timestamp());
+            }
+
+            if (min_ts != std::numeric_limits<int64_t>::max()) {
+                SeriesTimeBoundsMap::accessor bounds_acc;
+                bool inserted = series_time_bounds_.insert(bounds_acc, series_id);
+                if (inserted) {
+                    bounds_acc->second.min_ts = min_ts;
+                    bounds_acc->second.max_ts = max_ts;
+                } else {
+                    bounds_acc->second.min_ts = std::min(bounds_acc->second.min_ts, min_ts);
+                    bounds_acc->second.max_ts = std::max(bounds_acc->second.max_ts, max_ts);
+                }
             }
         } catch (const std::exception& e) {
             TSDB_ERROR("WAL replay callback failed: " + std::string(e.what()));
@@ -283,6 +301,20 @@ core::Result<void> StorageImpl::init(const core::StorageConfig& config) {
                 
                 // Add block to series
                 accessor->second->AddBlock(block);
+
+                // Phase 1.4: Update per-series time bounds from persisted block header.
+                // Persisted blocks are per-series in this design, so block time range is safe to use.
+                {
+                    SeriesTimeBoundsMap::accessor bounds_acc;
+                    bool inserted = series_time_bounds_.insert(bounds_acc, series_id);
+                    if (inserted) {
+                        bounds_acc->second.min_ts = block->start_time();
+                        bounds_acc->second.max_ts = block->end_time();
+                    } else {
+                        bounds_acc->second.min_ts = std::min(bounds_acc->second.min_ts, block->start_time());
+                        bounds_acc->second.max_ts = std::max(bounds_acc->second.max_ts, block->end_time());
+                    }
+                }
 
                 // CRITICAL FIX: Populate global block maps
                 // This ensures that read_from_blocks_nolock works correctly even if active_series_ misses
@@ -450,6 +482,14 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
             series_id = calculate_series_id(series.labels());
         }
 
+        // Phase 1.4: Compute min/max timestamps for this write payload once.
+        int64_t write_min_ts = std::numeric_limits<int64_t>::max();
+        int64_t write_max_ts = std::numeric_limits<int64_t>::min();
+        for (const auto& s : series.samples()) {
+            write_min_ts = std::min<int64_t>(write_min_ts, s.timestamp());
+            write_max_ts = std::max<int64_t>(write_max_ts, s.timestamp());
+        }
+
         // 3. Find or create the series object in the concurrent map.
         // Also handle appending and potential block persistence under shared lock
         std::shared_ptr<internal::BlockImpl> persisted_block = nullptr;
@@ -497,6 +537,19 @@ core::Result<void> StorageImpl::write(const core::TimeSeries& series) {
                     if (accessor->second->append(sample)) {
                         block_is_full = true;
                     }
+                }
+            }
+
+            // Phase 1.4: Update per-series time bounds (under shared lock to avoid races with close()).
+            if (write_min_ts != std::numeric_limits<int64_t>::max()) {
+                SeriesTimeBoundsMap::accessor bounds_acc;
+                bool inserted = series_time_bounds_.insert(bounds_acc, series_id);
+                if (inserted) {
+                    bounds_acc->second.min_ts = write_min_ts;
+                    bounds_acc->second.max_ts = write_max_ts;
+                } else {
+                    bounds_acc->second.min_ts = std::min(bounds_acc->second.min_ts, write_min_ts);
+                    bounds_acc->second.max_ts = std::max(bounds_acc->second.max_ts, write_max_ts);
                 }
             }
 
@@ -971,6 +1024,24 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
                 break; // Limit series to check to prevent excessive processing/timeout
             }
             series_checked++;
+
+            // Phase 1.4: Per-series time bounds pruning before any read I/O/CPU.
+            {
+                auto prune_start = std::chrono::steady_clock::now();
+                SeriesTimeBoundsMap::const_accessor bounds_acc;
+                if (series_time_bounds_.find(bounds_acc, series_id)) {
+                    metrics.series_time_bounds_checks++;
+                    const auto& b = bounds_acc->second;
+                    if (b.max_ts < start_time || b.min_ts > end_time) {
+                        metrics.series_time_bounds_pruned++;
+                        metrics.pruning_time_us += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(
+                            std::chrono::steady_clock::now() - prune_start).count();
+                        continue;
+                    }
+                }
+                metrics.pruning_time_us += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(
+                    std::chrono::steady_clock::now() - prune_start).count();
+            }
             
             // CATEGORY 2 FIX: Check timeout before calling read() which might be slow
             elapsed = std::chrono::steady_clock::now() - query_start_time;
@@ -1429,6 +1500,9 @@ core::Result<void> StorageImpl::delete_series(
             
             // Remove from series_blocks_ (concurrent)
             series_blocks_.erase(series_id);  // concurrent_hash_map::erase is thread-safe
+
+            // Phase 1.4: Remove per-series time bounds
+            series_time_bounds_.erase(series_id);
             
             // Remove from cache if present
             if (cache_hierarchy_) {
@@ -1724,6 +1798,7 @@ core::Result<void> StorageImpl::close() {
     // Clear all data structures
     active_series_.clear();
     series_blocks_.clear();
+    series_time_bounds_.clear();
     label_to_blocks_.clear();
     block_to_series_.clear();
     current_block_.reset();

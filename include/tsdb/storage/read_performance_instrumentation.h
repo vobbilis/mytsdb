@@ -73,6 +73,10 @@ public:
         size_t bloom_filter_skips = 0;               // Files skipped (definite not present)
         size_t bloom_filter_passes = 0;              // Files passed to B+ Tree (might be present)
 
+        // Phase 1.4: Per-series time bounds pruning (post-index, pre-read)
+        size_t series_time_bounds_checks = 0;        // Number of series bounds looked up
+        size_t series_time_bounds_pruned = 0;        // Series skipped due to non-overlapping bounds
+
         void reset() {
             index_search_us = 0.0;
             block_lookup_us = 0.0;
@@ -122,6 +126,9 @@ public:
             bloom_filter_checks = 0;
             bloom_filter_skips = 0;
             bloom_filter_passes = 0;
+
+            series_time_bounds_checks = 0;
+            series_time_bounds_pruned = 0;
         }
 
         std::string to_string() const {
@@ -160,6 +167,7 @@ public:
                 ss << ", hits: " << secondary_index_hits;
                 ss << ", rg_selected: " << secondary_index_row_groups_selected << ")";
             }
+            ss << ", SeriesBounds(Checks/Pruned): " << series_time_bounds_checks << "/" << series_time_bounds_pruned;
             return ss.str();
         }
     };
@@ -245,6 +253,10 @@ public:
             bloom_filter_passes_ += metrics.bloom_filter_passes;
             bloom_filter_lookup_time_us_ += metrics.bloom_filter_lookup_us;
         }
+
+        // Phase 1.4: Per-series time bounds pruning aggregation
+        series_time_bounds_checks_ += metrics.series_time_bounds_checks;
+        series_time_bounds_pruned_ += metrics.series_time_bounds_pruned;
         
         // Record to GlobalMetrics for self-monitoring
         size_t bytes = metrics.bytes_read > 0 ? metrics.bytes_read : metrics.samples_scanned * sizeof(double);
@@ -348,6 +360,10 @@ public:
         uint64_t bloom_filter_skips;
         uint64_t bloom_filter_passes;
         double bloom_filter_lookup_time_us;
+
+        // Phase 1.4: Per-series time bounds pruning
+        uint64_t series_time_bounds_checks;
+        uint64_t series_time_bounds_pruned;
     };
 
     AggregateStats get_stats() const {
@@ -386,7 +402,9 @@ public:
             bloom_filter_checks_,
             bloom_filter_skips_,
             bloom_filter_passes_,
-            bloom_filter_lookup_time_us_
+            bloom_filter_lookup_time_us_,
+            series_time_bounds_checks_,
+            series_time_bounds_pruned_
         };
     }
 
@@ -429,6 +447,9 @@ public:
         bloom_filter_skips_ = 0;
         bloom_filter_passes_ = 0;
         bloom_filter_lookup_time_us_ = 0;
+
+        series_time_bounds_checks_ = 0;
+        series_time_bounds_pruned_ = 0;
     }
 
 private:
@@ -481,6 +502,10 @@ private:
     uint64_t bloom_filter_skips_ = 0;
     uint64_t bloom_filter_passes_ = 0;
     double bloom_filter_lookup_time_us_ = 0;
+
+    // Phase 1.4: Per-series time bounds pruning
+    uint64_t series_time_bounds_checks_ = 0;
+    uint64_t series_time_bounds_pruned_ = 0;
 };
 
 class ReadScopedTimer {

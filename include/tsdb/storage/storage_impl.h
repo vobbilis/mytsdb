@@ -11,6 +11,7 @@
 #include <shared_mutex>
 #include <atomic>
 #include <functional>
+#include <limits>
 
 #include "tsdb/core/matcher.h"
 #include "tsdb/core/result.h"
@@ -231,6 +232,14 @@ private:
     std::unique_ptr<ShardedIndex> index_;
     using SeriesMap = tbb::concurrent_hash_map<core::SeriesID, std::shared_ptr<Series>>;
     SeriesMap active_series_;
+
+    // Phase 1.4: Per-series time bounds pruning (post-index, pre-read)
+    struct SeriesTimeBounds {
+        int64_t min_ts = std::numeric_limits<int64_t>::max();
+        int64_t max_ts = std::numeric_limits<int64_t>::min();
+    };
+    using SeriesTimeBoundsMap = tbb::concurrent_hash_map<core::SeriesID, SeriesTimeBounds>;
+    SeriesTimeBoundsMap series_time_bounds_;
     
     // Thread synchronization
     mutable std::shared_mutex mutex_;

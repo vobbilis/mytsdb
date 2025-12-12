@@ -82,6 +82,10 @@ Where possible, we will write tests that:
 
 ### Phase 1 — Primary index enhancements
 
+**Phase 1 progress (2025-12-12)**
+- **Status**: ✅ **Completed (Steps 1.1–1.4)**
+- **Gate run**: `make test-storage-unit`, `make test-integration` ✅
+
 #### Step 1.1 — Regex compilation once per query (algorithmic hot spot)
 **Problem**
 - `Index::find_series()` currently constructs `std::regex` inside the per-candidate loop, making cost scale as \(O(|candidates| \times regex_compile)\).
@@ -295,6 +299,28 @@ Where possible, we will write tests that:
 
 **Acceptance**
 - Less total read work for time-narrow queries on high-cardinality datasets.
+
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - `include/tsdb/storage/storage_impl.h`, `src/tsdb/storage/storage_impl.cpp`:
+    - Maintain `series_id -> (min_ts, max_ts)` in-memory, updated on:
+      - normal `write()` (based on the min/max of the payload samples)
+      - WAL replay during `init()` (based on WAL samples)
+      - persisted block recovery (based on recovered block header time bounds)
+    - In `StorageImpl::query()`, before calling `read_nolock(...)`, prune series when bounds do not overlap `[start_time,end_time]`.
+  - `include/tsdb/storage/read_performance_instrumentation.h`:
+    - Added counters `series_time_bounds_checks` and `series_time_bounds_pruned` to make pruning behavior testable without timing assertions.
+- **Unit coverage**:
+  - `test/tsdb/storage/storage_test.cpp`:
+    - `QueryPrunesSeriesByTimeBoundsBeforeRead`
+    - `QueryDoesNotPruneWhenSeriesBoundsOverlapAfterUpdate`
+- **Integration coverage**:
+  - `test/integration/time_bounds_pruning_integration_test.cpp`:
+    - `QueryPrunesNonOverlappingSeries`
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
 
 ---
 

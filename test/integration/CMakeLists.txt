@@ -7,6 +7,7 @@ add_executable(tsdb_integration_test_suite
     config_integration_test.cpp
     derived_metrics_integration_test.cpp
     negative_matchers_integration_test.cpp
+    time_bounds_pruning_integration_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp
