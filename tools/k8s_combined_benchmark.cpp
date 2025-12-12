@@ -65,7 +65,22 @@ struct BenchmarkConfig {
     
     // Presets
     std::string preset = "quick";
+
+    // Mode selection
+    // - combined: concurrent writes + reads (default)
+    // - read-only: no concurrent writes during phase 2 (still does warm-up writes)
+    std::string mode = "combined";
     
+    // Workload selection (query mix)
+    // - default: existing Grafana-style dashboard mix
+    // - negative: selector-heavy mix focused on != and !~ over high-cardinality labels
+    std::string workload = "default";
+
+    // Determinism
+    // If --seed is provided, benchmark run is reproducible (data + query selection).
+    bool seed_specified = false;
+    uint64_t seed = 0;
+
     // Data Management
     bool clean_start = false;
     bool generate_10m = false;
@@ -236,6 +251,34 @@ struct DashboardQuery {
 };
 
 std::vector<DashboardQuery> get_dashboard_queries(const BenchmarkConfig& config) {
+    if (config.workload == "negative") {
+        // Selector-heavy workload that exercises label selection and negative matchers.
+        // Labels present in this benchmark's writes:
+        // - namespace: ns-0..ns-9
+        // - pod: pod-0..pod-99
+        // - service: k8s-benchmark
+        return {
+            // NOTE: To avoid "read everything" amplification, we bias the negative matchers
+            // to exclude MOST of the domain and leave a smaller candidate set.
+
+            // Hot (instant-ish): keep only pods starting with "pod-0" (≈10% of pods 0..99)
+            {"Neg: CPU keep pod-0xx",
+             "sum(rate(container_cpu_usage_seconds_total{service=\"k8s-benchmark\",pod!~\"pod-[1-9].*\"}[5m]))", "", "", true, QueryType::Hot},
+
+            // Hot: keep only namespace ns-0 (exclude ns-1..ns-9)
+            {"Neg: CPU keep ns-0",
+             "sum(rate(container_cpu_usage_seconds_total{service=\"k8s-benchmark\",namespace!~\"ns-[1-9]\"}[5m]))", "", "", true, QueryType::Hot},
+
+            // Mixed: combine both (smallest set)
+            {"Neg: CPU keep ns-0 and pod-0xx",
+             "sum(rate(container_cpu_usage_seconds_total{service=\"k8s-benchmark\",namespace!~\"ns-[1-9]\",pod!~\"pod-[1-9].*\"}[5m]))", "", "", true, QueryType::Hot},
+
+            // Cold-ish range queries to mix in longer evaluation while staying selector-heavy
+            {"Neg: CPU Trend 1h keep ns-0", "sum(rate(container_cpu_usage_seconds_total{namespace!~\"ns-[1-9]\"}[5m])) by (namespace)", "1h", "60s", false, QueryType::Cold},
+            {"Neg: CPU Trend 6h keep pod-0xx", "avg(rate(container_cpu_usage_seconds_total{pod!~\"pod-[1-9].*\"}[5m])) by (namespace)", "6h", "300s", false, QueryType::Cold},
+        };
+    }
+
     return {
         // =====================================================================
         // HOT TIER - Instant Queries (last 5 minutes)
@@ -347,7 +390,8 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateMetricBatch(
     int num_samples,
     int64_t base_timestamp,
     const std::string& pod_name,
-    const std::string& ns_name) {
+    const std::string& ns_name,
+    std::mt19937_64& gen) {
     
     // Schema: timestamp (int64), value (float64), tags (Map<String, String>)
     auto key_field = arrow::field("key", arrow::utf8(), false);
@@ -371,9 +415,6 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateMetricBatch(
     arrow::StringBuilder* key_builder = static_cast<arrow::StringBuilder*>(tags_builder.key_builder());
     arrow::StringBuilder* item_builder = static_cast<arrow::StringBuilder*>(tags_builder.item_builder());
     
-    // Optimize RNG: initialize once per thread
-    static thread_local std::random_device rd;
-    static thread_local std::mt19937 gen(rd());
     std::uniform_real_distribution<> val_dist(0.0, 100.0);
     
     for (int i = 0; i < num_samples; ++i) {
@@ -437,10 +478,6 @@ arrow::Result<std::shared_ptr<arrow::RecordBatch>> CreateHistogramBatch(
     );
     arrow::StringBuilder* key_builder = static_cast<arrow::StringBuilder*>(tags_builder.key_builder());
     arrow::StringBuilder* item_builder = static_cast<arrow::StringBuilder*>(tags_builder.item_builder());
-    
-    // Generate cumulative bucket counts (realistic distribution)
-    static thread_local std::random_device rd;
-    static thread_local std::mt19937 gen(rd());
     
     for (int t = 0; t < num_timestamps; ++t) {
         int64_t timestamp = base_timestamp + t * 15000; // 15s interval in milliseconds
@@ -549,9 +586,17 @@ public:
 
 private:
     void run(std::atomic<int64_t>& total_samples, LatencyTracker& latencies) {
-        std::random_device rd;
-        std::mt19937 gen(rd());
-        std::uniform_int_distribution<> metric_dist(0, K8S_METRICS.size() - 1);
+        // Deterministic RNG per worker when --seed is provided.
+        const uint64_t seed = config_.seed ^ (0x9e3779b97f4a7c15ULL + static_cast<uint64_t>(worker_id_) * 0xBF58476D1CE4E5B9ULL);
+        std::mt19937_64 gen(seed);
+        // Honor config metric_types (subset of K8S_METRICS) so reported cardinality is real.
+        const size_t metric_pool_size =
+            std::min(static_cast<size_t>(std::max(1, config_.metric_types)), K8S_METRICS.size());
+        std::uniform_int_distribution<size_t> metric_dist(0, metric_pool_size - 1);
+
+        // Honor configured label cardinalities.
+        const int pod_card = std::max(1, config_.total_pods());
+        const int ns_card = std::max(1, config_.namespaces_per_cluster);
         
         // Start timestamps 30 DAYS in the past.
         // This ensures all data is "old" and eligible for demotion to cold storage (ParquetBlock).
@@ -576,7 +621,7 @@ private:
         int64_t dummy_ts = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::system_clock::now().time_since_epoch()
         ).count();
-        auto dummy_res = CreateMetricBatch(K8S_METRICS[0], 1, dummy_ts, "init", "init");
+        auto dummy_res = CreateMetricBatch(K8S_METRICS[0], 1, dummy_ts, "init", "init", gen);
         if (!dummy_res.ok()) {
              std::cerr << "Worker " << worker_id_ << ": Failed to create schema: " << dummy_res.status().ToString() << "\n";
              return;
@@ -598,8 +643,8 @@ private:
         while (running_) {
             // Create a batch for a random metric
             std::string metric_name = K8S_METRICS[metric_dist(gen)];
-            std::string pod_name = "pod-" + std::to_string(gen() % 100); 
-            std::string ns_name = "ns-" + std::to_string(gen() % 10);
+            std::string pod_name = "pod-" + std::to_string(static_cast<int>(gen() % static_cast<uint64_t>(pod_card)));
+            std::string ns_name = "ns-" + std::to_string(static_cast<int>(gen() % static_cast<uint64_t>(ns_card)));
             
             int samples = config_.samples_per_metric; 
             // Increase batch size? Maybe config_.write_batch_size should be used here instead?
@@ -608,7 +653,7 @@ private:
 
             auto start = std::chrono::high_resolution_clock::now();
             
-            auto batch_res = CreateMetricBatch(metric_name, samples, timestamp, pod_name, ns_name);
+            auto batch_res = CreateMetricBatch(metric_name, samples, timestamp, pod_name, ns_name, gen);
             if (!batch_res.ok()) {
                 std::cerr << "Failed to create batch: " << batch_res.status().ToString() << "\n";
                 continue;
@@ -712,8 +757,9 @@ private:
             else cold_queries.push_back(q);
         }
         
-        std::random_device rd;
-        std::mt19937 gen(rd());
+        // Deterministic RNG per worker when --seed is provided.
+        const uint64_t seed = config_.seed ^ (0xD6E8FEB86659FD93ULL + static_cast<uint64_t>(worker_id_) * 0x94D049BB133111EBULL);
+        std::mt19937_64 gen(seed);
         std::uniform_int_distribution<> hot_dist(0, hot_queries.empty() ? 0 : hot_queries.size() - 1);
         std::uniform_int_distribution<> cold_dist(0, cold_queries.empty() ? 0 : cold_queries.size() - 1);
         std::uniform_real_distribution<> ratio_dist(0.0, 1.0);
@@ -845,9 +891,19 @@ public:
         std::cout << "\n=== Phase 1: Write Warm-up ===" << std::endl;
         run_writes_only(config_.write_duration_sec / 10);
         
-        // Phase 2: Combined write+read benchmark
-        std::cout << "\n=== Phase 2: Combined Write+Read ===" << std::endl;
-        run_combined();
+        // Phase 2: Benchmark
+        if (config_.mode == "read-only") {
+            std::cout << "\n=== Phase 2: Read-only (no concurrent writes) ===" << std::endl;
+            int64_t q = 0;
+            int64_t s = 0;
+            run_reads_only(config_.read_duration_sec, &q, &s);
+            combined_write_samples_ = 0;
+            combined_read_queries_ = q;
+            combined_read_samples_ = s;
+        } else {
+            std::cout << "\n=== Phase 2: Combined Write+Read ===" << std::endl;
+            run_combined();
+        }
         
         // Phase 3: Read-only cool-down (10% of duration)
         std::cout << "\n=== Phase 3: Read Cool-down ===" << std::endl;
@@ -1083,6 +1139,9 @@ private:
     void print_config() {
         std::cout << "\n=== K8s Combined Benchmark ===" << std::endl;
         std::cout << "Preset: " << config_.preset << std::endl;
+        std::cout << "Mode: " << config_.mode << std::endl;
+        std::cout << "Workload: " << config_.workload << std::endl;
+        std::cout << "Seed: " << config_.seed << (config_.seed_specified ? " (user)" : " (auto)") << std::endl;
         std::cout << "Total Pods: " << config_.total_pods() << std::endl;
         std::cout << "Total Time Series: " << config_.total_time_series() << std::endl;
         std::cout << "Write Workers: " << config_.write_workers << std::endl;
@@ -1138,21 +1197,24 @@ private:
         std::cout << "Warm-up writes: " << total_samples.load() << " samples" << std::endl;
     }
     
-    void run_reads_only(int duration_sec) {
+    void run_reads_only(int duration_sec, int64_t* out_queries = nullptr, int64_t* out_samples = nullptr) {
         if (duration_sec <= 0) return;
         
         std::atomic<int64_t> total_queries{0};
+        std::atomic<int64_t> total_samples{0};
         std::vector<std::unique_ptr<ReadWorker>> workers;
         
         for (int i = 0; i < config_.read_workers; ++i) {
             workers.push_back(std::make_unique<ReadWorker>(config_, i));
-            workers.back()->start(total_queries, total_read_samples_, read_latencies_, hot_read_latencies_, cold_read_latencies_);
+            workers.back()->start(total_queries, total_samples, read_latencies_, hot_read_latencies_, cold_read_latencies_);
         }
         
         std::this_thread::sleep_for(std::chrono::seconds(duration_sec));
         
         for (auto& w : workers) w->stop();
         
+        if (out_queries) *out_queries = total_queries.load();
+        if (out_samples) *out_samples = total_samples.load();
         std::cout << "Cool-down queries: " << total_queries.load() << std::endl;
     }
     
@@ -1283,6 +1345,11 @@ void print_usage(const char* prog) {
     std::cout << "  --write-workers   Number of write workers (default: 4)" << std::endl;
     std::cout << "  --read-workers    Number of read workers (default: 4)" << std::endl;
     std::cout << "  --duration        Test duration in seconds" << std::endl;
+    std::cout << "  --mode            combined|read-only (default: combined)" << std::endl;
+    std::cout << "  --read-only       Shorthand for --mode read-only" << std::endl;
+    std::cout << "  --workload        Query workload: default|negative (default: default)" << std::endl;
+    std::cout << "  --seed            Deterministic seed (uint64). If set, run is reproducible" << std::endl;
+    std::cout << "  --negative-workload  Shorthand for --workload negative" << std::endl;
     std::cout << "  --clean-start     (Flag) Indicate a fresh start (informational only)" << std::endl;
     std::cout << "  --generate-10m    (Flag) Generate 10M samples before benchmark" << std::endl;
     std::cout << "  --help            Show this help message" << std::endl;
@@ -1326,6 +1393,19 @@ int main(int argc, char** argv) {
                 config.write_duration_sec = std::stoi(argv[++i]);
                 config.read_duration_sec = config.write_duration_sec;
             }
+        } else if (arg == "--mode") {
+            if (i + 1 < argc) config.mode = argv[++i];
+        } else if (arg == "--read-only") {
+            config.mode = "read-only";
+        } else if (arg == "--workload") {
+            if (i + 1 < argc) config.workload = argv[++i];
+        } else if (arg == "--negative-workload") {
+            config.workload = "negative";
+        } else if (arg == "--seed") {
+            if (i + 1 < argc) {
+                config.seed = static_cast<uint64_t>(std::stoull(argv[++i]));
+                config.seed_specified = true;
+            }
         } else if (arg == "--clean-start") {
             config.clean_start = true;
         } else if (arg == "--generate-10m") {
@@ -1335,6 +1415,14 @@ int main(int argc, char** argv) {
         else if (arg == "--preset") { i++; }
     }
     
+    // If not specified, pick a non-deterministic seed (still printed for reproducibility).
+    if (!config.seed_specified) {
+        std::random_device rd;
+        const uint64_t hi = static_cast<uint64_t>(rd());
+        const uint64_t lo = static_cast<uint64_t>(rd());
+        config.seed = (hi << 32) ^ lo;
+    }
+
     CombinedBenchmark benchmark(config);
     benchmark.run();
     

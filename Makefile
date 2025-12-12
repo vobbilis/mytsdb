@@ -496,10 +496,57 @@ benchmark-help:
 	@echo "  server-start-clean  - Start server with clean data"
 	@echo "  server-stop         - Stop running server"
 	@echo "  benchmark-quick     - Quick benchmark (~1M samples, 30s)"
+	@echo "  benchmark-negative  - Deterministic negative-matcher workload (quick)"
 	@echo "  benchmark-full      - Full benchmark (10M samples, 2min)"
 	@echo "  benchmark-20m       - Enhanced benchmark (20M samples, 3min)"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make benchmark-quick    # Fast validation run"
+	@echo "  make benchmark-negative # Exercise !=/!~ selector optimizations deterministically"
 	@echo "  make benchmark-20m      # Full performance benchmark"
+
+# Deterministic selector-heavy read workload to exercise negative matchers (!= / !~)
+benchmark-negative: server-start-clean
+	@echo "======================================================"
+	@echo "=== K8s Combined Benchmark (Negative Matchers) ==="
+	@echo "======================================================"
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_negative_$$TIMESTAMP.log"; \
+	echo "Benchmark log: $$LOG_FILE"; \
+	echo "Starting at: $$(date)" | tee $$LOG_FILE; \
+	$(BENCHMARK_BIN) \
+		--quick \
+		--workload negative \
+		--seed 1 \
+		--duration 30 \
+		--write-workers 4 \
+		--read-workers 2 \
+	2>&1 | tee -a $$LOG_FILE; \
+	echo "Completed at: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Log saved to: $$LOG_FILE"
+	@$(MAKE) server-stop
+
+# Same workload as benchmark-negative but isolates reads (no concurrent writes during phase 2)
+benchmark-negative-readonly: server-start-clean
+	@echo "=============================================================="
+	@echo "=== K8s Combined Benchmark (Negative Matchers, Read-only) ==="
+	@echo "=============================================================="
+	@mkdir -p $(BENCHMARK_LOG_DIR)
+	@TIMESTAMP=$$(date +%Y%m%d_%H%M%S); \
+	LOG_FILE="$(BENCHMARK_LOG_DIR)/benchmark_negative_readonly_$$TIMESTAMP.log"; \
+	echo "Benchmark log: $$LOG_FILE"; \
+	echo "Starting at: $$(date)" | tee $$LOG_FILE; \
+	$(BENCHMARK_BIN) \
+		--quick \
+		--workload negative \
+		--seed 1 \
+		--mode read-only \
+		--duration 30 \
+		--write-workers 4 \
+		--read-workers 2 \
+	2>&1 | tee -a $$LOG_FILE; \
+	echo "Completed at: $$(date)" | tee -a $$LOG_FILE; \
+	echo "Log saved to: $$LOG_FILE"
+	@$(MAKE) server-stop
 
