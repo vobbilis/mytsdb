@@ -450,7 +450,8 @@ benchmark-20m: server-start-clean
 		--generate-10m \
 		--generate-10m \
 		--duration 180 \
-		echo "Log saved to: $$LOG_FILE"
+		2>&1 | tee -a $$LOG_FILE; \
+	echo "Log saved to: $$LOG_FILE"
 	@$(MAKE) server-stop
 
 # K8s gRPC/OTEL Benchmark - 20M samples

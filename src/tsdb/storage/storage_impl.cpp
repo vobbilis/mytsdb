@@ -1028,19 +1028,21 @@ core::Result<std::vector<core::TimeSeries>> StorageImpl::query(
             // Phase 1.4: Per-series time bounds pruning before any read I/O/CPU.
             {
                 auto prune_start = std::chrono::steady_clock::now();
+                bool should_prune = false;
                 SeriesTimeBoundsMap::const_accessor bounds_acc;
                 if (series_time_bounds_.find(bounds_acc, series_id)) {
                     metrics.series_time_bounds_checks++;
                     const auto& b = bounds_acc->second;
                     if (b.max_ts < start_time || b.min_ts > end_time) {
                         metrics.series_time_bounds_pruned++;
-                        metrics.pruning_time_us += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(
-                            std::chrono::steady_clock::now() - prune_start).count();
-                        continue;
+                        should_prune = true;
                     }
                 }
                 metrics.pruning_time_us += std::chrono::duration_cast<std::chrono::duration<double, std::micro>>(
                     std::chrono::steady_clock::now() - prune_start).count();
+                if (should_prune) {
+                    continue;
+                }
             }
             
             // CATEGORY 2 FIX: Check timeout before calling read() which might be slow
