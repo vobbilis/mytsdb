@@ -68,6 +68,7 @@ protected:
         // Build Arrow arrays
         arrow::Int64Builder timestamp_builder;
         arrow::DoubleBuilder value_builder;
+        arrow::UInt64Builder series_id_builder;
         
         auto pool = arrow::default_memory_pool();
         arrow::MapBuilder tags_builder(pool,
@@ -98,13 +99,29 @@ protected:
                 
                 EXPECT_TRUE(key_builder->Append("pod").ok());
                 EXPECT_TRUE(value_builder_map->Append("pod-" + std::to_string(series % 10)).ok());
+
+                // series_id column: hash canonical label string "__name__=...,pod=...,series_id=..."
+                std::vector<std::pair<std::string, std::string>> pairs = {
+                    {"__name__", "test_metric_" + std::to_string(series)},
+                    {"series_id", std::to_string(series)},
+                    {"pod", "pod-" + std::to_string(series % 10)},
+                };
+                std::sort(pairs.begin(), pairs.end());
+                std::string labels_str;
+                for (const auto& [k, v] : pairs) {
+                    if (!labels_str.empty()) labels_str += ",";
+                    labels_str += k + "=" + v;
+                }
+                tsdb::core::SeriesID sid = std::hash<std::string>{}(labels_str);
+                EXPECT_TRUE(series_id_builder.Append(static_cast<uint64_t>(sid)).ok());
             }
         }
         
         // Build arrays
-        std::shared_ptr<arrow::Array> timestamp_array, value_array, tags_array;
+        std::shared_ptr<arrow::Array> timestamp_array, value_array, series_id_array, tags_array;
         EXPECT_TRUE(timestamp_builder.Finish(&timestamp_array).ok());
         EXPECT_TRUE(value_builder.Finish(&value_array).ok());
+        EXPECT_TRUE(series_id_builder.Finish(&series_id_array).ok());
         EXPECT_TRUE(tags_builder.Finish(&tags_array).ok());
         
         // Create schema
@@ -112,11 +129,12 @@ protected:
         auto schema = arrow::schema({
             arrow::field("timestamp", arrow::int64(), false),
             arrow::field("value", arrow::float64(), false),
+            arrow::field("series_id", arrow::uint64(), false),
             arrow::field("tags", tags_type, true)
         });
         
         // Create table
-        auto table = arrow::Table::Make(schema, {timestamp_array, value_array, tags_array});
+        auto table = arrow::Table::Make(schema, {timestamp_array, value_array, series_id_array, tags_array});
         
         // Write to Parquet
         auto outfile_result = arrow::io::FileOutputStream::Open(file_path);

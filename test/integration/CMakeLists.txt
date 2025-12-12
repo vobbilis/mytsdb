@@ -5,7 +5,7 @@
 # exceed CMake's default discovery timeout, causing flaky build failures.
 #
 # Increase discovery timeout globally for this directory.
-set(CTEST_DISCOVERY_TIMEOUT 120)
+set(CTEST_DISCOVERY_TIMEOUT 600)
 
 # Main integration test executable
 add_executable(tsdb_integration_test_suite

@@ -452,6 +452,26 @@ Where possible, we will write tests that:
   - ensure older files (without `series_id`) still query correctly (fallback path).
   - ensure new files use the optimized path (instrumentation evidence).
 
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - `src/tsdb/storage/parquet/schema_mapper.cpp`:
+    - Added `series_id: uint64` column to the Arrow/Parquet schema.
+    - `ToRecordBatch(...)` now computes `series_id` once from canonicalized tags (`k=v,k=v`) and writes it for each row.
+    - Updated decoders (`ToSamples`, `ToSeriesMap`) to ignore the `series_id` column (so it is not misinterpreted as a dynamic string field).
+  - `src/tsdb/storage/parquet/secondary_index.cpp`:
+    - `BuildFromParquetFile` now **prefers** reading the numeric `series_id` column to discover per-row-group series membership.
+    - Falls back to scanning `tags` and hashing canonical label strings when `series_id` is absent (backward compatibility).
+  - `test/integration/parquet/secondary_index_integration_test.cpp`:
+    - Updated test Parquet generator to include `series_id` column so the fast-path is exercised.
+- **Unit coverage**:
+  - `test/unit/storage/parquet/schema_mapper_test.cpp` asserts `series_id` exists in produced batches.
+- **Build stability**:
+  - Raised `CTEST_DISCOVERY_TIMEOUT` to **600s** in `test/unit/CMakeLists.txt` and `test/integration/CMakeLists.txt` to avoid flaky build-time test discovery timeouts.
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
+
 ---
 
 #### Step 2.4 — Build `.idx` at Parquet write time (avoid first-read scanning)

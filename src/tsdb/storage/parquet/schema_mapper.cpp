@@ -6,9 +6,25 @@ namespace tsdb {
 namespace storage {
 namespace parquet {
 
+namespace {
+
+tsdb::core::SeriesID ComputeSeriesIdFromTags(const std::map<std::string, std::string>& tags) {
+    // Canonicalize tags to the same "k=v,k=v" string used throughout the codebase.
+    // tags is a std::map, so iteration is already sorted by key.
+    std::string labels_str;
+    for (const auto& [k, v] : tags) {
+        if (!labels_str.empty()) labels_str += ",";
+        labels_str += k + "=" + v;
+    }
+    return std::hash<std::string>{}(labels_str);
+}
+
+} // namespace
+
 std::shared_ptr<arrow::Schema> SchemaMapper::GetArrowSchema() {
     auto timestamp_field = arrow::field("timestamp", arrow::int64(), false);
     auto value_field = arrow::field("value", arrow::float64(), false);
+    auto series_id_field = arrow::field("series_id", arrow::uint64(), false);
     
     // Map<String, String>
     auto key_field = arrow::field("key", arrow::utf8(), false);
@@ -16,7 +32,7 @@ std::shared_ptr<arrow::Schema> SchemaMapper::GetArrowSchema() {
     auto tags_type = arrow::map(arrow::utf8(), arrow::utf8());
     auto tags_field = arrow::field("tags", tags_type, true); // The map column itself can be null
 
-    return arrow::schema({timestamp_field, value_field, tags_field});
+    return arrow::schema({timestamp_field, value_field, series_id_field, tags_field});
 }
 
 std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
@@ -35,6 +51,7 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     arrow::FieldVector fields;
     fields.push_back(arrow::field("timestamp", arrow::int64(), false));
     fields.push_back(arrow::field("value", arrow::float64(), false));
+    fields.push_back(arrow::field("series_id", arrow::uint64(), false));
     
     // Tags map
     auto key_field = arrow::field("key", arrow::utf8(), false);
@@ -52,6 +69,7 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     // 3. Builders
     arrow::Int64Builder timestamp_builder;
     arrow::DoubleBuilder value_builder;
+    arrow::UInt64Builder series_id_builder;
     
     auto pool = arrow::default_memory_pool();
     arrow::MapBuilder tags_builder(pool, 
@@ -70,15 +88,19 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     // Reserve space
     (void)timestamp_builder.Reserve(samples.size());
     (void)value_builder.Reserve(samples.size());
+    (void)series_id_builder.Reserve(samples.size());
     (void)tags_builder.Reserve(samples.size());
     for (auto& [_, builder] : field_builders) {
         (void)builder->Reserve(samples.size());
     }
 
+    const auto series_id = ComputeSeriesIdFromTags(tags);
+
     // 4. Append Data
     for (const auto& sample : samples) {
         (void)timestamp_builder.Append(sample.timestamp());
         (void)value_builder.Append(sample.value());
+        (void)series_id_builder.Append(static_cast<uint64_t>(series_id));
 
         // Append tags
         (void)tags_builder.Append(); 
@@ -109,6 +131,10 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     (void)value_builder.Finish(&value_array);
     arrays.push_back(value_array);
 
+    std::shared_ptr<arrow::Array> series_id_array;
+    (void)series_id_builder.Finish(&series_id_array);
+    arrays.push_back(series_id_array);
+
     std::shared_ptr<arrow::Array> tags_array;
     (void)tags_builder.Finish(&tags_array);
     arrays.push_back(tags_array);
@@ -119,7 +145,6 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
         arrays.push_back(field_array);
     }
 
-    return arrow::RecordBatch::Make(schema, samples.size(), arrays);
     return arrow::RecordBatch::Make(schema, samples.size(), arrays);
 }
 
@@ -136,6 +161,7 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     arrow::FieldVector fields;
     fields.push_back(arrow::field("timestamp", arrow::int64(), false));
     fields.push_back(arrow::field("value", arrow::float64(), false));
+    fields.push_back(arrow::field("series_id", arrow::uint64(), false));
     
     // Tags map
     auto key_field = arrow::field("key", arrow::utf8(), false);
@@ -150,6 +176,7 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     // 2. Builders
     arrow::Int64Builder timestamp_builder;
     arrow::DoubleBuilder value_builder;
+    arrow::UInt64Builder series_id_builder;
     
     auto pool = arrow::default_memory_pool();
     arrow::MapBuilder tags_builder(pool, 
@@ -163,6 +190,7 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     size_t count = timestamps.size();
     (void)timestamp_builder.Reserve(count);
     (void)value_builder.Reserve(count);
+    (void)series_id_builder.Reserve(count);
     (void)tags_builder.Reserve(count);
 
     // 3. Append Data
@@ -170,6 +198,10 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     // arrow::Int64Builder::AppendValues exists!
     (void)timestamp_builder.AppendValues(timestamps);
     (void)value_builder.AppendValues(values);
+    const auto series_id = ComputeSeriesIdFromTags(tags);
+    for (size_t i = 0; i < count; ++i) {
+        (void)series_id_builder.Append(static_cast<uint64_t>(series_id));
+    }
 
     // Tags must be repeated for each row
     for (size_t i = 0; i < count; ++i) {
@@ -191,6 +223,10 @@ std::shared_ptr<arrow::RecordBatch> SchemaMapper::ToRecordBatch(
     (void)value_builder.Finish(&value_array);
     arrays.push_back(value_array);
 
+    std::shared_ptr<arrow::Array> series_id_array;
+    (void)series_id_builder.Finish(&series_id_array);
+    arrays.push_back(series_id_array);
+
     std::shared_ptr<arrow::Array> tags_array;
     (void)tags_builder.Finish(&tags_array);
     arrays.push_back(tags_array);
@@ -208,6 +244,7 @@ core::Result<std::vector<core::Sample>> SchemaMapper::ToSamples(std::shared_ptr<
     auto ts_idx = schema->GetFieldIndex("timestamp");
     auto val_idx = schema->GetFieldIndex("value");
     auto tags_idx = schema->GetFieldIndex("tags"); // We ignore tags here as they are returned separately
+    auto series_id_idx = schema->GetFieldIndex("series_id"); // Optional in older files
 
     if (ts_idx == -1 || val_idx == -1) {
         return core::Result<std::vector<core::Sample>>::error("Missing timestamp or value column");
@@ -219,7 +256,7 @@ core::Result<std::vector<core::Sample>> SchemaMapper::ToSamples(std::shared_ptr<
     // Identify field columns
     std::vector<std::pair<std::string, std::shared_ptr<arrow::StringArray>>> field_cols;
     for (int i = 0; i < schema->num_fields(); ++i) {
-        if (i != ts_idx && i != val_idx && i != tags_idx) {
+        if (i != ts_idx && i != val_idx && i != tags_idx && i != series_id_idx) {
             auto field_name = schema->field(i)->name();
             auto array = std::static_pointer_cast<arrow::StringArray>(batch->column(i));
             field_cols.emplace_back(field_name, array);
@@ -324,6 +361,7 @@ core::Result<SchemaMapper::SeriesMap> SchemaMapper::ToSeriesMap(std::shared_ptr<
     auto ts_idx = schema->GetFieldIndex("timestamp");
     auto val_idx = schema->GetFieldIndex("value");
     auto tags_idx = schema->GetFieldIndex("tags");
+    auto series_id_idx = schema->GetFieldIndex("series_id"); // Optional in older files
 
     if (ts_idx == -1 || val_idx == -1) {
         return core::Result<SeriesMap>::error("Missing timestamp or value column");
@@ -335,7 +373,7 @@ core::Result<SchemaMapper::SeriesMap> SchemaMapper::ToSeriesMap(std::shared_ptr<
     // Identify field columns
     std::vector<std::pair<std::string, std::shared_ptr<arrow::StringArray>>> field_cols;
     for (int i = 0; i < schema->num_fields(); ++i) {
-        if (i != ts_idx && i != val_idx && i != tags_idx) {
+        if (i != ts_idx && i != val_idx && i != tags_idx && i != series_id_idx) {
             auto field_name = schema->field(i)->name();
             auto array = std::static_pointer_cast<arrow::StringArray>(batch->column(i));
             field_cols.emplace_back(field_name, array);

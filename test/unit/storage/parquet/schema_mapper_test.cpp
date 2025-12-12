@@ -22,6 +22,9 @@ TEST(SchemaMapperTest, TestRoundTrip) {
     ASSERT_NE(batch, nullptr);
     ASSERT_EQ(batch->num_rows(), 3);
 
+    // Verify new column is present (Phase 2 Step 2.3)
+    EXPECT_NE(batch->schema()->GetFieldIndex("series_id"), -1);
+
     // 3. Convert back to Samples
     auto samples_result = SchemaMapper::ToSamples(batch);
     ASSERT_TRUE(samples_result.ok());

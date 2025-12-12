@@ -132,7 +132,37 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
             auto schema = table->schema();
             int64_t num_rows = table->num_rows();
             
-            // Try to find a 'tags' column (stored as map<string, string>)
+            // Preferred fast path: use explicit series_id column when present.
+            if (schema->GetFieldByName("series_id")) {
+                auto sid_col = table->GetColumnByName("series_id");
+                if (sid_col && sid_col->num_chunks() > 0) {
+                    std::unordered_set<core::SeriesID> rg_series_ids;
+                    for (int chunk_idx = 0; chunk_idx < sid_col->num_chunks(); ++chunk_idx) {
+                        auto chunk = sid_col->chunk(chunk_idx);
+                        if (!chunk) continue;
+
+                        if (auto u64 = std::dynamic_pointer_cast<arrow::UInt64Array>(chunk)) {
+                            for (int64_t row = 0; row < u64->length(); ++row) {
+                                if (u64->IsNull(row)) continue;
+                                rg_series_ids.insert(static_cast<core::SeriesID>(u64->Value(row)));
+                            }
+                        } else if (auto i64 = std::dynamic_pointer_cast<arrow::Int64Array>(chunk)) {
+                            // Backward/alternate encoding support
+                            for (int64_t row = 0; row < i64->length(); ++row) {
+                                if (i64->IsNull(row)) continue;
+                                rg_series_ids.insert(static_cast<core::SeriesID>(i64->Value(row)));
+                            }
+                        }
+                    }
+
+                    for (auto sid : rg_series_ids) {
+                        series_row_groups[sid].insert(rg);
+                    }
+                    continue; // Done with this row group; no need to scan tags.
+                }
+            }
+
+            // Fallback (legacy): scan tags and compute series_id by hashing canonical labels string.
             auto tags_field = schema->GetFieldByName("tags");
             if (tags_field) {
                 auto tags_col = table->GetColumnByName("tags");

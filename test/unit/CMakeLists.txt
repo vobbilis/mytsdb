@@ -1,7 +1,7 @@
 # gtest_discover_tests runs test executables at *build time* to enumerate tests.
 # Some binaries can exceed CMake's default discovery timeout on slower/loaded
 # machines, causing flaky build failures.
-set(CTEST_DISCOVERY_TIMEOUT 120)
+set(CTEST_DISCOVERY_TIMEOUT 600)
 
 # Unit test executables
 add_executable(tsdb_core_unit_tests
