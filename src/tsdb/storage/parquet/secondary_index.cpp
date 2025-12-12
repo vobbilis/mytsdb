@@ -91,9 +91,10 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         // Build into local structures, then publish with a single swap under exclusive lock.
         std::unordered_map<core::SeriesID, std::vector<RowLocation>> local_index;
         
-        // Track all unique series across the file
+        // Track all unique series across the file and which row groups they appear in.
         std::unordered_map<core::SeriesID, std::set<int>> series_row_groups;
-        std::unordered_map<core::SeriesID, std::pair<int64_t, int64_t>> series_time_range;
+        std::vector<std::pair<int64_t, int64_t>> row_group_time_bounds;
+        row_group_time_bounds.resize(static_cast<size_t>(std::max(0, num_row_groups)));
         
         // Scan each row group and extract ALL series information
         for (int rg = 0; rg < num_row_groups; ++rg) {
@@ -115,6 +116,8 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
                     }
                 }
             }
+
+            row_group_time_bounds[static_cast<size_t>(rg)] = {rg_min_ts, rg_max_ts};
             
             // Read the row group to get labels
             std::shared_ptr<arrow::Table> table;
@@ -173,15 +176,6 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
                                 
                                 // Track this series in this row group
                                 series_row_groups[series_id].insert(rg);
-                                
-                                // Update time range for this series
-                                auto& time_range = series_time_range[series_id];
-                                if (time_range.first == 0 || rg_min_ts < time_range.first) {
-                                    time_range.first = rg_min_ts;
-                                }
-                                if (rg_max_ts > time_range.second) {
-                                    time_range.second = rg_max_ts;
-                                }
                             }
                         } else {
                             // Fallback for string type tags (legacy format)
@@ -194,13 +188,6 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
                                     core::SeriesID series_id = ComputeSeriesID(labels_str);
                                     
                                     series_row_groups[series_id].insert(rg);
-                                    auto& time_range = series_time_range[series_id];
-                                    if (time_range.first == 0 || rg_min_ts < time_range.first) {
-                                        time_range.first = rg_min_ts;
-                                    }
-                                    if (rg_max_ts > time_range.second) {
-                                        time_range.second = rg_max_ts;
-                                    }
                                 }
                             }
                         }
@@ -211,11 +198,11 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         
         // Now build the index from aggregated data
         for (const auto& [series_id, row_groups] : series_row_groups) {
-            auto& time_range = series_time_range[series_id];
             auto& vec = local_index[series_id];
             vec.reserve(vec.size() + row_groups.size());
             for (int rg : row_groups) {
-                RowLocation location(rg, 0, time_range.first, time_range.second);
+                const auto& bounds = row_group_time_bounds[static_cast<size_t>(rg)];
+                RowLocation location(rg, 0, bounds.first, bounds.second);
                 vec.push_back(location);
             }
         }

@@ -1,5 +1,12 @@
 # Integration Testing Configuration
 
+# gtest_discover_tests runs test executables at *build time* to enumerate tests.
+# Some of our integration test binaries have non-trivial startup cost and can
+# exceed CMake's default discovery timeout, causing flaky build failures.
+#
+# Increase discovery timeout globally for this directory.
+set(CTEST_DISCOVERY_TIMEOUT 120)
+
 # Main integration test executable
 add_executable(tsdb_integration_test_suite
     core_storage_integration_test.cpp

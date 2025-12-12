@@ -394,6 +394,21 @@ Where possible, we will write tests that:
   - writes data forcing multiple row groups (using existing Parquet writer settings)
   - queries a narrow time range and asserts row groups read decreases (instrumentation evidence).
 
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - `src/tsdb/storage/parquet/secondary_index.cpp`:
+    - `BuildFromParquetFile` now assigns each `RowLocation(min_timestamp,max_timestamp)` using the **row group’s** timestamp stats, not the series-wide range.
+    - This improves `LookupInTimeRange(...)` fidelity so non-overlapping row groups can be pruned correctly.
+- **Unit coverage**:
+  - `test/unit/storage/parquet/secondary_index_test.cpp`:
+    - `BuildFromParquetUsesRowGroupSpecificTimeBounds` writes a Parquet file with **two row groups** for the same series with **disjoint** timestamp ranges, and asserts `LookupInTimeRange` returns only the correct row group.
+- **Build stability**
+  - `test/integration/CMakeLists.txt`, `test/unit/CMakeLists.txt`: set `CTEST_DISCOVERY_TIMEOUT=120` to prevent flaky build-time failures from `gtest_discover_tests` timing out when enumerating tests.
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
+
 ---
 
 #### Step 2.3 — Add explicit `series_id` column to Parquet schema

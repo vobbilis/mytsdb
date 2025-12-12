@@ -10,6 +10,10 @@
 #include "tsdb/storage/read_performance_instrumentation.h"
 #include <random>
 #include <chrono>
+#include "test_util/temp_dir.h"
+#include <arrow/api.h>
+#include <arrow/io/file.h>
+#include <parquet/arrow/writer.h>
 
 namespace tsdb {
 namespace storage {
@@ -229,6 +233,90 @@ TEST_F(SecondaryIndexTest, SaveAndLoad) {
 
 TEST_F(SecondaryIndexTest, LoadNonexistentFile) {
     EXPECT_FALSE(index_->LoadFromFile("/tmp/nonexistent_index.idx"));
+}
+
+TEST_F(SecondaryIndexTest, BuildFromParquetUsesRowGroupSpecificTimeBounds) {
+    // This test is designed to fail under the old behavior where each RowLocation
+    // gets a series-wide min/max instead of row-group-specific bounds.
+
+    auto dir = tsdb::testutil::MakeUniqueTestDir("secondary_index_rg_bounds");
+    std::filesystem::create_directories(dir);
+    auto file_path = (dir / "rg_bounds.parquet").string();
+
+    // Build a single series that spans two row groups with disjoint timestamp ranges.
+    arrow::Int64Builder ts_builder;
+    arrow::DoubleBuilder val_builder;
+    auto pool = arrow::default_memory_pool();
+    arrow::MapBuilder tags_builder(pool,
+        std::make_shared<arrow::StringBuilder>(pool),
+        std::make_shared<arrow::StringBuilder>(pool));
+
+    auto append_row = [&](int64_t ts, double val) {
+        ASSERT_TRUE(ts_builder.Append(ts).ok());
+        ASSERT_TRUE(val_builder.Append(val).ok());
+
+        ASSERT_TRUE(tags_builder.Append().ok());
+        auto key_builder = dynamic_cast<arrow::StringBuilder*>(tags_builder.key_builder());
+        auto item_builder = dynamic_cast<arrow::StringBuilder*>(tags_builder.item_builder());
+        ASSERT_NE(key_builder, nullptr);
+        ASSERT_NE(item_builder, nullptr);
+
+        ASSERT_TRUE(key_builder->Append("__name__").ok());
+        ASSERT_TRUE(item_builder->Append("rg_metric").ok());
+        ASSERT_TRUE(key_builder->Append("instance").ok());
+        ASSERT_TRUE(item_builder->Append("host1").ok());
+    };
+
+    // Force 2 row groups by using chunk_size == first_rg_rows and writing > chunk_size rows.
+    const int64_t first_rg_rows = 1024;
+    for (int64_t i = 0; i < first_rg_rows; ++i) {
+        append_row(1'000'000 + i, static_cast<double>(i));
+    }
+    for (int64_t i = 0; i < first_rg_rows; ++i) {
+        append_row(5'000'000 + i, static_cast<double>(i));
+    }
+
+    std::shared_ptr<arrow::Array> ts_array, val_array, tags_array;
+    ASSERT_TRUE(ts_builder.Finish(&ts_array).ok());
+    ASSERT_TRUE(val_builder.Finish(&val_array).ok());
+    ASSERT_TRUE(tags_builder.Finish(&tags_array).ok());
+
+    auto schema = arrow::schema({
+        arrow::field("timestamp", arrow::int64(), false),
+        arrow::field("value", arrow::float64(), false),
+        arrow::field("tags", arrow::map(arrow::utf8(), arrow::utf8()), true),
+    });
+
+    auto table = arrow::Table::Make(schema, {ts_array, val_array, tags_array});
+    auto outfile_result = arrow::io::FileOutputStream::Open(file_path);
+    ASSERT_TRUE(outfile_result.ok());
+    auto outfile = *outfile_result;
+    ASSERT_TRUE(::parquet::arrow::WriteTable(*table, arrow::default_memory_pool(), outfile, /*chunk_size=*/first_rg_rows).ok());
+
+    SecondaryIndex idx;
+    ASSERT_TRUE(idx.BuildFromParquetFile(file_path));
+
+    // Compute the series id exactly like BuildFromParquetFile does: sort labels then hash "k=v,k=v".
+    std::vector<std::pair<std::string, std::string>> pairs = {
+        {"__name__", "rg_metric"},
+        {"instance", "host1"},
+    };
+    std::sort(pairs.begin(), pairs.end());
+    std::string labels_str;
+    for (const auto& [k, v] : pairs) {
+        if (!labels_str.empty()) labels_str += ",";
+        labels_str += k + "=" + v;
+    }
+    core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+
+    auto early = idx.LookupInTimeRange(series_id, 1'000'000, 1'000'100);
+    ASSERT_EQ(early.size(), 1);
+
+    auto late = idx.LookupInTimeRange(series_id, 5'000'000, 5'000'100);
+    ASSERT_EQ(late.size(), 1);
+
+    // The old (series-wide) behavior would return both row groups for both queries.
+    EXPECT_NE(early[0].row_group_id, late[0].row_group_id);
 }
 
 // Cache tests
