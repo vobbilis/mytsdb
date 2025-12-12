@@ -2,6 +2,7 @@
 #include "tsdb/storage/parquet/schema_mapper.hpp"
 #include "tsdb/storage/parquet/secondary_index.h"
 #include "tsdb/storage/parquet/bloom_filter_manager.h"
+#include "tsdb/storage/parquet/fingerprint.h"
 #include "tsdb/storage/read_performance_instrumentation.h"
 #include "tsdb/storage/parquet_catalog.h"
 #include "tsdb/core/matcher.h"
@@ -351,8 +352,9 @@ std::vector<core::TimeSeries> ParquetBlock::query(
             labels_str += k + "=" + v;
         }
         
-        // Compute SeriesID using same hash as secondary_index.cpp
-        core::SeriesID series_id = std::hash<std::string>{}(labels_str);
+        // Compute SeriesID + fingerprint (test-seam supports forced collisions).
+        core::SeriesID series_id = tsdb::storage::parquet::SeriesIdFromLabelsString(labels_str);
+        const uint32_t labels_crc32 = tsdb::storage::parquet::LabelsCrc32(labels_str);
         
         spdlog::info("Secondary index lookup: matchers={}, labels_str='{}', series_id={}", 
                      matchers.size(), labels_str, series_id);
@@ -367,15 +369,25 @@ std::vector<core::TimeSeries> ParquetBlock::query(
         
         if (!locations.empty()) {
             // We found the series in the index!
-            use_index = true;
             m.secondary_index_used = true;
             m.secondary_index_hits = 1;  // Found the series
             
             for (const auto& loc : locations) {
-                candidate_row_groups.insert(loc.row_group_id);
+                // Collision defense: if CRC is known, only accept row groups that match
+                // the query's fingerprint. If CRC is unknown (0, legacy index), accept.
+                if (loc.labels_crc32 == 0 || loc.labels_crc32 == labels_crc32) {
+                    candidate_row_groups.insert(loc.row_group_id);
+                }
             }
             
-            m.secondary_index_row_groups_selected = candidate_row_groups.size();
+            if (!candidate_row_groups.empty()) {
+                use_index = true;
+                m.secondary_index_row_groups_selected = candidate_row_groups.size();
+            } else {
+                // All candidates rejected by fingerprint mismatch => treat as miss.
+                use_index = false;
+                m.secondary_index_used = false;
+            }
             
             spdlog::debug("Secondary index hit: series_id={}, {} row groups (vs {} total), lookup took {:.3f}us",
                           series_id, candidate_row_groups.size(), num_row_groups, m.secondary_index_lookup_us);

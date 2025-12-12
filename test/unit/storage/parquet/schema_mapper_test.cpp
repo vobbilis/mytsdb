@@ -24,6 +24,7 @@ TEST(SchemaMapperTest, TestRoundTrip) {
 
     // Verify new column is present (Phase 2 Step 2.3)
     EXPECT_NE(batch->schema()->GetFieldIndex("series_id"), -1);
+    EXPECT_NE(batch->schema()->GetFieldIndex("labels_crc32"), -1);
 
     // 3. Convert back to Samples
     auto samples_result = SchemaMapper::ToSamples(batch);

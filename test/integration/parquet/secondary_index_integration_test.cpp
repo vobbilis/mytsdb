@@ -23,6 +23,7 @@
 #include "tsdb/storage/parquet/secondary_index.h"
 #include "tsdb/storage/parquet/writer.hpp"
 #include "tsdb/storage/parquet/schema_mapper.hpp"
+#include "tsdb/storage/parquet/fingerprint.h"
 #include "tsdb/storage/read_performance_instrumentation.h"
 #include "tsdb/core/types.h"
 
@@ -69,6 +70,7 @@ protected:
         arrow::Int64Builder timestamp_builder;
         arrow::DoubleBuilder value_builder;
         arrow::UInt64Builder series_id_builder;
+        arrow::UInt32Builder labels_crc32_builder;
         
         auto pool = arrow::default_memory_pool();
         arrow::MapBuilder tags_builder(pool,
@@ -114,14 +116,17 @@ protected:
                 }
                 tsdb::core::SeriesID sid = std::hash<std::string>{}(labels_str);
                 EXPECT_TRUE(series_id_builder.Append(static_cast<uint64_t>(sid)).ok());
+                EXPECT_TRUE(labels_crc32_builder.Append(
+                    tsdb::storage::parquet::LabelsCrc32(labels_str)).ok());
             }
         }
         
         // Build arrays
-        std::shared_ptr<arrow::Array> timestamp_array, value_array, series_id_array, tags_array;
+        std::shared_ptr<arrow::Array> timestamp_array, value_array, series_id_array, labels_crc32_array, tags_array;
         EXPECT_TRUE(timestamp_builder.Finish(&timestamp_array).ok());
         EXPECT_TRUE(value_builder.Finish(&value_array).ok());
         EXPECT_TRUE(series_id_builder.Finish(&series_id_array).ok());
+        EXPECT_TRUE(labels_crc32_builder.Finish(&labels_crc32_array).ok());
         EXPECT_TRUE(tags_builder.Finish(&tags_array).ok());
         
         // Create schema
@@ -130,11 +135,12 @@ protected:
             arrow::field("timestamp", arrow::int64(), false),
             arrow::field("value", arrow::float64(), false),
             arrow::field("series_id", arrow::uint64(), false),
+            arrow::field("labels_crc32", arrow::uint32(), false),
             arrow::field("tags", tags_type, true)
         });
         
         // Create table
-        auto table = arrow::Table::Make(schema, {timestamp_array, value_array, series_id_array, tags_array});
+        auto table = arrow::Table::Make(schema, {timestamp_array, value_array, series_id_array, labels_crc32_array, tags_array});
         
         // Write to Parquet
         auto outfile_result = arrow::io::FileOutputStream::Open(file_path);
@@ -295,6 +301,119 @@ TEST_F(SecondaryIndexIntegrationTest, IndexSidecarIsWrittenAtParquetWriteTime) {
     SecondaryIndex idx;
     EXPECT_TRUE(idx.LoadFromFile(idx_path));
     EXPECT_GT(idx.Size(), 0u);
+}
+
+// =============================================================================
+// Step 2.5: Collision defense (labels_crc32) — forced SeriesID collisions.
+// =============================================================================
+namespace {
+tsdb::core::SeriesID ConstantSeriesIdHasher(const std::string&) {
+    return 12345;
+}
+} // namespace
+
+TEST_F(SecondaryIndexIntegrationTest, CollisionDefenseFiltersRowGroupsByLabelsCrc32) {
+    // Force collisions so two different label strings share the same SeriesID.
+    tsdb::storage::parquet::SetSeriesIdHasherForTests(&ConstantSeriesIdHasher);
+
+    auto reset = []() { tsdb::storage::parquet::ResetSeriesIdHasherForTests(); };
+    struct ResetGuard { ~ResetGuard() { tsdb::storage::parquet::ResetSeriesIdHasherForTests(); } } guard;
+
+    // Create a file with two row groups: each contains a different series (different tags)
+    // but the same (forced) series_id. labels_crc32 distinguishes them.
+    std::string file_path = (test_dir_ / "collision_defense.parquet").string();
+
+    // Build Arrow arrays
+    arrow::Int64Builder timestamp_builder;
+    arrow::DoubleBuilder value_builder;
+    arrow::UInt64Builder series_id_builder;
+    arrow::UInt32Builder labels_crc32_builder;
+
+    auto pool = arrow::default_memory_pool();
+    arrow::MapBuilder tags_builder(pool,
+        std::make_shared<arrow::StringBuilder>(pool),
+        std::make_shared<arrow::StringBuilder>(pool)
+    );
+
+    auto append_row = [&](const std::string& metric, int64_t ts) {
+        ASSERT_TRUE(timestamp_builder.Append(ts).ok());
+        ASSERT_TRUE(value_builder.Append(1.0).ok());
+
+        // tags
+        ASSERT_TRUE(tags_builder.Append().ok());
+        auto key_builder = dynamic_cast<arrow::StringBuilder*>(tags_builder.key_builder());
+        auto value_builder_map = dynamic_cast<arrow::StringBuilder*>(tags_builder.item_builder());
+        ASSERT_NE(key_builder, nullptr);
+        ASSERT_NE(value_builder_map, nullptr);
+        ASSERT_TRUE(key_builder->Append("__name__").ok());
+        ASSERT_TRUE(value_builder_map->Append(metric).ok());
+        ASSERT_TRUE(key_builder->Append("instance").ok());
+        ASSERT_TRUE(value_builder_map->Append("host1").ok());
+
+        // Canonical labels string (sorted by key)
+        std::vector<std::pair<std::string, std::string>> pairs = {
+            {"__name__", metric},
+            {"instance", "host1"},
+        };
+        std::sort(pairs.begin(), pairs.end());
+        std::string labels_str;
+        for (const auto& [k, v] : pairs) {
+            if (!labels_str.empty()) labels_str += ",";
+            labels_str += k + "=" + v;
+        }
+
+        // series_id (forced collision) + crc32
+        const auto sid = tsdb::storage::parquet::SeriesIdFromLabelsString(labels_str);
+        ASSERT_TRUE(series_id_builder.Append(static_cast<uint64_t>(sid)).ok());
+        ASSERT_TRUE(labels_crc32_builder.Append(tsdb::storage::parquet::LabelsCrc32(labels_str)).ok());
+    };
+
+    const int64_t rg_rows = 1024;
+    for (int64_t i = 0; i < rg_rows; ++i) {
+        append_row("collision_a", 1'000'000 + i);
+    }
+    for (int64_t i = 0; i < rg_rows; ++i) {
+        append_row("collision_b", 5'000'000 + i);
+    }
+
+    std::shared_ptr<arrow::Array> ts_array, val_array, sid_array, crc_array, tags_array;
+    ASSERT_TRUE(timestamp_builder.Finish(&ts_array).ok());
+    ASSERT_TRUE(value_builder.Finish(&val_array).ok());
+    ASSERT_TRUE(series_id_builder.Finish(&sid_array).ok());
+    ASSERT_TRUE(labels_crc32_builder.Finish(&crc_array).ok());
+    ASSERT_TRUE(tags_builder.Finish(&tags_array).ok());
+
+    auto schema = arrow::schema({
+        arrow::field("timestamp", arrow::int64(), false),
+        arrow::field("value", arrow::float64(), false),
+        arrow::field("series_id", arrow::uint64(), false),
+        arrow::field("labels_crc32", arrow::uint32(), false),
+        arrow::field("tags", arrow::map(arrow::utf8(), arrow::utf8()), true),
+    });
+    auto table = arrow::Table::Make(schema, {ts_array, val_array, sid_array, crc_array, tags_array});
+
+    auto outfile_result = arrow::io::FileOutputStream::Open(file_path);
+    ASSERT_TRUE(outfile_result.ok());
+    auto outfile = *outfile_result;
+    ASSERT_TRUE(::parquet::arrow::WriteTable(*table, arrow::default_memory_pool(),
+        outfile, /*chunk_size=*/rg_rows).ok());
+
+    // Query through ParquetBlock; with collision defense it should read only 1 row group.
+    auto header = CreateBlockHeader(1'000'000, 6'000'000);
+    ParquetBlock block(header, file_path);
+
+    ReadPerformanceInstrumentation::instance().reset_stats();
+    std::vector<std::pair<std::string, std::string>> matchers = {
+        {"__name__", "collision_a"},
+        {"instance", "host1"},
+    };
+
+    auto result = block.query(matchers, 1'000'000, 1'000'100);
+    ASSERT_EQ(result.size(), 1);
+
+    auto stats = ReadPerformanceInstrumentation::instance().get_stats();
+    EXPECT_EQ(stats.row_groups_total, 2u);
+    EXPECT_EQ(stats.row_groups_read, 1u);
 }
 
 // =============================================================================

@@ -14,6 +14,8 @@
 #include <chrono>
 #include <set>
 #include <unordered_map>
+#include <unordered_set>
+#include <optional>
 #include <spdlog/spdlog.h>
 #include <functional>
 
@@ -93,6 +95,8 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         }
         const int series_id_col_idx =
             (arrow_schema ? arrow_schema->GetFieldIndex("series_id") : -1);
+        const int labels_crc32_col_idx =
+            (arrow_schema ? arrow_schema->GetFieldIndex("labels_crc32") : -1);
         const int tags_col_idx =
             (arrow_schema ? arrow_schema->GetFieldIndex("tags") : -1);
         
@@ -106,6 +110,9 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
         std::unordered_map<core::SeriesID, std::set<int>> series_row_groups;
         std::vector<std::pair<int64_t, int64_t>> row_group_time_bounds;
         row_group_time_bounds.resize(static_cast<size_t>(std::max(0, num_row_groups)));
+
+        // Collision defense: optional series_id -> (row_group_id -> labels_crc32)
+        std::unordered_map<core::SeriesID, std::unordered_map<int, uint32_t>> series_crc32_by_rg;
         
         // Scan each row group and extract ALL series information
         for (int rg = 0; rg < num_row_groups; ++rg) {
@@ -135,7 +142,11 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
             ::arrow::Status read_status;
             if (series_id_col_idx >= 0) {
                 // Fast path: series_id is numeric, so avoid decoding tags map.
-                read_status = arrow_reader->ReadRowGroup(rg, {series_id_col_idx}, &table);
+                if (labels_crc32_col_idx >= 0) {
+                    read_status = arrow_reader->ReadRowGroup(rg, {series_id_col_idx, labels_crc32_col_idx}, &table);
+                } else {
+                    read_status = arrow_reader->ReadRowGroup(rg, {series_id_col_idx}, &table);
+                }
             } else if (tags_col_idx >= 0) {
                 // Legacy path: we need tags to compute series_id.
                 read_status = arrow_reader->ReadRowGroup(rg, {tags_col_idx}, &table);
@@ -153,31 +164,73 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
             auto schema = table->schema();
             int64_t num_rows = table->num_rows();
             
-            // Preferred fast path: use explicit series_id column when present.
+            // Preferred fast path: use explicit series_id (and optional labels_crc32) columns when present.
             if (schema->GetFieldByName("series_id")) {
                 auto sid_col = table->GetColumnByName("series_id");
                 if (sid_col && sid_col->num_chunks() > 0) {
+                    std::unordered_map<core::SeriesID, uint32_t> rg_crc32;
                     std::unordered_set<core::SeriesID> rg_series_ids;
+
+                    // If we have labels_crc32, read it too (same chunking assumptions).
+                    std::shared_ptr<arrow::ChunkedArray> crc_col;
+                    if (schema->GetFieldByName("labels_crc32")) {
+                        crc_col = table->GetColumnByName("labels_crc32");
+                    }
+
                     for (int chunk_idx = 0; chunk_idx < sid_col->num_chunks(); ++chunk_idx) {
                         auto chunk = sid_col->chunk(chunk_idx);
                         if (!chunk) continue;
 
+                        // Optional CRC chunk for this chunk index
+                        std::shared_ptr<arrow::Array> crc_chunk;
+                        if (crc_col && crc_col->num_chunks() > chunk_idx) {
+                            crc_chunk = crc_col->chunk(chunk_idx);
+                        }
+
+                        auto read_crc_at = [&](int64_t row) -> std::optional<uint32_t> {
+                            if (!crc_chunk) return std::nullopt;
+                            if (auto u32 = std::dynamic_pointer_cast<arrow::UInt32Array>(crc_chunk)) {
+                                if (u32->IsNull(row)) return std::nullopt;
+                                return static_cast<uint32_t>(u32->Value(row));
+                            }
+                            return std::nullopt;
+                        };
+
+                        auto insert_sid = [&](core::SeriesID sid, int64_t row) {
+                            rg_series_ids.insert(sid);
+                            if (auto c = read_crc_at(row)) {
+                                auto it = rg_crc32.find(sid);
+                                if (it == rg_crc32.end()) {
+                                    rg_crc32.emplace(sid, *c);
+                                } else if (it->second != *c) {
+                                    // Inconsistent CRC within the same row group for the same series_id;
+                                    // force fallback for this row group by clearing (0 means unknown).
+                                    it->second = 0;
+                                }
+                            }
+                        };
+
                         if (auto u64 = std::dynamic_pointer_cast<arrow::UInt64Array>(chunk)) {
                             for (int64_t row = 0; row < u64->length(); ++row) {
                                 if (u64->IsNull(row)) continue;
-                                rg_series_ids.insert(static_cast<core::SeriesID>(u64->Value(row)));
+                                insert_sid(static_cast<core::SeriesID>(u64->Value(row)), row);
                             }
                         } else if (auto i64 = std::dynamic_pointer_cast<arrow::Int64Array>(chunk)) {
                             // Backward/alternate encoding support
                             for (int64_t row = 0; row < i64->length(); ++row) {
                                 if (i64->IsNull(row)) continue;
-                                rg_series_ids.insert(static_cast<core::SeriesID>(i64->Value(row)));
+                                insert_sid(static_cast<core::SeriesID>(i64->Value(row)), row);
                             }
                         }
                     }
 
                     for (auto sid : rg_series_ids) {
                         series_row_groups[sid].insert(rg);
+                    }
+
+                    // Persist row-group-specific CRC values (if available).
+                    for (const auto& [sid, crc] : rg_crc32) {
+                        series_crc32_by_rg[sid][rg] = crc;
                     }
                     continue; // Done with this row group; no need to scan tags.
                 }
@@ -253,7 +306,13 @@ bool SecondaryIndex::BuildFromParquetFile(const std::string& parquet_path) {
             vec.reserve(vec.size() + row_groups.size());
             for (int rg : row_groups) {
                 const auto& bounds = row_group_time_bounds[static_cast<size_t>(rg)];
-                RowLocation location(rg, 0, bounds.first, bounds.second);
+                uint32_t crc = 0;
+                if (auto it = series_crc32_by_rg.find(series_id); it != series_crc32_by_rg.end()) {
+                    if (auto it2 = it->second.find(rg); it2 != it->second.end()) {
+                        crc = it2->second;
+                    }
+                }
+                RowLocation location(rg, 0, bounds.first, bounds.second, crc);
                 vec.push_back(location);
             }
         }
@@ -307,7 +366,8 @@ bool SecondaryIndex::LoadFromFile(const std::string& index_path) {
             return false;
         }
         
-        if (version != INDEX_VERSION) {
+        const bool legacy_v1 = (version == 1);
+        if (version != INDEX_VERSION && !legacy_v1) {
             spdlog::warn("Unsupported index version: {}", version);
             return false;
         }
@@ -336,6 +396,12 @@ bool SecondaryIndex::LoadFromFile(const std::string& index_path) {
                           sizeof(locations[j].min_timestamp));
                 file.read(reinterpret_cast<char*>(&locations[j].max_timestamp),
                           sizeof(locations[j].max_timestamp));
+                if (legacy_v1) {
+                    locations[j].labels_crc32 = 0;
+                } else {
+                    file.read(reinterpret_cast<char*>(&locations[j].labels_crc32),
+                              sizeof(locations[j].labels_crc32));
+                }
             }
             
             local_index[series_id] = std::move(locations);
@@ -401,6 +467,8 @@ bool SecondaryIndex::SaveToFile(const std::string& index_path) const {
                            sizeof(loc.min_timestamp));
                 file.write(reinterpret_cast<const char*>(&loc.max_timestamp), 
                            sizeof(loc.max_timestamp));
+                file.write(reinterpret_cast<const char*>(&loc.labels_crc32),
+                           sizeof(loc.labels_crc32));
             }
         }
         

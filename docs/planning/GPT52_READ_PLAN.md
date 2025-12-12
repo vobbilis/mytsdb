@@ -539,6 +539,27 @@ Where possible, we will write tests that:
 **Integration tests**
 - Ensure normal path has no measurable overhead (fingerprint check should be cheap).
 
+**Progress update (2025-12-12)**
+- **Status**: ✅ **Completed**
+- **Implementation**:
+  - Added a lightweight fingerprint `labels_crc32` of the canonical labels string (`k=v,k=v`) and threaded it through:
+    - Parquet schema + writer (`labels_crc32: uint32`)
+    - SecondaryIndex `.idx` sidecar (RowLocation now includes `labels_crc32`, index file version bumped to v2 with v1 load fallback)
+    - ParquetBlock index fast-path: when using SecondaryIndex, it filters candidate row groups by `labels_crc32` so a SeriesID collision does not cause wrong series to be returned when tag filtering is skipped.
+  - Added a test seam (`SetSeriesIdHasherForTests`) to deterministically force SeriesID collisions in tests without relying on real `std::hash` collisions.
+- **Files touched**:
+  - `include/tsdb/storage/parquet/fingerprint.h`, `src/tsdb/storage/parquet/fingerprint.cpp`
+  - `src/tsdb/storage/parquet/schema_mapper.cpp`
+  - `include/tsdb/storage/parquet/secondary_index.h`, `src/tsdb/storage/parquet/secondary_index.cpp`
+  - `src/tsdb/storage/parquet/parquet_block.cpp`
+- **Unit/Integration coverage**:
+  - `test/unit/storage/parquet/schema_mapper_test.cpp`: asserts `labels_crc32` column exists.
+  - `test/integration/parquet/secondary_index_integration_test.cpp`:
+    - `CollisionDefenseFiltersRowGroupsByLabelsCrc32` forces collisions and asserts only 1 of 2 row groups is read and the correct series is returned.
+- **Test gate results**:
+  - `make test-storage-unit`: ✅
+  - `make test-integration`: ✅
+
 ---
 
 ## Regression gates and rollout discipline

@@ -29,6 +29,7 @@ target_sources(tsdb_storage_impl
         sharded_index.cpp
         internal/block_impl.cpp
         parquet/schema_mapper.cpp
+        parquet/fingerprint.cpp
         parquet/writer.cpp
         parquet/reader.cpp
         parquet/reader.cpp

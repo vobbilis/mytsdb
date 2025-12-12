@@ -26,13 +26,14 @@ struct RowLocation {
     int64_t row_offset;        // Row offset within the row group (for future optimization)
     int64_t min_timestamp;     // Min timestamp in this chunk (for time filtering)
     int64_t max_timestamp;     // Max timestamp in this chunk (for time filtering)
+    uint32_t labels_crc32;     // Collision defense: CRC32 of canonical labels string
     
     RowLocation() 
-        : row_group_id(-1), row_offset(0), min_timestamp(0), max_timestamp(0) {}
+        : row_group_id(-1), row_offset(0), min_timestamp(0), max_timestamp(0), labels_crc32(0) {}
     
-    RowLocation(int32_t rg_id, int64_t offset, int64_t min_ts, int64_t max_ts)
+    RowLocation(int32_t rg_id, int64_t offset, int64_t min_ts, int64_t max_ts, uint32_t crc32 = 0)
         : row_group_id(rg_id), row_offset(offset), 
-          min_timestamp(min_ts), max_timestamp(max_ts) {}
+          min_timestamp(min_ts), max_timestamp(max_ts), labels_crc32(crc32) {}
     
     bool is_valid() const { return row_group_id >= 0; }
 };
@@ -205,7 +206,7 @@ private:
     
     // Index file magic number and version for validation
     static constexpr uint32_t INDEX_MAGIC = 0x54534458;  // "TSDX"
-    static constexpr uint32_t INDEX_VERSION = 1;
+    static constexpr uint32_t INDEX_VERSION = 2;
 };
 
 /**
