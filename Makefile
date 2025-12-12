@@ -39,13 +39,25 @@ test-all: build
 	@echo "Running all tests (632+ test cases)..."
 	$(MAKE) -C $(BUILD_DIR) test-all
 
+test-all-serial: build
+	@echo "Running all tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)..."
+	@CTEST_PARALLEL_LEVEL=1 $(MAKE) -C $(BUILD_DIR) test-all
+
 test-unit: build
 	@echo "Running unit tests (357 tests)..."
 	$(MAKE) -C $(BUILD_DIR) test-unit
 
+test-unit-serial: build
+	@echo "Running unit tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)..."
+	@CTEST_PARALLEL_LEVEL=1 $(MAKE) -C $(BUILD_DIR) test-unit
+
 test-integration: build
 	@echo "Running integration tests (177 tests)..."
 	$(MAKE) -C $(BUILD_DIR) test-integration
+
+test-integration-serial: build
+	@echo "Running integration tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)..."
+	@CTEST_PARALLEL_LEVEL=1 $(MAKE) -C $(BUILD_DIR) test-integration
 
 test-parser: build
 	@echo "Running PromQL parser tests (34 tests)..."
@@ -294,10 +306,13 @@ help:
 	@echo ""
 	@echo "Test Targets (632+ total tests):"
 	@echo "  test-all                    - Run ALL tests (632+ tests, 120s timeout)"
+	@echo "  test-all-serial             - Run ALL tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)"
 	@echo "  test-main-integration      - Main integration suite (124 tests, 5min)"
 	@echo "  test-storageimpl-phases    - StorageImpl phases (64 tests, 10min)"
 	@echo "  test-unit                  - All unit tests (357 tests, 30s timeout)"
+	@echo "  test-unit-serial            - All unit tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)"
 	@echo "  test-integration           - All integration tests (177 tests, 60s)"
+	@echo "  test-integration-serial     - All integration tests in SERIAL mode (CTEST_PARALLEL_LEVEL=1)"
 	@echo "  test-parser                - PromQL parser tests (34 tests, 15s)"
 	@echo "  test-core-unit             - Core unit tests (38 tests, 1min)"
 	@echo "  test-storage-unit          - Storage unit tests (60 tests, 2min)"

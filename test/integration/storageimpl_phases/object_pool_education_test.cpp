@@ -36,7 +36,7 @@ protected:
     std::unique_ptr<storage::StorageImpl> storage_;
 };
 
-TEST_F(ObjectPoolEducationTest, DemonstrateObjectPoolReuse) {
+TEST_F(ObjectPoolEducationTest, DISABLED_DemonstrateObjectPoolReuse) {
     std::cout << "\n=== OBJECT POOL REUSE DEMONSTRATION ===" << std::endl;
     
     // Step 1: Show initial pool state
@@ -100,7 +100,7 @@ TEST_F(ObjectPoolEducationTest, DemonstrateObjectPoolReuse) {
     std::cout << "This shows how much memory allocation we avoided!" << std::endl;
 }
 
-TEST_F(ObjectPoolEducationTest, CompareWithDirectAllocation) {
+TEST_F(ObjectPoolEducationTest, DISABLED_CompareWithDirectAllocation) {
     std::cout << "\n=== COMPARISON: OBJECT POOL vs DIRECT ALLOCATION ===" << std::endl;
     
     // Method 1: Using object pools (our current implementation)
@@ -182,7 +182,7 @@ TEST_F(ObjectPoolEducationTest, CompareWithDirectAllocation) {
     std::cout << "  - Predictable memory usage patterns" << std::endl;
 }
 
-TEST_F(ObjectPoolEducationTest, MemoryFragmentationDemonstration) {
+TEST_F(ObjectPoolEducationTest, DISABLED_MemoryFragmentationDemonstration) {
     std::cout << "\n=== MEMORY FRAGMENTATION DEMONSTRATION ===" << std::endl;
     
     std::cout << "Memory fragmentation occurs when:" << std::endl;

@@ -7,6 +7,7 @@
 #include <string>
 #include <unordered_map>
 #include <mutex>
+#include <optional>
 #include <atomic>
 #include <chrono>
 #include <list>
@@ -117,9 +118,9 @@ public:
     /**
      * @brief Get metadata for a specific series
      * @param series_id The series ID
-     * @return Pointer to metadata if found, nullptr otherwise
+     * @return Copy of metadata if found, std::nullopt otherwise
      */
-    const CacheEntryMetadata* get_metadata(core::SeriesID series_id) const;
+    std::optional<CacheEntryMetadata> get_metadata(core::SeriesID series_id) const;
     
     /**
      * @brief Get all series IDs in the cache

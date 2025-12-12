@@ -4,6 +4,9 @@
 #include <vector>
 #include <memory>
 #include <atomic>
+#include <mutex>
+#include <string>
+#include <unordered_map>
 #include "tsdb/storage/index.h"
 #include "tsdb/storage/index_metrics.h"
 #include "tsdb/core/result.h"
@@ -73,13 +76,29 @@ public:
     // Reset metrics across all shards
     void reset_metrics();
 
+    // ---- Test/observability helpers ----
+    // Counts how many shard-level queries were actually executed by ShardedIndex.
+    // Useful to validate shard routing optimizations.
+    std::vector<uint64_t> get_shard_query_counts() const;
+    void reset_shard_query_counts();
+
 private:
     const size_t num_shards_;
     std::vector<std::unique_ptr<Index>> shards_;
     mutable std::atomic<uint64_t> total_series_{0};
     mutable std::atomic<uint64_t> total_lookups_{0};
+
+    // Step 1.3: routing structure for __name__="metric" queries.
+    // Maintain per-metric per-shard counts so we can route queries to only shards
+    // that contain the metric.
+    mutable std::mutex routing_mutex_;
+    std::unordered_map<std::string, std::vector<uint32_t>> metric_shard_counts_;
+
+    // Per-shard query counters (for tests/observability)
+    std::unique_ptr<std::atomic<uint64_t>[]> shard_query_counts_;
     
     size_t get_shard_index(core::SeriesID id) const;
+    std::vector<size_t> get_routed_shards_for_metric(const std::string& metric_name) const;
 };
 
 } // namespace storage

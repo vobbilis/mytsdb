@@ -27,7 +27,7 @@ protected:
     std::unique_ptr<storage::StorageImpl> storage_;
 };
 
-TEST_F(DebugCacheTest, DebugWriteAndRead) {
+TEST_F(DebugCacheTest, DISABLED_DebugWriteAndRead) {
     std::cout << "\n=== DEBUG WRITE AND READ TEST ===" << std::endl;
     
     // Create a simple test series

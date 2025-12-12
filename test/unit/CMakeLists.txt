@@ -715,38 +715,34 @@ if(TSDB_SEMVEC)
 endif()
 
 # Test fixtures
+#
+# IMPORTANT:
+# Multiple unit test executables were previously running the same POST_BUILD
+# `copy_directory` into `${CMAKE_CURRENT_BINARY_DIR}/data` in parallel, which can
+# intermittently fail under parallel builds.
+#
+# Fix: copy the fixtures ONCE via a stamped custom target, then add dependencies.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
-    add_custom_command(TARGET tsdb_core_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
+    set(TSDB_UNIT_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
+    set(TSDB_UNIT_DATA_STAMP ${TSDB_UNIT_DATA_DIR}/.tsdb_test_data_copied)
+
+    add_custom_command(
+        OUTPUT ${TSDB_UNIT_DATA_STAMP}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${TSDB_UNIT_DATA_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_storage_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_integration_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
+            ${TSDB_UNIT_DATA_DIR}
+        COMMAND ${CMAKE_COMMAND} -E touch ${TSDB_UNIT_DATA_STAMP}
+        COMMENT "Copying unit test fixtures to ${TSDB_UNIT_DATA_DIR}"
     )
 
-    add_custom_command(TARGET tsdb_object_pool_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_working_set_cache_unit_tests POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
+    add_custom_target(tsdb_copy_unit_test_data DEPENDS ${TSDB_UNIT_DATA_STAMP})
+
+    add_dependencies(tsdb_core_unit_tests tsdb_copy_unit_test_data)
+    add_dependencies(tsdb_storage_unit_tests tsdb_copy_unit_test_data)
+    add_dependencies(tsdb_integration_tests tsdb_copy_unit_test_data)
+    add_dependencies(tsdb_object_pool_unit_tests tsdb_copy_unit_test_data)
+    add_dependencies(tsdb_working_set_cache_unit_tests tsdb_copy_unit_test_data)
 endif()
 gtest_discover_tests(tsdb_storage_unit_tests
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}

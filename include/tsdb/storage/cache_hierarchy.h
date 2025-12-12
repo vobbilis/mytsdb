@@ -154,7 +154,10 @@ private:
     // Background processing
     std::atomic<bool> background_running_{false};
     std::thread background_thread_;
-    mutable std::mutex background_mutex_;
+    // Serialize hierarchy-level operations (including background maintenance) to avoid
+    // races across multiple cache levels. This must be recursive because some public
+    // methods call other public methods (e.g. get()->promote()).
+    mutable std::recursive_mutex background_mutex_;
     
     // Global statistics
     mutable std::atomic<uint64_t> total_hits_{0};

@@ -7,6 +7,7 @@
 #include "tsdb/histogram/ddsketch.h"
 #include <filesystem>
 #include <memory>
+#include "../test_util/temp_dir.h"
 
 namespace tsdb {
 namespace integration {
@@ -16,7 +17,7 @@ class ConfigIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Create temporary directory for test data
-        test_dir_ = std::filesystem::temp_directory_path() / "tsdb_config_integration_test";
+        test_dir_ = tsdb::testutil::MakeUniqueTestDir("tsdb_config_integration_test");
         std::filesystem::create_directories(test_dir_);
     }
 

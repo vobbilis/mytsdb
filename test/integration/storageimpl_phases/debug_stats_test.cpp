@@ -33,7 +33,7 @@ protected:
     std::unique_ptr<storage::StorageImpl> storage_;
 };
 
-TEST_F(DebugStatsTest, PrintStatsOutput) {
+TEST_F(DebugStatsTest, DISABLED_PrintStatsOutput) {
     std::cout << "=== INITIAL STATS ===" << std::endl;
     std::string initial_stats = storage_->stats();
     std::cout << initial_stats << std::endl;

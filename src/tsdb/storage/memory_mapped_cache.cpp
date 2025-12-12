@@ -170,15 +170,17 @@ void MemoryMappedCache::reset_stats() {
     eviction_count_.store(0, std::memory_order_relaxed);
 }
 
-const CacheEntryMetadata* MemoryMappedCache::get_metadata(core::SeriesID series_id) const {
+std::optional<CacheEntryMetadata> MemoryMappedCache::get_metadata(core::SeriesID series_id) const {
     std::lock_guard<std::mutex> lock(mutex_);
     
     auto it = metadata_map_.find(series_id);
     if (it == metadata_map_.end()) {
-        return nullptr;
+        return std::nullopt;
     }
     
-    return &it->second;
+    // Return a copy to avoid handing out pointers to internal storage
+    // (which can become invalid after the lock is released).
+    return it->second;
 }
 
 std::vector<core::SeriesID> MemoryMappedCache::get_all_series_ids() const {

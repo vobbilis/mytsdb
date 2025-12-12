@@ -7,6 +7,7 @@
 #include <list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <atomic>
 #include <string>
 
@@ -141,9 +142,9 @@ public:
     /**
      * @brief Get metadata for a series in the cache
      * @param series_id The series ID to get metadata for
-     * @return Pointer to metadata if found, nullptr otherwise
+     * @return Copy of metadata if found, std::nullopt otherwise
      */
-    const CacheEntryMetadata* get_metadata(core::SeriesID series_id) const;
+    std::optional<CacheEntryMetadata> get_metadata(core::SeriesID series_id) const;
 
 private:
     // Cache entry structure

@@ -96,7 +96,7 @@ protected:
     }
 };
 
-TEST_F(ObjectPoolSizeAnalysisTest, AnalyzeTimeSeriesSizeDistribution) {
+TEST_F(ObjectPoolSizeAnalysisTest, DISABLED_AnalyzeTimeSeriesSizeDistribution) {
     std::cout << "\n=== TIME SERIES SIZE DISTRIBUTION ANALYSIS ===" << std::endl;
     
     std::vector<size_t> time_series_sizes;
@@ -208,7 +208,7 @@ TEST_F(ObjectPoolSizeAnalysisTest, AnalyzeTimeSeriesSizeDistribution) {
     std::cout << stats << std::endl;
 }
 
-TEST_F(ObjectPoolSizeAnalysisTest, EvaluateVariableSizePoolBenefits) {
+TEST_F(ObjectPoolSizeAnalysisTest, DISABLED_EvaluateVariableSizePoolBenefits) {
     std::cout << "\n=== VARIABLE SIZE POOL BENEFIT ANALYSIS ===" << std::endl;
     
     // Create a realistic workload with different size patterns

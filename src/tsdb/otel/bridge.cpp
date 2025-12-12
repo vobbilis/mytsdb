@@ -5,6 +5,9 @@
 #include <thread>
 #include <future>
 #include <vector>
+#include <tbb/parallel_for.h>
+#include <tbb/blocked_range.h>
+#include <tbb/combinable.h>
 
 namespace tsdb {
 namespace otel {
@@ -123,7 +126,7 @@ public:
         {
             storage::WriteScopedTimer timer(metrics.otel_conversion_us, perf_enabled);
             
-            // Process resource_metrics sequentially (async overhead > benefit for this workload)
+            // Sequential loop for ResourceMetrics (usually small/1 per request)
             for (const auto& resource_metric : resource_metrics) {
                 ProcessResourceMetric(resource_metric, metrics, perf_enabled);
             }
@@ -215,7 +218,7 @@ private:
                     "Unsupported metric type"));
         }
     }
-    
+
     // Convert gauge with data point attributes
     core::Result<void> ConvertGaugeWithAttributes(
         const opentelemetry::proto::metrics::v1::Gauge& gauge,
@@ -225,47 +228,82 @@ private:
         
         storage::WriteScopedTimer p_timer(metrics.otel_point_conversion_us, perf_enabled);
         
-        // Use map for attribute handling
+        const auto& points = gauge.data_points();
+        size_t num_points = points.size();
+        
+        if (num_points == 0) return core::Result<void>();
+
+        // Structure to hold pre-processed point data
+        struct PreProcessedPoint {
+            core::Labels labels;
+            core::Sample sample;
+            bool use_base_labels;
+            
+            PreProcessedPoint() : sample(0, 0.0), use_base_labels(true) {}
+        };
+
+        // Pre-allocate vector for results
+        // We use a raw vector and parallel_for to fill it by index -> preserving order is easier later
+        std::vector<PreProcessedPoint> processed_points(num_points);
+        
+        // Parallelize the expensive attribute parsing
+        tbb::parallel_for(tbb::blocked_range<size_t>(0, num_points),
+            [&](const tbb::blocked_range<size_t>& range) {
+                // Thread-local temporary map to avoid reallocation
+                core::Labels::Map local_labels_map;
+                
+                for (size_t i = range.begin(); i < range.end(); ++i) {
+                    const auto& point = points[static_cast<int>(i)];
+                    auto& result = processed_points[i];
+                    
+                    result.sample = core::Sample(
+                        point.time_unix_nano() / 1000000, 
+                        point.as_double());
+                        
+                    if (point.attributes().empty()) {
+                        result.use_base_labels = true;
+                    } else {
+                        result.use_base_labels = false;
+                        local_labels_map = base_labels_map;  // Copy base
+                        {
+                             // We don't use the timer here to avoid contention/overhead in tight loop
+                             // but AppendAttributes is the target of optimization
+                             AppendAttributes(point.attributes(), local_labels_map);
+                        }
+                        result.labels = core::Labels(std::move(local_labels_map));
+                    }
+                }
+            });
+
+        // Serial Insert Phase - Preserves Order and manages Map efficiently
+        // Creates batch locally
         std::map<core::Labels, core::TimeSeries> batch;
         
-        // Optimization: Pre-create base series for points with no attributes (common case)
+        // Optimization: Pre-create base series
         core::Labels base_labels(base_labels_map);
-        // We insert it immediately so we have a stable iterator/reference
         auto base_it = batch.emplace(base_labels, core::TimeSeries(base_labels)).first;
-        
-        for (const auto& point : gauge.data_points()) {
-            // Optimization: If point has no attributes, use base_series directly
-            if (point.attributes().empty()) {
-                base_it->second.add_sample(core::Sample(
-                    point.time_unix_nano() / 1000000,  // Convert to milliseconds
-                    point.as_double()));
-                continue;
-            }
 
-            // Combine base labels with data point attributes
-            core::Labels::Map labels_map = base_labels_map;
+        for (size_t i = 0; i < num_points; ++i) {
+            const auto& p = processed_points[i];
             
-            {
-                storage::WriteScopedTimer l_timer(metrics.otel_label_conversion_us, perf_enabled);
-                AppendAttributes(point.attributes(), labels_map);
+            if (p.use_base_labels) {
+                base_it->second.add_sample(p.sample);
+            } else {
+                // For the benchmark case, labels are constant, so this will hit the same entry repeatedly
+                // We use finding with hint or just find
+                // Since processed_points[i].labels is fully constructed, we can move it?
+                // No, we need it as key.
+                
+                auto it = batch.find(p.labels);
+                if (it == batch.end()) {
+                    it = batch.emplace(p.labels, core::TimeSeries(p.labels)).first;
+                }
+                it->second.add_sample(p.sample);
             }
-            
-            core::Labels labels(std::move(labels_map));
-            
-            // Find or create series in batch
-            auto it = batch.find(labels);
-            if (it == batch.end()) {
-                it = batch.emplace(labels, core::TimeSeries(labels)).first;
-            }
-            
-            it->second.add_sample(core::Sample(
-                point.time_unix_nano() / 1000000,  // Convert to milliseconds
-                point.as_double()));
         }
         
         // Write batched series
         for (const auto& kv : batch) {
-            // Skip if no samples were added to the base series (and it was the only one)
             if (kv.second.samples().empty()) continue;
             
             auto result = storage_->write(kv.second);

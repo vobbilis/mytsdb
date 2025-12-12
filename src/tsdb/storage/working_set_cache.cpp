@@ -523,15 +523,17 @@ void WorkingSetCache::add_entry(core::SeriesID series_id, std::shared_ptr<core::
  * Thread Safety: Uses mutex locking to ensure thread-safe access
  * to cache metadata during concurrent operations.
  */
-const CacheEntryMetadata* WorkingSetCache::get_metadata(core::SeriesID series_id) const {
+std::optional<CacheEntryMetadata> WorkingSetCache::get_metadata(core::SeriesID series_id) const {
     std::lock_guard<std::mutex> lock(mutex_);
     
     auto it = cache_map_.find(series_id);
     if (it == cache_map_.end()) {
-        return nullptr;
+        return std::nullopt;
     }
     
-    return &it->second->metadata;
+    // Return a copy to avoid handing out pointers to internal storage
+    // (which can become invalid after the lock is released).
+    return it->second->metadata;
 }
 
 } // namespace storage

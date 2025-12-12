@@ -128,11 +128,49 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
     
     std::shared_lock<std::shared_mutex> lock(mutex_);
     
+    // ---------------------------------------------------------------------
+    // Preprocess matchers (compile regex once per query)
+    // ---------------------------------------------------------------------
+    struct CompiledMatcher {
+        core::MatcherType type;
+        std::string name;
+        std::string value;
+        // Only used for regex matchers
+        bool has_regex{false};
+        bool regex_valid{true};
+        std::regex regex;
+#if USE_ROARING_BITMAPS
+        // Whether we've already applied this matcher using posting-list algebra.
+        bool handled_by_set_algebra{false};
+#endif
+    };
+
+    std::vector<CompiledMatcher> compiled_matchers;
+    compiled_matchers.reserve(matchers.size());
+
+    for (const auto& m : matchers) {
+        CompiledMatcher cm;
+        cm.type = m.type;
+        cm.name = m.name;
+        cm.value = m.value;
+
+        if (m.type == core::MatcherType::RegexMatch || m.type == core::MatcherType::RegexNoMatch) {
+            cm.has_regex = true;
+            try {
+                cm.regex = std::regex(m.value);
+                cm.regex_valid = true;
+            } catch (const std::regex_error&) {
+                cm.regex_valid = false;
+            }
+        }
+        compiled_matchers.push_back(std::move(cm));
+    }
+
     PostingList candidates;
     bool candidates_initialized = false;
 
     // 1. Filter by Equality Matchers (Use Inverted Index)
-    for (const auto& matcher : matchers) {
+    for (const auto& matcher : compiled_matchers) {
         if (matcher.type == core::MatcherType::Equal && !matcher.value.empty()) {
             // Lookup in inverted index
             auto it = postings_.find({matcher.name, matcher.value});
@@ -181,6 +219,92 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
 #endif
     }
 
+#if USE_ROARING_BITMAPS
+    // ---------------------------------------------------------------------
+    // Step 1.2: Apply negative matchers via set algebra (Roaring fast-path)
+    //
+    // Important semantic notes (matching existing behavior in this codebase):
+    // - For label lookups, "absent label" is treated like empty string "".
+    // - For `!= ""`, absent labels should NOT match (because "" == "").
+    // - For `!~ <regex>`, if regex matches "", absent labels should NOT match.
+    // ---------------------------------------------------------------------
+    auto subtract_posting_lists = [&](const PostingList& a, const PostingList& b) -> PostingList {
+        // Roaring supports fast set difference.
+        return a - b;
+    };
+
+    auto union_posting_lists = [&](const PostingList& a, const PostingList& b) -> PostingList {
+        return a | b;
+    };
+
+    auto get_postings_for_pair = [&](const std::string& k, const std::string& v) -> const PostingList* {
+        auto it = postings_.find({k, v});
+        if (it == postings_.end()) return nullptr;
+        return &it->second;
+    };
+
+    auto union_for_label_key = [&](const std::string& key) -> PostingList {
+        PostingList u;
+        for (const auto& [kv, pl] : postings_) {
+            if (kv.first == key) {
+                u = union_posting_lists(u, pl);
+            }
+        }
+        return u;
+    };
+
+    auto union_for_label_key_matching_values = [&](const std::string& key, const std::regex& re) -> PostingList {
+        PostingList u;
+        for (const auto& [kv, pl] : postings_) {
+            if (kv.first != key) continue;
+            if (std::regex_match(kv.second, re)) {
+                u = union_posting_lists(u, pl);
+            }
+        }
+        return u;
+    };
+
+    for (auto& matcher : compiled_matchers) {
+        if (matcher.type == core::MatcherType::NotEqual) {
+            // Fast-path: candidates -= postings[(k,v)] when v != ""
+            // Special-case: v == "" must also exclude series where label is absent.
+            if (!matcher.value.empty()) {
+                if (const PostingList* pl = get_postings_for_pair(matcher.name, matcher.value)) {
+                    candidates = subtract_posting_lists(candidates, *pl);
+                }
+                matcher.handled_by_set_algebra = true;
+            } else {
+                // `!= ""` should match only series where label exists AND value != "".
+                // Enforce label existence via union over all values for the key.
+                PostingList has_key = union_for_label_key(matcher.name);
+                candidates = intersect_posting_lists(candidates, has_key);
+                if (const PostingList* pl = get_postings_for_pair(matcher.name, "")) {
+                    candidates = subtract_posting_lists(candidates, *pl);
+                }
+                matcher.handled_by_set_algebra = true;
+            }
+        } else if (matcher.type == core::MatcherType::RegexNoMatch) {
+            // Invalid regex is ignored (preserve existing behavior).
+            if (!matcher.regex_valid) {
+                continue;
+            }
+
+            // Build union of postings for label values that MATCH the regex, then subtract.
+            PostingList matching_values = union_for_label_key_matching_values(matcher.name, matcher.regex);
+            candidates = subtract_posting_lists(candidates, matching_values);
+
+            // Absent-label semantics: absent == "".
+            // If regex matches "", then absent labels would match and should be excluded.
+            if (std::regex_match(std::string(""), matcher.regex)) {
+                PostingList has_key = union_for_label_key(matcher.name);
+                candidates = intersect_posting_lists(candidates, has_key);
+            }
+
+            matcher.handled_by_set_algebra = true;
+        }
+    }
+#endif
+
     // Convert posting list to vector for iteration
     std::vector<core::SeriesID> candidate_vec = posting_list_to_vector(candidates);
 
@@ -195,11 +319,18 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
         const auto& labels = labels_it->second;
         bool matches = true;
 
-        for (const auto& matcher : matchers) {
+        for (const auto& matcher : compiled_matchers) {
             // Skip equality matchers we already handled
             if (matcher.type == core::MatcherType::Equal && !matcher.value.empty()) {
                 continue;
             }
+#if USE_ROARING_BITMAPS
+            // Skip matchers already applied via set algebra.
+            if (matcher.handled_by_set_algebra &&
+                (matcher.type == core::MatcherType::NotEqual || matcher.type == core::MatcherType::RegexNoMatch)) {
+                continue;
+            }
+#endif
 
             auto label_val_opt = labels.get(matcher.name);
             std::string label_val = label_val_opt.value_or("");
@@ -215,25 +346,22 @@ core::Result<std::vector<core::SeriesID>> Index::find_series(const std::vector<c
                     break;
                 }
             } else if (matcher.type == core::MatcherType::RegexMatch) {
-                try {
-                    std::regex re(matcher.value);
-                    if (!std::regex_match(label_val, re)) {
-                        matches = false;
-                        break;
-                    }
-                } catch (const std::regex_error&) {
+                // Preserve existing behavior:
+                // - invalid regex => treat as non-match (exclude series)
+                if (!matcher.regex_valid) {
+                    matches = false;
+                    break;
+                }
+                if (!std::regex_match(label_val, matcher.regex)) {
                     matches = false;
                     break;
                 }
             } else if (matcher.type == core::MatcherType::RegexNoMatch) {
-                try {
-                    std::regex re(matcher.value);
-                    if (std::regex_match(label_val, re)) {
-                        matches = false;
-                        break;
-                    }
-                } catch (const std::regex_error&) {
-                    // Ignore invalid regex
+                // Preserve existing behavior:
+                // - invalid regex => ignore (do not exclude series)
+                if (matcher.regex_valid && std::regex_match(label_val, matcher.regex)) {
+                    matches = false;
+                    break;
                 }
             }
         }

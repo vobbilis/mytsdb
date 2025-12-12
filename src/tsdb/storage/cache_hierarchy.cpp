@@ -112,8 +112,6 @@ CacheHierarchy::~CacheHierarchy() {
     // might be accessing the cache while it's being destroyed
     try {
         stop_background_processing();
-        // Give the thread time to fully stop
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     } catch (...) {
         // Ignore exceptions during destruction
     }
@@ -143,6 +141,7 @@ CacheHierarchy::~CacheHierarchy() {
  * and thread-safe cache operations.
  */
 std::shared_ptr<core::TimeSeries> CacheHierarchy::get(core::SeriesID series_id) {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     // Try L1 cache first (fastest)
     auto result = l1_cache_->get(series_id);
     if (result) {
@@ -209,6 +208,7 @@ std::shared_ptr<core::TimeSeries> CacheHierarchy::get(core::SeriesID series_id) 
  * metadata updates.
  */
 bool CacheHierarchy::put(core::SeriesID series_id, std::shared_ptr<core::TimeSeries> series) {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     if (!series) {
         throw core::InvalidArgumentError("Cannot cache null time series");
     }
@@ -292,6 +292,7 @@ bool CacheHierarchy::put(core::SeriesID series_id, std::shared_ptr<core::TimeSer
  * Thread Safety: Uses thread-safe cache operations.
  */
 bool CacheHierarchy::remove(core::SeriesID series_id) {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     bool removed = false;
     
     // Remove from L1
@@ -335,6 +336,7 @@ bool CacheHierarchy::remove(core::SeriesID series_id) {
  * and thread-safe cache operations.
  */
 bool CacheHierarchy::promote(core::SeriesID series_id, int target_level) {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     if (target_level < 1 || target_level > 3) {
         return false;
     }
@@ -390,6 +392,7 @@ bool CacheHierarchy::promote(core::SeriesID series_id, int target_level) {
  * and thread-safe cache operations.
  */
 bool CacheHierarchy::demote(core::SeriesID series_id, int target_level) {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     if (target_level < 1 || target_level > 3) {
         return false;
     }
@@ -455,6 +458,7 @@ bool CacheHierarchy::demote(core::SeriesID series_id, int target_level) {
  * Thread Safety: Uses thread-safe cache operations.
  */
 void CacheHierarchy::clear() {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     l1_cache_->clear();
     if (l2_cache_) {
         l2_cache_->clear();
@@ -485,6 +489,7 @@ void CacheHierarchy::clear() {
  * Thread Safety: Uses atomic loads for thread-safe statistics access.
  */
 std::string CacheHierarchy::stats() const {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     std::ostringstream oss;
     oss << "Cache Hierarchy Stats:\n";
     oss << "==========================================\n";
@@ -578,6 +583,7 @@ std::string CacheHierarchy::stats() const {
  * Thread Safety: Uses atomic loads for thread-safe access.
  */
 double CacheHierarchy::hit_ratio() const {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     uint64_t hits = total_hits_.load(std::memory_order_relaxed);
     uint64_t misses = total_misses_.load(std::memory_order_relaxed);
     uint64_t total = hits + misses;
@@ -604,6 +610,7 @@ double CacheHierarchy::hit_ratio() const {
  * Thread Safety: Uses atomic stores for thread-safe access.
  */
 void CacheHierarchy::reset_stats() {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     total_hits_.store(0, std::memory_order_relaxed);
     total_misses_.store(0, std::memory_order_relaxed);
     l1_hits_.store(0, std::memory_order_relaxed);
@@ -633,6 +640,7 @@ void CacheHierarchy::reset_stats() {
  * Thread Safety: Uses atomic operations for thread state management.
  */
 void CacheHierarchy::start_background_processing() {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     if (background_running_.load(std::memory_order_relaxed)) {
         return; // Already running
     }
@@ -655,25 +663,17 @@ void CacheHierarchy::start_background_processing() {
  * Thread Safety: Uses atomic operations for thread state management.
  */
 void CacheHierarchy::stop_background_processing() {
-    // Use memory_order_acquire to ensure we see all previous writes
-    if (!background_running_.load(std::memory_order_acquire)) {
-        return; // Not running
-    }
-    
-    // Set flag first to signal the thread to stop
+    // IMPORTANT:
+    // Do not early-return based solely on `background_running_`.
+    // Some callers may have already cleared the flag; we *still* must join
+    // any joinable background thread before destruction.
+
+    // Signal the thread to stop (idempotent).
     background_running_.store(false, std::memory_order_release);
-    
-    // Wait for the background thread to finish
+
+    // Always join if the thread is joinable.
     if (background_thread_.joinable()) {
         background_thread_.join();
-    }
-    
-    // Ensure the thread is fully stopped before returning
-    // This prevents race conditions during destruction
-    
-    // Reset the thread object to ensure it's fully cleaned up
-    if (!background_thread_.joinable()) {
-        background_thread_ = std::thread();
     }
 }
 
@@ -758,6 +758,7 @@ void CacheHierarchy::background_processing_loop() {
  * statistics updates.
  */
 void CacheHierarchy::perform_maintenance() {
+    std::lock_guard<std::recursive_mutex> lock(background_mutex_);
     fprintf(stderr, "CacheHierarchy::perform_maintenance - Starting\n");
     // Get all keys from L1
     std::vector<core::SeriesID> l1_series_ids;
@@ -838,20 +839,16 @@ void CacheHierarchy::perform_maintenance() {
  * Thread Safety: Should be implemented with thread-safe metadata updates.
  */
 void CacheHierarchy::update_access_metadata(core::SeriesID series_id, int cache_level) {
-    // Update metadata for tracking access patterns
-    if (cache_level == 1 && l1_cache_) {
-        // Update L1 metadata if available
-        const auto* metadata = l1_cache_->get_metadata(series_id);
-        if (metadata) {
-            const_cast<CacheEntryMetadata*>(metadata)->record_access();
-        }
-    } else if (cache_level == 2 && l2_cache_) {
-        // Update L2 metadata
-        const auto* metadata = l2_cache_->get_metadata(series_id);
-        if (metadata) {
-            const_cast<CacheEntryMetadata*>(metadata)->record_access();
-        }
-    }
+    // NOTE:
+    // - Both WorkingSetCache and MemoryMappedCache update their own metadata
+    //   under internal locks during get()/put() operations.
+    // - Returning metadata pointers from caches is unsafe once the lock is released.
+    //
+    // This method is intentionally a no-op to avoid races/UAF. If we need additional
+    // metadata tracking in the future, it should be implemented via explicit
+    // thread-safe cache APIs (e.g. record_access(series_id)).
+    (void)series_id;
+    (void)cache_level;
 }
 
 /**
@@ -875,8 +872,8 @@ void CacheHierarchy::update_access_metadata(core::SeriesID series_id, int cache_
 bool CacheHierarchy::should_promote(core::SeriesID series_id) const {
     // Check L2 metadata for promotion criteria
     if (l2_cache_) {
-        const auto* metadata = l2_cache_->get_metadata(series_id);
-        if (metadata) {
+        auto metadata = l2_cache_->get_metadata(series_id);
+        if (metadata.has_value()) {
             // For testing purposes, be more aggressive with promotions
             // Promote if accessed more than once or if L1 has space
             return metadata->access_count > 1 || !l1_cache_->is_full();
@@ -909,8 +906,8 @@ bool CacheHierarchy::should_promote(core::SeriesID series_id) const {
 bool CacheHierarchy::should_demote(core::SeriesID series_id) const {
     // Check L1 metadata for demotion criteria
     if (l1_cache_) {
-        auto* metadata = l1_cache_->get_metadata(series_id);
-        if (metadata) {
+        auto metadata = l1_cache_->get_metadata(series_id);
+        if (metadata.has_value()) {
             // For testing purposes, be more aggressive with demotions
             // Demote if access count is low or if L1 is getting full
             return metadata->access_count < 2 || l1_cache_->size() > 30;
@@ -919,8 +916,8 @@ bool CacheHierarchy::should_demote(core::SeriesID series_id) const {
     
     // Check L2 metadata for demotion criteria
     if (l2_cache_) {
-        auto* metadata = l2_cache_->get_metadata(series_id);
-        if (metadata) {
+        auto metadata = l2_cache_->get_metadata(series_id);
+        if (metadata.has_value()) {
             // Demote from L2 to L3 if very low access count and inactive
             auto now = std::chrono::steady_clock::now();
             auto time_since_access = std::chrono::duration_cast<std::chrono::seconds>(now - metadata->last_access);

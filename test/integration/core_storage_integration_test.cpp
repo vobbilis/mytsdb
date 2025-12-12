@@ -5,6 +5,7 @@
 #include "tsdb/storage/storage_impl.h"
 #include <filesystem>
 #include <memory>
+#include "../test_util/temp_dir.h"
 
 namespace tsdb {
 namespace integration {
@@ -14,7 +15,7 @@ class CoreStorageIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
         // Create temporary directory for test data
-        test_dir_ = std::filesystem::temp_directory_path() / "tsdb_integration_test";
+        test_dir_ = tsdb::testutil::MakeUniqueTestDir("tsdb_integration_test");
         std::filesystem::create_directories(test_dir_);
         
         core::StorageConfig config;

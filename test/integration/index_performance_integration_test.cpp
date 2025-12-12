@@ -15,6 +15,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <regex>
 
 #include "tsdb/storage/index.h"
 #include "tsdb/storage/sharded_index.h"
@@ -104,6 +105,318 @@ class IndexIntegrationTest : public ::testing::Test {
 protected:
     ShardedIndex index_{16}; // 16 shards like production
 };
+
+TEST_F(IndexIntegrationTest, RegexCompilationMicrobench) {
+    // This test is NOT a perf gate; it prints a reproducible comparison of:
+    // - compile regex once, then match N values
+    // - compile regex for each candidate, then match
+    //
+    // It is meant to quantify the practical impact of Phase 1 Step 1.1.
+    const int NUM_SERIES = 20000;
+    std::vector<std::string> status_values;
+    status_values.reserve(NUM_SERIES);
+
+    for (int i = 0; i < NUM_SERIES; ++i) {
+        auto labels = generate_http_labels(i);
+        status_values.push_back(labels.get("status").value_or(""));
+        ASSERT_TRUE(index_.add_series(i, labels).ok());
+    }
+
+    const std::string pattern = "4.*|5.*";
+    constexpr int ITERS = 50;
+
+    auto time_ms = [](auto&& fn) -> double {
+        auto start = std::chrono::high_resolution_clock::now();
+        fn();
+        auto end = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0;
+    };
+
+    // Baseline: compile-per-candidate (old behavior)
+    size_t compile_each_matches = 0;
+    double compile_each_ms = time_ms([&] {
+        for (int it = 0; it < ITERS; ++it) {
+            for (const auto& s : status_values) {
+                std::regex re(pattern);
+                if (std::regex_match(s, re)) {
+                    ++compile_each_matches;
+                }
+            }
+        }
+    });
+
+    // Optimized: compile-once-per-query (new behavior)
+    size_t compile_once_matches = 0;
+    double compile_once_ms = time_ms([&] {
+        std::regex re(pattern);
+        for (int it = 0; it < ITERS; ++it) {
+            for (const auto& s : status_values) {
+                if (std::regex_match(s, re)) {
+                    ++compile_once_matches;
+                }
+            }
+        }
+    });
+
+    // Sanity: both approaches should match the same total count (times ITERS)
+    EXPECT_EQ(compile_each_matches, compile_once_matches);
+
+    std::cout << "\n=== RegexCompilationMicrobench ===" << std::endl;
+    std::cout << "Candidates: " << status_values.size() << ", iters: " << ITERS << std::endl;
+    std::cout << "Pattern: " << pattern << std::endl;
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "compile-per-candidate: " << compile_each_ms << " ms" << std::endl;
+    std::cout << "compile-once:          " << compile_once_ms << " ms" << std::endl;
+    if (compile_once_ms > 0.0) {
+        std::cout << "speedup:               " << (compile_each_ms / compile_once_ms) << "x" << std::endl;
+    }
+}
+
+#ifdef HAVE_ROARING
+TEST_F(IndexIntegrationTest, NegativeMatcherSetAlgebraMicrobench) {
+    // This microbench quantifies the Step 1.2 optimization idea:
+    // - old-style: scan candidates and filter out excluded IDs
+    // - new-style: Roaring set algebra (difference) on posting lists
+    //
+    // It's not a perf gate; it prints timing results.
+    using roaring::Roaring64Map;
+
+    constexpr uint64_t N = 2'000'000;          // candidates
+    constexpr uint64_t EXCLUDE_EVERY = 3;      // exclude ~33%
+    constexpr int ITERS = 30;
+
+    std::vector<uint64_t> candidates_vec;
+    candidates_vec.reserve(static_cast<size_t>(N));
+
+    Roaring64Map candidates_rb;
+    Roaring64Map exclude_rb;
+
+    for (uint64_t id = 0; id < N; ++id) {
+        candidates_vec.push_back(id);
+        candidates_rb.add(id);
+        if ((id % EXCLUDE_EVERY) == 0) {
+            exclude_rb.add(id);
+        }
+    }
+
+    auto time_ms = [](auto&& fn) -> double {
+        auto start = std::chrono::high_resolution_clock::now();
+        fn();
+        auto end = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0;
+    };
+
+    // Baseline: scan + membership check using Roaring::contains (still O(N))
+    size_t scan_count = 0;
+    double scan_ms = time_ms([&] {
+        for (int it = 0; it < ITERS; ++it) {
+            scan_count = 0;
+            for (auto id : candidates_vec) {
+                if (!exclude_rb.contains(id)) {
+                    ++scan_count;
+                }
+            }
+        }
+    });
+
+    // Optimized: roaring difference (mostly proportional to compressed cardinalities)
+    uint64_t diff_card = 0;
+    double diff_ms = time_ms([&] {
+        for (int it = 0; it < ITERS; ++it) {
+            Roaring64Map out = candidates_rb - exclude_rb;
+            diff_card = out.cardinality();
+        }
+    });
+
+    // Sanity: counts should match
+    EXPECT_EQ(static_cast<uint64_t>(scan_count), diff_card);
+
+    std::cout << "\n=== NegativeMatcherSetAlgebraMicrobench ===" << std::endl;
+    std::cout << "Candidates: " << N
+              << ", exclude_every: " << EXCLUDE_EVERY
+              << ", iters: " << ITERS << std::endl;
+    std::cout << std::fixed << std::setprecision(2);
+    std::cout << "scan+contains: " << scan_ms << " ms" << std::endl;
+    std::cout << "roaring diff:  " << diff_ms << " ms" << std::endl;
+    if (diff_ms > 0.0) {
+        std::cout << "speedup:       " << (scan_ms / diff_ms) << "x" << std::endl;
+    }
+}
+#endif
+
+TEST_F(IndexIntegrationTest, NegativeMatchersHighCardinalityWorkloadLatency) {
+    // Real workload-style measurement:
+    // - build a higher-cardinality dataset
+    // - compare "baseline scan + filter candidates" vs "optimized Index::find_series"
+    //
+    // NOTE: We avoid timing assertions (to prevent flakes). We only assert correctness
+    // and print timing stats for review.
+#ifndef HAVE_ROARING
+    GTEST_SKIP() << "HAVE_ROARING not enabled; Step 1.2 set-algebra path is not active.";
+#endif
+
+    constexpr int NUM_SERIES = 200000;
+    constexpr int ITERS = 50;
+
+    auto make_labels = [](int i) -> Labels {
+        // High-cardinality-ish: pod is unique-ish; region is low-cardinality.
+        std::string pod = "pod-" + std::to_string(i); // unique per series
+        std::string region = "region-" + std::to_string(i % 4); // 4 regions
+        return Labels(Labels::Map{
+            {"__name__", "http_requests_total"},
+            {"pod", pod},
+            {"region", region},
+            {"cluster", "prod"},
+        });
+    };
+
+    // Build dataset once.
+    for (int i = 0; i < NUM_SERIES; ++i) {
+        ASSERT_TRUE(index_.add_series(i, make_labels(i)).ok());
+    }
+
+    // Precompute equality candidates once (this approximates "after posting list intersection" work).
+    std::vector<LabelMatcher> eq_only = {
+        {MatcherType::Equal, "__name__", "http_requests_total"},
+        {MatcherType::Equal, "cluster", "prod"},
+    };
+    auto candidates_with_labels_res = index_.find_series_with_labels(eq_only);
+    ASSERT_TRUE(candidates_with_labels_res.ok());
+    const auto& candidates_with_labels = candidates_with_labels_res.value();
+    ASSERT_EQ(static_cast<int>(candidates_with_labels.size()), NUM_SERIES);
+
+    auto time_ms = [](auto&& fn) -> double {
+        auto start = std::chrono::high_resolution_clock::now();
+        fn();
+        auto end = std::chrono::high_resolution_clock::now();
+        return std::chrono::duration_cast<std::chrono::microseconds>(end - start).count() / 1000.0;
+    };
+
+    auto summarize = [](std::vector<double>& v) {
+        std::sort(v.begin(), v.end());
+        double sum = 0;
+        for (double x : v) sum += x;
+        double avg = v.empty() ? 0.0 : sum / v.size();
+        double p50 = v.empty() ? 0.0 : v[v.size() / 2];
+        double p99 = v.empty() ? 0.0 : v[static_cast<size_t>(v.size() * 0.99)];
+        return std::tuple<double, double, double>(avg, p50, p99);
+    };
+
+    // ------------------------------------------------------------------
+    // Case A: NotEqual on low-cardinality label (region != region-0)
+    // Expect to exclude ~25% of series.
+    // ------------------------------------------------------------------
+    std::vector<LabelMatcher> ne_query = {
+        {MatcherType::Equal, "__name__", "http_requests_total"},
+        {MatcherType::Equal, "cluster", "prod"},
+        {MatcherType::NotEqual, "region", "region-0"},
+    };
+
+    // Baseline: scan precomputed candidates and filter.
+    std::vector<double> ne_scan_times;
+    ne_scan_times.reserve(ITERS);
+    std::vector<SeriesID> ne_scan_out;
+    ne_scan_out.reserve(NUM_SERIES);
+
+    for (int it = 0; it < ITERS; ++it) {
+        double ms = time_ms([&] {
+            ne_scan_out.clear();
+            for (const auto& [id, labels] : candidates_with_labels) {
+                std::string region = labels.get("region").value_or("");
+                if (region != "region-0") {
+                    ne_scan_out.push_back(id);
+                }
+            }
+        });
+        ne_scan_times.push_back(ms);
+    }
+
+    // Optimized: call index with full matcher set (hits set-algebra path).
+    std::vector<double> ne_opt_times;
+    ne_opt_times.reserve(ITERS);
+    std::vector<SeriesID> ne_opt_out;
+    for (int it = 0; it < ITERS; ++it) {
+        double ms = time_ms([&] {
+            auto r = index_.find_series(ne_query);
+            ASSERT_TRUE(r.ok());
+            ne_opt_out = std::move(r.value());
+        });
+        ne_opt_times.push_back(ms);
+    }
+
+    std::sort(ne_scan_out.begin(), ne_scan_out.end());
+    std::sort(ne_opt_out.begin(), ne_opt_out.end());
+    ASSERT_EQ(ne_scan_out, ne_opt_out);
+
+    auto [ne_scan_avg, ne_scan_p50, ne_scan_p99] = summarize(ne_scan_times);
+    auto [ne_opt_avg, ne_opt_p50, ne_opt_p99] = summarize(ne_opt_times);
+
+    std::cout << "\n=== NegativeMatchersHighCardinalityWorkloadLatency ===" << std::endl;
+    std::cout << "Series: " << NUM_SERIES << ", iters: " << ITERS << std::endl;
+    std::cout << std::fixed << std::setprecision(3);
+    std::cout << "\nCase A: region != region-0 (~25% excluded)\n";
+    std::cout << "baseline scan avg/p50/p99 (ms): " << ne_scan_avg << " / " << ne_scan_p50 << " / " << ne_scan_p99 << "\n";
+    std::cout << "optimized  avg/p50/p99 (ms): " << ne_opt_avg << " / " << ne_opt_p50 << " / " << ne_opt_p99 << "\n";
+    if (ne_opt_avg > 0.0) {
+        std::cout << "speedup (avg): " << (ne_scan_avg / ne_opt_avg) << "x\n";
+    }
+
+    // ------------------------------------------------------------------
+    // Case B: RegexNoMatch on high-cardinality label (pod !~ "pod-0.*")
+    // With numeric pod suffixes, this tends to exclude ~10% of series.
+    // ------------------------------------------------------------------
+    std::regex pod_re("pod-0.*");
+
+    std::vector<LabelMatcher> rn_query = {
+        {MatcherType::Equal, "__name__", "http_requests_total"},
+        {MatcherType::Equal, "cluster", "prod"},
+        {MatcherType::RegexNoMatch, "pod", "pod-0.*"},
+    };
+
+    std::vector<double> rn_scan_times;
+    rn_scan_times.reserve(ITERS);
+    std::vector<SeriesID> rn_scan_out;
+    rn_scan_out.reserve(NUM_SERIES);
+
+    for (int it = 0; it < ITERS; ++it) {
+        double ms = time_ms([&] {
+            rn_scan_out.clear();
+            for (const auto& [id, labels] : candidates_with_labels) {
+                std::string pod = labels.get("pod").value_or("");
+                if (!std::regex_match(pod, pod_re)) {
+                    rn_scan_out.push_back(id);
+                }
+            }
+        });
+        rn_scan_times.push_back(ms);
+    }
+
+    std::vector<double> rn_opt_times;
+    rn_opt_times.reserve(ITERS);
+    std::vector<SeriesID> rn_opt_out;
+    for (int it = 0; it < ITERS; ++it) {
+        double ms = time_ms([&] {
+            auto r = index_.find_series(rn_query);
+            ASSERT_TRUE(r.ok());
+            rn_opt_out = std::move(r.value());
+        });
+        rn_opt_times.push_back(ms);
+    }
+
+    std::sort(rn_scan_out.begin(), rn_scan_out.end());
+    std::sort(rn_opt_out.begin(), rn_opt_out.end());
+    ASSERT_EQ(rn_scan_out, rn_opt_out);
+
+    auto [rn_scan_avg, rn_scan_p50, rn_scan_p99] = summarize(rn_scan_times);
+    auto [rn_opt_avg, rn_opt_p50, rn_opt_p99] = summarize(rn_opt_times);
+
+    std::cout << "\nCase B: pod !~ pod-0.* (~10% excluded)\n";
+    std::cout << "baseline scan avg/p50/p99 (ms): " << rn_scan_avg << " / " << rn_scan_p50 << " / " << rn_scan_p99 << "\n";
+    std::cout << "optimized  avg/p50/p99 (ms): " << rn_opt_avg << " / " << rn_opt_p50 << " / " << rn_opt_p99 << "\n";
+    if (rn_opt_avg > 0.0) {
+        std::cout << "speedup (avg): " << (rn_scan_avg / rn_opt_avg) << "x\n";
+    }
+}
 
 TEST_F(IndexIntegrationTest, KubernetesMetricsWorkload) {
     // Simulate K8s cluster: 10 namespaces, 100 pods each, 3 containers per pod

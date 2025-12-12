@@ -6,6 +6,7 @@ add_executable(tsdb_integration_test_suite
     storage_histogram_integration_test.cpp
     config_integration_test.cpp
     derived_metrics_integration_test.cpp
+    negative_matchers_integration_test.cpp
     storageimpl_phases/phase1_object_pool_integration_test.cpp
     storageimpl_phases/debug_stats_test.cpp
     storageimpl_phases/object_pool_education_test.cpp
@@ -367,68 +368,40 @@ target_link_libraries(tsdb_self_monitor_e2e_test
 )
 
 # Test fixtures
+#
+# IMPORTANT:
+# Multiple integration executables were previously running the same POST_BUILD
+# `copy_directory` into `${CMAKE_CURRENT_BINARY_DIR}/data` in parallel, which can
+# intermittently fail under parallel builds.
+#
+# Fix: copy the fixtures ONCE via a stamped custom target, then add dependencies.
 if(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/../data)
-    add_custom_command(TARGET tsdb_integration_test_suite POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
+    set(TSDB_INTEGRATION_DATA_DIR ${CMAKE_CURRENT_BINARY_DIR}/data)
+    set(TSDB_INTEGRATION_DATA_STAMP ${TSDB_INTEGRATION_DATA_DIR}/.tsdb_test_data_copied)
+
+    add_custom_command(
+        OUTPUT ${TSDB_INTEGRATION_DATA_STAMP}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${TSDB_INTEGRATION_DATA_DIR}
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
+            ${TSDB_INTEGRATION_DATA_DIR}
+        COMMAND ${CMAKE_COMMAND} -E touch ${TSDB_INTEGRATION_DATA_STAMP}
+        COMMENT "Copying integration test fixtures to ${TSDB_INTEGRATION_DATA_DIR}"
     )
-    add_custom_command(TARGET tsdb_core_storage_integration_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_storage_histogram_integration_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_config_integration_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
+
+    add_custom_target(tsdb_copy_integration_test_data DEPENDS ${TSDB_INTEGRATION_DATA_STAMP})
+
+    add_dependencies(tsdb_integration_test_suite tsdb_copy_integration_test_data)
+    add_dependencies(tsdb_core_storage_integration_test tsdb_copy_integration_test_data)
+    add_dependencies(tsdb_storage_histogram_integration_test tsdb_copy_integration_test_data)
+    add_dependencies(tsdb_config_integration_test tsdb_copy_integration_test_data)
+
     if(HAVE_GRPC AND ENABLE_OTEL)
-    add_custom_command(TARGET tsdb_otel_integration_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    add_custom_command(TARGET tsdb_grpc_integration_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    endif()
-    if(HAVE_GRPC AND ENABLE_OTEL)
-    add_custom_command(TARGET tsdb_end_to_end_workflow_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    endif()
-    if(HAVE_GRPC AND ENABLE_OTEL)
-    add_custom_command(TARGET tsdb_multi_component_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
-    endif()
-    if(HAVE_GRPC AND ENABLE_OTEL)
-    add_custom_command(TARGET tsdb_error_handling_test POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/data
-        COMMAND ${CMAKE_COMMAND} -E copy_directory
-            ${CMAKE_CURRENT_SOURCE_DIR}/../data
-            ${CMAKE_CURRENT_BINARY_DIR}/data
-    )
+        add_dependencies(tsdb_otel_integration_test tsdb_copy_integration_test_data)
+        add_dependencies(tsdb_grpc_integration_test tsdb_copy_integration_test_data)
+        add_dependencies(tsdb_end_to_end_workflow_test tsdb_copy_integration_test_data)
+        add_dependencies(tsdb_multi_component_test tsdb_copy_integration_test_data)
+        add_dependencies(tsdb_error_handling_test tsdb_copy_integration_test_data)
     endif()
 endif()
 
