@@ -1,0 +1,565 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboards-mytsdb-monitoring
+  namespace: mytsdb
+  labels:
+    app: grafana
+data:
+  00-mytsdb-monitoring.json: |
+    {
+      "title": "MyTSDB Server Monitoring",
+      "tags": ["mytsdb", "monitoring", "self-monitoring"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "10s",
+      "time": {"from": "now-1h", "to": "now"},
+      "templating": {
+        "list": []
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "📊 Overview",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+          "collapsed": false
+        },
+        {
+          "id": 2,
+          "title": "Query Rate (QPS)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+          "targets": [{"expr": "rate(mytsdb_query_count_total{job=\"mytsdb_self_monitor\"}[5m])", "refId": "A", "instant": false}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            }
+          }
+        },
+        {
+          "id": 3,
+          "title": "Query P99 Latency",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+          "targets": [{"expr": "histogram_quantile(0.99, rate(mytsdb_query_duration_seconds_bucket{job=\"mytsdb_self_monitor\"}[5m]))", "refId": "A", "instant": false}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "green"},
+                  {"value": 0.05, "color": "yellow"},
+                  {"value": 0.1, "color": "red"}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 4,
+          "title": "Query Error Rate",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+          "targets": [{"expr": "rate(mytsdb_query_errors_total{job=\"mytsdb_self_monitor\"}[5m])", "refId": "A", "instant": false}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "green"},
+                  {"value": 0.01, "color": "yellow"},
+                  {"value": 0.1, "color": "red"}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 5,
+          "title": "Memory Usage",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+          "targets": [{"expr": "mytsdb_storage_net_memory_usage_bytes{job=\"mytsdb_self_monitor\"} / 1024 / 1024", "refId": "A", "instant": true}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "MB",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 6,
+          "title": "Write Rate",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
+          "targets": [{"expr": "rate(mytsdb_storage_writes_total{job=\"mytsdb_self_monitor\"}[5m])", "refId": "A", "instant": false}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            }
+          }
+        },
+        {
+          "id": 7,
+          "title": "Read Rate",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
+          "targets": [{"expr": "rate(mytsdb_storage_reads_total{job=\"mytsdb_self_monitor\"}[5m])", "refId": "A", "instant": false}],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 2
+            }
+          }
+        },
+        {
+          "id": 10,
+          "title": "🖥️ System Resources",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+          "collapsed": false
+        },
+        {
+          "id": 11,
+          "title": "Container CPU Usage (from K8s)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 6},
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{pod=~\"mytsdb-.*\",container=\"mytsdb\"}[5m]) * 100",
+              "legendFormat": "CPU Usage %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1
+            }
+          },
+          "description": "CPU usage from Kubernetes container metrics. High CPU may indicate: query processing overhead, write contention, or inefficient algorithms."
+        },
+        {
+          "id": 12,
+          "title": "Container Memory Usage (from K8s)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+          "targets": [
+            {
+              "expr": "container_memory_working_set_bytes{pod=~\"mytsdb-.*\",container=\"mytsdb\"} / 1024 / 1024",
+              "legendFormat": "Memory (MB)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "MB",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 20,
+          "title": "📈 Query Performance",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+          "collapsed": false
+        },
+        {
+          "id": 21,
+          "title": "Query Latency Distribution",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 15},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, rate(mytsdb_query_duration_seconds_bucket{job=\"mytsdb_self_monitor\"}[5m]))",
+              "legendFormat": "P99",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(mytsdb_query_duration_seconds_bucket{job=\"mytsdb_self_monitor\"}[5m]))",
+              "legendFormat": "P95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.50, rate(mytsdb_query_duration_seconds_bucket{job=\"mytsdb_self_monitor\"}[5m]))",
+              "legendFormat": "P50",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            }
+          }
+        },
+        {
+          "id": 22,
+          "title": "Query Time Breakdown",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 15},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_query_parse_duration_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Parse",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_query_eval_duration_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Eval",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(mytsdb_query_storage_read_duration_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Storage Read",
+              "refId": "C"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            }
+          },
+          "description": "Breakdown of query execution time. High 'Storage Read' indicates I/O bottleneck. High 'Eval' indicates query complexity."
+        },
+        {
+          "id": 23,
+          "title": "Samples Scanned per Second",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 23},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_query_samples_scanned_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Samples/sec",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 24,
+          "title": "Bytes Scanned per Second",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 23},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_query_bytes_scanned_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Bytes/sec",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 30,
+          "title": "✍️ Write Performance",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 31},
+          "collapsed": false
+        },
+        {
+          "id": 31,
+          "title": "Write Path Breakdown (Stacked)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 32},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_write_mutex_lock_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Mutex Lock",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_write_wal_write_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "WAL Write",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(mytsdb_write_index_insert_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Index Insert",
+              "refId": "C"
+            },
+            {
+              "expr": "rate(mytsdb_write_sample_append_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Sample Append",
+              "refId": "D"
+            },
+            {
+              "expr": "rate(mytsdb_write_block_persist_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Block Persist",
+              "refId": "E"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            }
+          },
+          "options": {
+            "stacking": {
+              "group": "A",
+              "mode": "normal"
+            }
+          },
+          "description": "Time spent in each write path stage. High 'Mutex Lock' indicates contention."
+        },
+        {
+          "id": 32,
+          "title": "Mutex Contention %",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 32},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_write_mutex_lock_seconds_total{job=\"mytsdb_self_monitor\"}[5m]) / (rate(mytsdb_write_mutex_lock_seconds_total{job=\"mytsdb_self_monitor\"}[5m]) + rate(mytsdb_write_sample_append_seconds_total{job=\"mytsdb_self_monitor\"}[5m]) + rate(mytsdb_write_wal_write_seconds_total{job=\"mytsdb_self_monitor\"}[5m]) + rate(mytsdb_write_block_persist_seconds_total{job=\"mytsdb_self_monitor\"}[5m])) * 100",
+              "legendFormat": "Mutex Contention %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "green"},
+                  {"value": 20, "color": "yellow"},
+                  {"value": 50, "color": "red"}
+                ]
+              }
+            }
+          },
+          "description": "Percentage of write time spent waiting on mutexes. >50% indicates severe contention."
+        },
+        {
+          "id": 33,
+          "title": "OTEL/gRPC Overhead",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 40},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_write_otel_conversion_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "OTEL Conversion",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_write_grpc_handling_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "gRPC Handling",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            }
+          }
+        },
+        {
+          "id": 34,
+          "title": "Write Throughput (Bytes/sec)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 40},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_storage_bytes_written_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Bytes/sec",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 40,
+          "title": "📖 Read Performance",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 48},
+          "collapsed": false
+        },
+        {
+          "id": 41,
+          "title": "Read Path Breakdown",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 49},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_read_index_search_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Index Search",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_read_block_lookup_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Block Lookup",
+              "refId": "B"
+            },
+            {
+              "expr": "rate(mytsdb_read_block_read_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Block Read",
+              "refId": "C"
+            },
+            {
+              "expr": "rate(mytsdb_read_decompression_seconds_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Decompression",
+              "refId": "D"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "decimals": 3
+            }
+          }
+        },
+        {
+          "id": 42,
+          "title": "Cache Hit Rate",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 49},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_read_cache_hits_total{job=\"mytsdb_self_monitor\"}[5m]) / (rate(mytsdb_read_cache_hits_total{job=\"mytsdb_self_monitor\"}[5m]) + rate(mytsdb_storage_cache_misses_total{job=\"mytsdb_self_monitor\"}[5m])) * 100",
+              "legendFormat": "Cache Hit Rate %",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"value": 0, "color": "red"},
+                  {"value": 50, "color": "yellow"},
+                  {"value": 80, "color": "green"}
+                ]
+              }
+            }
+          }
+        },
+        {
+          "id": 43,
+          "title": "Secondary Index Performance",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 57},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_secondary_index_hits_total{job=\"mytsdb_self_monitor\"}[5m]) / rate(mytsdb_secondary_index_lookups_total{job=\"mytsdb_self_monitor\"}[5m]) * 100",
+              "legendFormat": "Index Hit Rate %",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_secondary_index_lookup_seconds_total{job=\"mytsdb_self_monitor\"}[5m]) * 1000",
+              "legendFormat": "Index Lookup Time (ms)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percent",
+              "decimals": 1
+            }
+          }
+        },
+        {
+          "id": 44,
+          "title": "Bloom Filter Performance",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_bloom_filter_skips_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Skips (filtered out)",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_bloom_filter_passes_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Passes (checked)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "ops",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 50,
+          "title": "💾 Storage Metrics",
+          "type": "row",
+          "gridPos": {"h": 1, "w": 24, "x": 0, "y": 65},
+          "collapsed": false
+        },
+        {
+          "id": 51,
+          "title": "Storage Memory Usage",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 66},
+          "targets": [
+            {
+              "expr": "mytsdb_storage_net_memory_usage_bytes{job=\"mytsdb_self_monitor\"} / 1024 / 1024",
+              "legendFormat": "Memory (MB)",
+              "refId": "A"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "MB",
+              "decimals": 0
+            }
+          }
+        },
+        {
+          "id": 52,
+          "title": "I/O Throughput",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 66},
+          "targets": [
+            {
+              "expr": "rate(mytsdb_storage_bytes_written_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Write (Bytes/sec)",
+              "refId": "A"
+            },
+            {
+              "expr": "rate(mytsdb_storage_bytes_read_total{job=\"mytsdb_self_monitor\"}[5m])",
+              "legendFormat": "Read (Bytes/sec)",
+              "refId": "B"
+            }
+          ],
+          "fieldConfig": {
+            "defaults": {
+              "unit": "Bps",
+              "decimals": 0
+            }
+          }
+        }
+      ]
+    }
+

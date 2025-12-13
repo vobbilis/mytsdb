@@ -113,6 +113,7 @@ deploy-grafana: ## Deploy Grafana
 	@kubectl apply -f grafana/00-datasource-configmap.yaml
 	@kubectl apply -f grafana/01-dashboard-configmap.yaml
 	@kubectl apply -f grafana/04-comprehensive-dashboards.yaml
+	@kubectl apply -f grafana/05-mytsdb-monitoring-dashboard.yaml
 	@kubectl apply -f grafana/02-deployment.yaml
 	@kubectl apply -f grafana/03-service.yaml
 	@kubectl wait --for=condition=ready pod -l app=grafana -n $(NAMESPACE) --timeout=120s
@@ -149,6 +150,8 @@ update-grafana: ## Update Grafana dashboards/datasources
 	@echo "$(BLUE)Updating Grafana...$(NC)"
 	@kubectl apply -f grafana/00-datasource-configmap.yaml
 	@kubectl apply -f grafana/01-dashboard-configmap.yaml
+	@kubectl apply -f grafana/04-comprehensive-dashboards.yaml
+	@kubectl apply -f grafana/05-mytsdb-monitoring-dashboard.yaml
 	@kubectl rollout restart deployment/grafana -n $(NAMESPACE)
 	@kubectl rollout status deployment/grafana -n $(NAMESPACE)
 	@echo "$(GREEN)✓ Grafana updated$(NC)"

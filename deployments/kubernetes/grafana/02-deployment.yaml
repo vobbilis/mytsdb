@@ -36,6 +36,8 @@ spec:
           mountPath: /var/lib/grafana/dashboards
         - name: dashboards-comprehensive
           mountPath: /var/lib/grafana/dashboards/comprehensive
+        - name: dashboards-mytsdb-monitoring
+          mountPath: /var/lib/grafana/dashboards/mytsdb-monitoring
         resources:
           requests:
             memory: "256Mi"
@@ -64,3 +66,6 @@ spec:
       - name: dashboards-comprehensive
         configMap:
           name: grafana-dashboards-comprehensive
+      - name: dashboards-mytsdb-monitoring
+        configMap:
+          name: grafana-dashboards-mytsdb-monitoring
