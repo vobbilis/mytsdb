@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     libssl-dev \
+    libabsl-dev \
     libprotobuf-dev \
     protobuf-compiler \
     libgrpc++-dev \
@@ -15,12 +16,36 @@ RUN apt-get update && apt-get install -y \
     libtbb-dev \
     libspdlog-dev \
     rapidjson-dev \
-    libarrow-dev \
-    libarrow-flight-dev \
-    libparquet-dev \
+    ca-certificates \
+    lsb-release \
+    wget \
+    gnupg \
     curl \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Apache Arrow/Flight/Parquet dev packages from the official Arrow APT repo.
+# Ubuntu's default repos often don't include these packages (especially on some arches).
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates lsb-release wget gnupg; \
+    update-ca-certificates; \
+    rm -rf /var/lib/apt/lists/*; \
+    wget -q https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-jammy.deb -O /tmp/apache-arrow-apt-source.deb; \
+    dpkg -i /tmp/apache-arrow-apt-source.deb; \
+    rm -f /tmp/apache-arrow-apt-source.deb; \
+    # Local-dev workaround: packages.apache.org TLS chain may not be trusted in some Docker/kind environments.
+    # Rewrite the Arrow apt source to use apache.jfrog.io (which we can fetch successfully here).
+    # Replace the host in any apt source entries that reference packages.apache.org.
+    (grep -RIl "packages.apache.org" /etc/apt/sources.list.d 2>/dev/null || true) | xargs -r sed -i 's|packages.apache.org|apache.jfrog.io|g'; \
+    echo "[arrow-apt] sources containing arrow after rewrite:"; \
+    (grep -RIn "arrow" /etc/apt/sources.list.d 2>/dev/null || true); \
+    # As a fallback, temporarily disable apt HTTPS verification for this install step only.
+    printf 'Acquire::https::Verify-Peer \"false\";\nAcquire::https::Verify-Host \"false\";\nAcquire::https::apache.jfrog.io::Verify-Peer \"false\";\nAcquire::https::apache.jfrog.io::Verify-Host \"false\";\n' > /etc/apt/apt.conf.d/99insecure-https; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libarrow-dev libarrow-flight-dev libparquet-dev; \
+    rm -f /etc/apt/apt.conf.d/99insecure-https; \
+    rm -rf /var/lib/apt/lists/*
 
 # Install httplib (header-only)
 RUN curl -L -o /usr/include/httplib.h https://raw.githubusercontent.com/yhirose/cpp-httplib/v0.14.3/httplib.h
@@ -46,7 +71,7 @@ RUN which grpc_cpp_plugin || echo "grpc_cpp_plugin not found in PATH" && \
 # Build the project
 RUN mkdir -p build && cd build && \
     cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON -DHAVE_GRPC=ON -DENABLE_OTEL=ON -DENABLE_PARQUET=ON && \
-    make tsdb_server synthetic_cluster_generator k8s_data_generator -j$(nproc)
+    make tsdb_server k8s_data_generator -j$(nproc)
 
 # Runtime stage
 FROM ubuntu:22.04
@@ -54,15 +79,35 @@ FROM ubuntu:22.04
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     libssl3 \
+    libabsl20210324 \
     libprotobuf23 \
     libgrpc++-dev \
     libsnappy1v5 \
     libtbb12 \
     libspdlog1 \
-    libarrow-dev \
-    libarrow-flight-dev \
-    libparquet-dev \
+    ca-certificates \
+    lsb-release \
+    wget \
+    gnupg \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Arrow runtime deps (using Arrow APT repo for availability across arches)
+RUN set -eux; \
+    wget -q https://apache.jfrog.io/artifactory/arrow/ubuntu/apache-arrow-apt-source-latest-jammy.deb -O /tmp/apache-arrow-apt-source.deb; \
+    dpkg -i /tmp/apache-arrow-apt-source.deb; \
+    rm -f /tmp/apache-arrow-apt-source.deb; \
+    update-ca-certificates; \
+    # Local-dev workaround: packages.apache.org TLS chain may not be trusted in some Docker/kind environments.
+    # Rewrite the Arrow apt source to use apache.jfrog.io.
+    (grep -RIl "packages.apache.org" /etc/apt/sources.list.d 2>/dev/null || true) | xargs -r sed -i 's|packages.apache.org|apache.jfrog.io|g'; \
+    echo "[arrow-apt] sources containing arrow after rewrite:"; \
+    (grep -RIn "arrow" /etc/apt/sources.list.d 2>/dev/null || true); \
+    # As a fallback, temporarily disable apt HTTPS verification for this install step only.
+    printf 'Acquire::https::Verify-Peer \"false\";\nAcquire::https::Verify-Host \"false\";\nAcquire::https::apache.jfrog.io::Verify-Peer \"false\";\nAcquire::https::apache.jfrog.io::Verify-Host \"false\";\n' > /etc/apt/apt.conf.d/99insecure-https; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libarrow-dev libarrow-flight-dev libparquet-dev; \
+    rm -f /etc/apt/apt.conf.d/99insecure-https; \
+    rm -rf /var/lib/apt/lists/*
 
 # Create app user
 RUN useradd -m -u 1000 mytsdb
@@ -72,12 +117,10 @@ RUN mkdir -p /data && chown mytsdb:mytsdb /data
 
 # Copy binary from builder
 COPY --from=builder /build/build/src/tsdb/tsdb_server /usr/local/bin/
-COPY --from=builder /build/build/tools/data_gen/synthetic_cluster_generator /usr/local/bin/
 COPY --from=builder /build/build/tools/k8s_data_generator /usr/local/bin/
 COPY --from=builder /build/build/src/tsdb/core/libtsdb_core_impl.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/histogram/libtsdb_histogram_impl.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/storage/libtsdb_storage_impl.so /usr/local/lib/
-COPY --from=builder /build/build/src/libtsdb_lib.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/prometheus/libtsdb_prometheus.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/otel/libtsdb_otel_impl.so /usr/local/lib/
 

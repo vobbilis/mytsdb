@@ -93,6 +93,28 @@ if(HAVE_TBB)
     target_link_libraries(tsdb_storage_impl PUBLIC TBB::tbb)
 endif()
 
+# Abseil (absl) - required by absl::flat_hash_map and friends in the storage layer.
+# On some distros, failing to link these yields undefined references at final link.
+find_package(absl QUIET)
+if(absl_FOUND)
+    target_link_libraries(tsdb_storage_impl PUBLIC
+        absl::hash
+        absl::raw_hash_set
+    )
+else()
+    # Fallback for environments without absl CMake config: link the needed libs directly if present.
+    find_library(ABSL_HASH_LIB absl_hash)
+    find_library(ABSL_RAW_HASH_SET_LIB absl_raw_hash_set)
+    if(ABSL_HASH_LIB AND ABSL_RAW_HASH_SET_LIB)
+        target_link_libraries(tsdb_storage_impl PUBLIC
+            ${ABSL_HASH_LIB}
+            ${ABSL_RAW_HASH_SET_LIB}
+        )
+    else()
+        message(WARNING "Abseil not found via CMake and required libraries not found; build may fail at link time")
+    endif()
+endif()
+
 # Link Arrow/Parquet if available
 if(HAVE_ARROW)
     target_link_libraries(tsdb_storage_impl PUBLIC Arrow::arrow_shared)

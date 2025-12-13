@@ -6,9 +6,9 @@ nodes:
   extraPortMappings:
   # Grafana
   - containerPort: 30300
-    hostPort: 3000
+    hostPort: 13000
     protocol: TCP
   # MyTSDB (optional, for direct access)
   - containerPort: 30090
-    hostPort: 9090
+    hostPort: 19090
     protocol: TCP

@@ -1,7 +1,15 @@
 # Protobuf generation for TSDB
 
 find_package(Protobuf REQUIRED)
-find_package(gRPC REQUIRED)
+#
+# gRPC can be provided either via a standard gRPC CMake package (gRPCConfig.cmake) or indirectly
+# through ArrowFlight's dependency handling. Prefer the already-created imported target if present.
+if(NOT TARGET gRPC::grpc++)
+    find_package(gRPC QUIET)
+endif()
+if(NOT TARGET gRPC::grpc++)
+    message(FATAL_ERROR "gRPC not available (missing target gRPC::grpc++). Install a gRPC CMake package or enable ArrowFlight to provide it.")
+endif()
 
 # Find the gRPC C++ plugin
 if(NOT GRPC_CPP_PLUGIN)

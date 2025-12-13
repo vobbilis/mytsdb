@@ -168,8 +168,8 @@ echo ""
 echo "Checking port availability..."
 echo ""
 
-check_port 3000 "Grafana"
-check_port 9090 "MyTSDB (optional direct access)"
+check_port 13000 "Grafana"
+check_port 19090 "MyTSDB (optional direct access)"
 
 echo ""
 echo "Checking existing deployments..."

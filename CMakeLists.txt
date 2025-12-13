@@ -57,24 +57,22 @@ else()
 endif()
 
 # Check for gRPC and Protobuf
+#
+# NOTE: We intentionally defer creating a fallback gRPC::grpc++ target until after Arrow/ArrowFlight
+# discovery. ArrowFlight's CMake config may create gRPC::grpc++ itself (via FindgRPCAlt) and will
+# error if the target already exists.
 find_package(gRPC QUIET)
+set(TSDB_GRPC_NEEDS_FALLBACK_TARGET FALSE)
 if(NOT gRPC_FOUND)
     find_package(PkgConfig QUIET)
     if(PKG_CONFIG_FOUND)
         pkg_check_modules(GRPC grpc++)
         if(GRPC_FOUND)
             set(gRPC_FOUND TRUE)
-            # Map PkgConfig variables to CMake variables expected by the project
+            # Keep the include/libs for a possible fallback imported target later.
             set(gRPC_INCLUDE_DIRS ${GRPC_INCLUDE_DIRS})
             set(gRPC_LIBRARIES ${GRPC_LIBRARIES})
-            # Create imported target if it doesn't exist
-            if(NOT TARGET gRPC::grpc++)
-                add_library(gRPC::grpc++ INTERFACE IMPORTED)
-                set_target_properties(gRPC::grpc++ PROPERTIES
-                    INTERFACE_INCLUDE_DIRECTORIES "${GRPC_INCLUDE_DIRS}"
-                    INTERFACE_LINK_LIBRARIES "${GRPC_LIBRARIES}"
-                )
-            endif()
+            set(TSDB_GRPC_NEEDS_FALLBACK_TARGET TRUE)
         endif()
     endif()
 endif()
@@ -182,6 +180,17 @@ else()
     set(HAVE_PARQUET FALSE)
 endif()
 
+# If gRPC was discovered via PkgConfig (no CMake config), create a fallback imported target now.
+# This is safe because ArrowFlight discovery has already happened above (and would have created
+# gRPC::grpc++ if it needed to).
+if(gRPC_FOUND AND TSDB_GRPC_NEEDS_FALLBACK_TARGET AND NOT TARGET gRPC::grpc++)
+    add_library(gRPC::grpc++ INTERFACE IMPORTED)
+    set_target_properties(gRPC::grpc++ PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${gRPC_INCLUDE_DIRS}"
+        INTERFACE_LINK_LIBRARIES "${gRPC_LIBRARIES}"
+    )
+endif()
+
 ## Test dependencies
 if(BUILD_TESTS)
     find_package(GTest 1.11.0 QUIET)
@@ -209,8 +218,7 @@ if(ENABLE_OTEL)
     if(opentelemetry-cpp_FOUND)
         set(HAVE_OTEL TRUE)
     else()
-        message(STATUS "OpenTelemetry not found, disabling OTEL support")
-        set(ENABLE_OTEL OFF)
+        message(STATUS "OpenTelemetry SDK not found; continuing without OTEL SDK (OTLP/gRPC ingestion remains enabled)")
         set(HAVE_OTEL FALSE)
     endif()
 endif()

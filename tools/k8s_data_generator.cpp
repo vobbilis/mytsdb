@@ -207,6 +207,8 @@ public:
         std::cout << "Rate: " << (duration > 0 ? total_samples / duration : 0) << " samples/sec" << std::endl;
     }
 
+    bool HadError() const { return had_error_.load(); }
+
 private:
     void PrintConfig() {
         std::cout << "=== Large-Scale K8s Data Generator ===" << std::endl;
@@ -230,10 +232,13 @@ private:
     }
 
     void GenerateRegion(const std::string& region, int64_t start_time, int64_t end_time, std::atomic<int64_t>& total) {
+        if (had_error_.load()) return;
         for (int zone_idx = 0; zone_idx < config_.zones_per_region; ++zone_idx) {
+            if (had_error_.load()) return;
             std::string zone = region + static_cast<char>('a' + zone_idx);  // e.g., us-east-1a
             
             for (int cluster_idx = 0; cluster_idx < config_.clusters_per_zone; ++cluster_idx) {
+                if (had_error_.load()) return;
                 std::string cluster = region + "-cluster-" + std::to_string(cluster_idx);
                 GenerateCluster(region, zone, cluster, start_time, end_time, total);
             }
@@ -242,6 +247,7 @@ private:
 
     void GenerateCluster(const std::string& region, const std::string& zone, const std::string& cluster,
                          int64_t start_time, int64_t end_time, std::atomic<int64_t>& total) {
+        if (had_error_.load()) return;
         // Generate node pool for this cluster
         std::vector<std::string> nodes;
         for (int i = 0; i < config_.nodes_per_cluster; ++i) {
@@ -251,22 +257,26 @@ private:
         std::uniform_int_distribution<> node_dist(0, nodes.size() - 1);
         
         for (int ns_idx = 0; ns_idx < config_.namespaces_per_cluster; ++ns_idx) {
+            if (had_error_.load()) return;
             std::string ns = "ns-" + std::to_string(ns_idx);
             
             // Generate services in this namespace
             for (int svc_idx = 0; svc_idx < config_.services_per_namespace; ++svc_idx) {
+                if (had_error_.load()) return;
                 std::string app = "app-" + std::to_string(svc_idx % 10);
                 std::string service = app + "-svc";
                 std::string deployment = app + "-deploy";
                 
                 // Generate pods for this service (replicas)
                 for (int pod_idx = 0; pod_idx < config_.pods_per_service; ++pod_idx) {
+                    if (had_error_.load()) return;
                     std::string pod = deployment + "-" + GeneratePodSuffix();
                     std::string node = nodes[node_dist(gen_)];
                     std::string instance = GenerateInstanceIP() + ":9090";
                     
                     // Generate containers for this pod
                     for (int cont_idx = 0; cont_idx < config_.containers_per_pod; ++cont_idx) {
+                        if (had_error_.load()) return;
                         std::string container = (cont_idx == 0) ? "main" : "sidecar";
                         std::string job = "kubernetes-pods";
                         
@@ -275,6 +285,10 @@ private:
                             region, zone, cluster, ns, app, service, deployment,
                             pod, container, node, instance, job,
                             start_time, end_time);
+                        if (samples < 0) {
+                            had_error_.store(true);
+                            return;
+                        }
                         total += samples;
                     }
                 }
@@ -312,6 +326,7 @@ private:
         int metrics_to_generate = std::min((int)METRICS.size(), config_.metrics_per_container);
         
         for (int m = 0; m < metrics_to_generate; ++m) {
+            if (had_error_.load()) return -1;
             const auto& [metric_name, metric_type] = METRICS[m];
             
             // Build Arrow schema with 12 dimensions
@@ -338,6 +353,7 @@ private:
             
             // Generate in batches
             for (int64_t batch_start = 0; batch_start < samples; batch_start += config_.batch_size) {
+                if (had_error_.load()) return -1;
                 int64_t batch_end = std::min(batch_start + (int64_t)config_.batch_size, samples);
                 int64_t batch_samples = batch_end - batch_start;
                 
@@ -401,11 +417,34 @@ private:
                 arrow::flight::FlightCallOptions call_options;
                 
                 auto put_result = client_->DoPut(call_options, descriptor, batch->schema());
-                if (put_result.ok()) {
-                    (void)put_result->writer->WriteRecordBatch(*batch);
-                    (void)put_result->writer->DoneWriting();
-                    total_written += batch_samples;
+                if (!put_result.ok()) {
+                    std::cerr << "Flight DoPut failed: " << put_result.status().ToString() << std::endl;
+                    had_error_.store(true);
+                    return -1;
                 }
+
+                auto st = put_result->writer->WriteRecordBatch(*batch);
+                if (!st.ok()) {
+                    std::cerr << "Flight WriteRecordBatch failed: " << st.ToString() << std::endl;
+                    had_error_.store(true);
+                    return -1;
+                }
+
+                st = put_result->writer->DoneWriting();
+                if (!st.ok()) {
+                    std::cerr << "Flight DoneWriting failed: " << st.ToString() << std::endl;
+                    had_error_.store(true);
+                    return -1;
+                }
+
+                st = put_result->writer->Close();
+                if (!st.ok()) {
+                    std::cerr << "Flight writer Close failed: " << st.ToString() << std::endl;
+                    had_error_.store(true);
+                    return -1;
+                }
+
+                total_written += batch_samples;
             }
         }
         
@@ -415,6 +454,7 @@ private:
     ClusterConfig config_;
     std::shared_ptr<arrow::flight::FlightClient> client_;
     std::mt19937 gen_;
+    std::atomic<bool> had_error_{false};
 };
 
 void print_usage(const char* prog) {
@@ -574,6 +614,10 @@ int main(int argc, char* argv[]) {
     
     K8sDataGenerator generator(config, std::move(*client_result));
     generator.Generate();
+    if (generator.HadError()) {
+        std::cerr << "Generation failed due to Arrow Flight errors" << std::endl;
+        return 1;
+    }
     
     return 0;
 }
