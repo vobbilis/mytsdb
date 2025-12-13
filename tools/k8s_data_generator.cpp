@@ -424,10 +424,19 @@ void print_usage(const char* prog) {
               << "  --small          Small scale: 1 region, 3 days, 50 metrics\n"
               << "  --medium         Medium scale: 2 regions, 7 days, 100 metrics (default)\n"
               << "  --large          Large scale: 3 regions, 14 days, 100 metrics\n"
+              << "  --seed-20m       Seed ~20M samples with 7d time range (local-kind friendly)\n"
               << "\nCustom Options:\n"
               << "  --host HOST      Flight server host (default: localhost)\n"
               << "  --port PORT      Flight server port (default: 8815)\n"
               << "  --days N         Days of data (default: 7)\n"
+              << "  --scrape-interval-sec N   Scrape interval in seconds (default: 15)\n"
+              << "  --target-samples N        Approx target samples; adjusts pods_per_service to fit\n"
+              << "  --namespaces N            Namespaces per cluster\n"
+              << "  --services-per-namespace N Services per namespace\n"
+              << "  --pods-per-service N      Pods per service\n"
+              << "  --containers-per-pod N    Containers per pod\n"
+              << "  --metrics-per-container N Metrics per container\n"
+              << "  --nodes-per-cluster N     Nodes per cluster\n"
               << "  --help           Show this help\n";
 }
 
@@ -436,16 +445,17 @@ int main(int argc, char* argv[]) {
     int port = 8815;
     ClusterConfig config;
     std::string preset = "medium";
+    bool seed_20m = false;
+    int64_t target_samples = 0;
     
+    // Pass 1: detect preset/scale choice
     for (int i = 1; i < argc; ++i) {
         std::string arg = argv[i];
-        if (arg == "--host" && i + 1 < argc) host = argv[++i];
-        else if (arg == "--port" && i + 1 < argc) port = std::stoi(argv[++i]);
-        else if (arg == "--days" && i + 1 < argc) config.days_of_data = std::stoi(argv[++i]);
-        else if (arg == "--quick") preset = "quick";
+        if (arg == "--quick") preset = "quick";
         else if (arg == "--small") preset = "small";
         else if (arg == "--medium") preset = "medium";
         else if (arg == "--large") preset = "large";
+        else if (arg == "--seed-20m") seed_20m = true;
         else if (arg == "--help") {
             print_usage(argv[0]);
             return 0;
@@ -456,6 +466,7 @@ int main(int argc, char* argv[]) {
     if (preset == "quick") {
         config.regions = {"us-east-1"};
         config.zones_per_region = 1;
+        config.clusters_per_zone = 1;
         config.namespaces_per_cluster = 2;
         config.services_per_namespace = 3;
         config.pods_per_service = 2;
@@ -465,27 +476,84 @@ int main(int argc, char* argv[]) {
     } else if (preset == "small") {
         config.regions = {"us-east-1"};
         config.zones_per_region = 2;
+        config.clusters_per_zone = 1;
         config.namespaces_per_cluster = 5;
         config.services_per_namespace = 5;
         config.pods_per_service = 3;
+        config.containers_per_pod = 2;
         config.metrics_per_container = 50;
         config.days_of_data = 3;
     } else if (preset == "medium") {
         config.regions = {"us-east-1", "us-west-2"};
         config.zones_per_region = 3;
+        config.clusters_per_zone = 1;
         config.namespaces_per_cluster = 10;
         config.services_per_namespace = 10;
         config.pods_per_service = 3;
+        config.containers_per_pod = 2;
         config.metrics_per_container = 100;
         config.days_of_data = 7;
     } else if (preset == "large") {
         config.regions = {"us-east-1", "us-west-2", "eu-west-1"};
         config.zones_per_region = 3;
+        config.clusters_per_zone = 1;
         config.namespaces_per_cluster = 10;
         config.services_per_namespace = 20;
         config.pods_per_service = 5;
+        config.containers_per_pod = 2;
         config.metrics_per_container = 100;
         config.days_of_data = 14;
+    }
+
+    // Seed preset: ~20M samples while keeping a 7-day time range by coarsening scrape interval.
+    // Target: ~50 pods, 2 containers, 100 metrics, 7 days, 5m scrape => ~20.16M samples.
+    if (seed_20m) {
+        config.regions = {"us-east-1"};
+        config.zones_per_region = 1;
+        config.clusters_per_zone = 1;
+        config.namespaces_per_cluster = 5;
+        config.services_per_namespace = 5;
+        config.pods_per_service = 2;        // 5*5*2 = 50 pods
+        config.containers_per_pod = 2;
+        config.metrics_per_container = 100;
+        config.days_of_data = 7;
+        config.scrape_interval_sec = 300;   // 5 minutes
+        config.nodes_per_cluster = 20;
+        config.workers = 4;
+        config.batch_size = 5000;
+    }
+
+    // Pass 2: apply overrides
+    for (int i = 1; i < argc; ++i) {
+        std::string arg = argv[i];
+        if (arg == "--host" && i + 1 < argc) host = argv[++i];
+        else if (arg == "--port" && i + 1 < argc) port = std::stoi(argv[++i]);
+        else if (arg == "--days" && i + 1 < argc) config.days_of_data = std::stoi(argv[++i]);
+        else if (arg == "--scrape-interval-sec" && i + 1 < argc) config.scrape_interval_sec = std::stoi(argv[++i]);
+        else if (arg == "--target-samples" && i + 1 < argc) target_samples = std::stoll(argv[++i]);
+        else if (arg == "--namespaces" && i + 1 < argc) config.namespaces_per_cluster = std::stoi(argv[++i]);
+        else if (arg == "--services-per-namespace" && i + 1 < argc) config.services_per_namespace = std::stoi(argv[++i]);
+        else if (arg == "--pods-per-service" && i + 1 < argc) config.pods_per_service = std::stoi(argv[++i]);
+        else if (arg == "--containers-per-pod" && i + 1 < argc) config.containers_per_pod = std::stoi(argv[++i]);
+        else if (arg == "--metrics-per-container" && i + 1 < argc) config.metrics_per_container = std::stoi(argv[++i]);
+        else if (arg == "--nodes-per-cluster" && i + 1 < argc) config.nodes_per_cluster = std::stoi(argv[++i]);
+    }
+
+    // If requested, approximate target samples by adjusting pods_per_service while keeping other knobs stable.
+    if (target_samples > 0) {
+        const int64_t intervals = (int64_t)config.days_of_data * 24 * 3600 / std::max(1, config.scrape_interval_sec);
+        const int64_t series_per_pod = (int64_t)std::max(1, config.containers_per_pod) * std::max(1, config.metrics_per_container);
+        const int64_t pods_needed = (intervals > 0 && series_per_pod > 0)
+            ? (target_samples + (intervals * series_per_pod) - 1) / (intervals * series_per_pod)
+            : 1;
+
+        const int64_t denom = (int64_t)std::max(1, (int)config.regions.size()) *
+                              std::max(1, config.zones_per_region) *
+                              std::max(1, config.clusters_per_zone) *
+                              std::max(1, config.namespaces_per_cluster) *
+                              std::max(1, config.services_per_namespace);
+        const int64_t pods_per_service = (pods_needed + denom - 1) / denom;
+        config.pods_per_service = std::max<int>(1, (int)pods_per_service);
     }
     
     // Connect to server

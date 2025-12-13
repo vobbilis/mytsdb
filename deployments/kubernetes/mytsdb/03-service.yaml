@@ -17,5 +17,9 @@ spec:
     port: 4317
     targetPort: 4317
     protocol: TCP
+  - name: arrow
+    port: 8815
+    targetPort: 8815
+    protocol: TCP
   selector:
     app: mytsdb

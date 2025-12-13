@@ -89,10 +89,9 @@ deploy-namespace: ## Deploy namespace
 
 deploy-mytsdb: ## Deploy MyTSDB
 	@echo "$(BLUE)Deploying MyTSDB...$(NC)"
-	@kubectl apply -f mytsdb/01-pvc.yaml
 	@kubectl apply -f mytsdb/02-deployment.yaml
 	@kubectl apply -f mytsdb/03-service.yaml
-	@kubectl wait --for=condition=ready pod -l app=mytsdb -n $(NAMESPACE) --timeout=120s
+	@kubectl wait --for=condition=ready pod -l app=mytsdb -n $(NAMESPACE) --timeout=900s
 	@echo "$(GREEN)✓ MyTSDB deployed$(NC)"
 
 deploy-otel: ## Deploy OTEL Collector

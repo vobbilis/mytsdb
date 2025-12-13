@@ -56,12 +56,11 @@ echo ""
 # Step 3: Deploy MyTSDB
 echo "Step 3: Deploying MyTSDB..."
 kubectl apply -f mytsdb/00-namespace.yaml
-kubectl apply -f mytsdb/01-pvc.yaml
 kubectl apply -f mytsdb/02-deployment.yaml
 kubectl apply -f mytsdb/03-service.yaml
 
 echo "Waiting for MyTSDB to be ready..."
-kubectl wait --for=condition=ready pod -l app=mytsdb -n mytsdb --timeout=120s
+kubectl wait --for=condition=ready pod -l app=mytsdb -n mytsdb --timeout=900s
 
 echo -e "${GREEN}✓${NC} MyTSDB deployed"
 echo ""

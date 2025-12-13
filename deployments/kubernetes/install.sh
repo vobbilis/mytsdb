@@ -115,12 +115,11 @@ echo ""
 # Step 4: Deploy MyTSDB
 echo -e "${CYAN}[4/7]${NC} Deploying MyTSDB..."
 kubectl apply -f mytsdb/00-namespace.yaml
-kubectl apply -f mytsdb/01-pvc.yaml
 kubectl apply -f mytsdb/02-deployment.yaml
 kubectl apply -f mytsdb/03-service.yaml
 
 echo "  Waiting for MyTSDB to be ready..."
-kubectl wait --for=condition=ready pod -l app=mytsdb -n mytsdb --timeout=120s 2>&1 | grep -v "condition met" || true
+kubectl wait --for=condition=ready pod -l app=mytsdb -n mytsdb --timeout=900s 2>&1 | grep -v "condition met" || true
 echo -e "${GREEN}✓${NC} MyTSDB deployed and ready"
 echo ""
 
@@ -148,6 +147,7 @@ echo ""
 echo -e "${CYAN}[7/7]${NC} Deploying Grafana..."
 kubectl apply -f grafana/00-datasource-configmap.yaml
 kubectl apply -f grafana/01-dashboard-configmap.yaml
+kubectl apply -f grafana/04-comprehensive-dashboards.yaml
 kubectl apply -f grafana/02-deployment.yaml
 kubectl apply -f grafana/03-service.yaml
 

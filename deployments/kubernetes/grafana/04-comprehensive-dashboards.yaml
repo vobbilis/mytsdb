@@ -6,6 +6,282 @@ metadata:
   labels:
     app: grafana
 data:
+  00-k8s-seeded-cluster.json: |
+    {
+      "title": "MyTSDB K8s Seeded Cluster (Arrow, ~20M)",
+      "tags": ["mytsdb", "k8s", "seeded", "arrow"],
+      "timezone": "browser",
+      "schemaVersion": 38,
+      "version": 1,
+      "refresh": "30s",
+      "time": {"from": "now-7d", "to": "now"},
+      "templating": {
+        "list": [
+          {
+            "name": "region",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total, region)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "zone",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total{region=~\"$region\"}, zone)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "cluster",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total{region=~\"$region\",zone=~\"$zone\"}, cluster)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "namespace",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total{region=~\"$region\",zone=~\"$zone\",cluster=~\"$cluster\"}, namespace)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "service",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total{namespace=~\"$namespace\"}, service)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "node",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(node_cpu_seconds_total{region=~\"$region\",zone=~\"$zone\",cluster=~\"$cluster\"}, node)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          },
+          {
+            "name": "pod",
+            "type": "query",
+            "datasource": "MyTSDB",
+            "query": "label_values(container_cpu_usage_seconds_total{namespace=~\"$namespace\",service=~\"$service\"}, pod)",
+            "refresh": 2,
+            "includeAll": true,
+            "multi": true
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "title": "Pods Up",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+          "targets": [{"expr": "count(up)", "refId": "A"}]
+        },
+        {
+          "id": 2,
+          "title": "Series Cardinality (approx via label values)",
+          "type": "stat",
+          "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+          "targets": [{"expr": "count(count by (__name__)({__name__=~\".+\"}))", "refId": "A"}]
+        },
+        {
+          "id": 3,
+          "title": "Container CPU (by namespace)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{region=~\"$region\",zone=~\"$zone\",cluster=~\"$cluster\",namespace=~\"$namespace\"}[5m])) by (namespace)",
+              "legendFormat": "{{namespace}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "title": "Container Memory Working Set (by namespace)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{region=~\"$region\",zone=~\"$zone\",cluster=~\"$cluster\",namespace=~\"$namespace\"}) by (namespace)",
+              "legendFormat": "{{namespace}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "title": "Top 10 CPU Pods",
+          "type": "bargauge",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+          "targets": [
+            {
+              "expr": "topk(10, sum(rate(container_cpu_usage_seconds_total{namespace=~\"$namespace\",service=~\"$service\"}[5m])) by (pod))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "title": "Top 10 Memory Pods",
+          "type": "bargauge",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 12},
+          "targets": [
+            {
+              "expr": "topk(10, sum(container_memory_working_set_bytes{namespace=~\"$namespace\",service=~\"$service\"}) by (pod))",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "title": "Node CPU Busy (1 - idle)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 20},
+          "targets": [
+            {
+              "expr": "1 - avg(rate(node_cpu_seconds_total{mode=\"idle\",region=~\"$region\",zone=~\"$zone\",cluster=~\"$cluster\",node=~\"$node\"}[5m])) by (node)",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "title": "Node Memory Used (%)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 20},
+          "targets": [
+            {
+              "expr": "(1 - (node_memory_MemAvailable_bytes{node=~\"$node\"} / node_memory_MemTotal_bytes{node=~\"$node\"})) * 100",
+              "legendFormat": "{{node}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "title": "Network RX (containers)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 28},
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_receive_bytes_total{namespace=~\"$namespace\",service=~\"$service\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "title": "Network TX (containers)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 28},
+          "targets": [
+            {
+              "expr": "sum(rate(container_network_transmit_bytes_total{namespace=~\"$namespace\",service=~\"$service\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 11,
+          "title": "Filesystem Reads (containers)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 36},
+          "targets": [
+            {
+              "expr": "sum(rate(container_fs_reads_bytes_total{namespace=~\"$namespace\",service=~\"$service\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 12,
+          "title": "Filesystem Writes (containers)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 36},
+          "targets": [
+            {
+              "expr": "sum(rate(container_fs_writes_bytes_total{namespace=~\"$namespace\",service=~\"$service\"}[5m])) by (pod)",
+              "legendFormat": "{{pod}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 13,
+          "title": "HTTP RPS (by service)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 44},
+          "targets": [
+            {
+              "expr": "sum(rate(http_requests_total{namespace=~\"$namespace\"}[5m])) by (service)",
+              "legendFormat": "{{service}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 14,
+          "title": "HTTP Latency p99 (by service)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 44},
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{namespace=~\"$namespace\"}[5m])) by (le, service))",
+              "legendFormat": "{{service}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 15,
+          "title": "Kube Pod Phase (count by phase)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 0, "y": 52},
+          "targets": [
+            {
+              "expr": "count(kube_pod_status_phase{namespace=~\"$namespace\"}) by (phase)",
+              "legendFormat": "{{phase}}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "id": 16,
+          "title": "Restarts (1h increase)",
+          "type": "timeseries",
+          "gridPos": {"h": 8, "w": 12, "x": 12, "y": 52},
+          "targets": [
+            {
+              "expr": "sum(increase(kube_pod_container_status_restarts_total{namespace=~\"$namespace\"}[1h])) by (namespace)",
+              "legendFormat": "{{namespace}}",
+              "refId": "A"
+            }
+          ]
+        }
+      ]
+    }
+
   01-cluster-overview.json: |
     {
       "title": "Cluster Overview",

@@ -17,11 +17,26 @@ spec:
         app: mytsdb
         component: database
     spec:
+      initContainers:
+      - name: wipe-data
+        image: ubuntu:22.04
+        command: ["/bin/bash", "-lc"]
+        args:
+          - |
+            set -euo pipefail
+            echo "[wipe-data] wiping /data and /ready..."
+            rm -rf /data/* /ready/* || true
+            echo "[wipe-data] done"
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        - name: ready
+          mountPath: /ready
       containers:
       - name: mytsdb
         image: mytsdb:latest
         imagePullPolicy: Never  # For Kind local images
-        args: ["--address", "0.0.0.0:4317", "--http-port", "9090", "--data-dir", "/data"]
+        args: ["--address", "0.0.0.0:4317", "--http-port", "9090", "--arrow-port", "8815", "--data-dir", "/data"]
         ports:
         - name: http
           containerPort: 9090
@@ -29,12 +44,17 @@ spec:
         - name: grpc
           containerPort: 4317
           protocol: TCP
+        - name: arrow
+          containerPort: 8815
+          protocol: TCP
         env:
         - name: DATA_DIR
           value: "/data"
         volumeMounts:
         - name: data
           mountPath: /data
+        - name: ready
+          mountPath: /ready
         resources:
           requests:
             memory: "512Mi"
@@ -50,13 +70,34 @@ spec:
           periodSeconds: 30
           timeoutSeconds: 5
         readinessProbe:
-          httpGet:
-            path: /health
-            port: 9090
+          exec:
+            command: ["/bin/bash", "-lc", "test -f /ready/seed_done"]
           initialDelaySeconds: 5
           periodSeconds: 10
           timeoutSeconds: 3
+
+      # Seed K8s metrics via Arrow Flight before marking pod Ready.
+      # This sidecar writes ~20M samples (7d time range, 5m scrape) on every pod start.
+      - name: k8s-seed
+        image: mytsdb:latest
+        imagePullPolicy: Never
+        command: ["/bin/bash", "-lc"]
+        args:
+          - |
+            set -euo pipefail
+            echo "[k8s-seed] waiting for Arrow Flight on localhost:8815..."
+            until (echo > /dev/tcp/127.0.0.1/8815) >/dev/null 2>&1; do sleep 1; done
+            echo "[k8s-seed] Arrow is up, seeding ~20M samples via Arrow Flight..."
+            /usr/local/bin/k8s_data_generator --seed-20m --host 127.0.0.1 --port 8815
+            echo "[k8s-seed] seed completed, marking ready"
+            touch /ready/seed_done
+            # Keep sidecar alive to preserve logs and avoid restart loops
+            sleep 365d
+        volumeMounts:
+        - name: ready
+          mountPath: /ready
       volumes:
       - name: data
-        persistentVolumeClaim:
-          claimName: mytsdb-data
+        emptyDir: {}
+      - name: ready
+        emptyDir: {}

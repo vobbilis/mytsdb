@@ -15,6 +15,9 @@ RUN apt-get update && apt-get install -y \
     libtbb-dev \
     libspdlog-dev \
     rapidjson-dev \
+    libarrow-dev \
+    libarrow-flight-dev \
+    libparquet-dev \
     curl \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
@@ -42,8 +45,8 @@ RUN which grpc_cpp_plugin || echo "grpc_cpp_plugin not found in PATH" && \
 
 # Build the project
 RUN mkdir -p build && cd build && \
-    cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON -DHAVE_GRPC=ON && \
-    make tsdb_server synthetic_cluster_generator -j$(nproc)
+    cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTS=OFF -DBUILD_EXAMPLES=ON -DHAVE_GRPC=ON -DENABLE_OTEL=ON -DENABLE_PARQUET=ON && \
+    make tsdb_server synthetic_cluster_generator k8s_data_generator -j$(nproc)
 
 # Runtime stage
 FROM ubuntu:22.04
@@ -56,6 +59,9 @@ RUN apt-get update && apt-get install -y \
     libsnappy1v5 \
     libtbb12 \
     libspdlog1 \
+    libarrow-dev \
+    libarrow-flight-dev \
+    libparquet-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Create app user
@@ -67,6 +73,7 @@ RUN mkdir -p /data && chown mytsdb:mytsdb /data
 # Copy binary from builder
 COPY --from=builder /build/build/src/tsdb/tsdb_server /usr/local/bin/
 COPY --from=builder /build/build/tools/data_gen/synthetic_cluster_generator /usr/local/bin/
+COPY --from=builder /build/build/tools/k8s_data_generator /usr/local/bin/
 COPY --from=builder /build/build/src/tsdb/core/libtsdb_core_impl.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/histogram/libtsdb_histogram_impl.so /usr/local/lib/
 COPY --from=builder /build/build/src/tsdb/storage/libtsdb_storage_impl.so /usr/local/lib/
@@ -84,7 +91,7 @@ USER mytsdb
 WORKDIR /data
 
 # Expose ports (HTTP and gRPC)
-EXPOSE 9090 4317
+EXPOSE 9090 4317 8815
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -92,4 +99,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
 
 # Run server
 ENTRYPOINT ["/usr/local/bin/tsdb_server"]
-CMD ["--address", "0.0.0.0:4317", "--http-port", "9090", "--data-dir", "/data"]
+CMD ["--address", "0.0.0.0:4317", "--http-port", "9090", "--arrow-port", "8815", "--data-dir", "/data"]

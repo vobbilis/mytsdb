@@ -25,8 +25,9 @@ data:
         limit_mib: 512
     
     exporters:
-      prometheusremotewrite:
-        endpoint: "http://mytsdb.mytsdb.svc.cluster.local:9090/api/v1/write"
+      # Export OTLP/gRPC directly into MyTSDB (validates the OTEL gRPC ingestion path).
+      otlp:
+        endpoint: "mytsdb.mytsdb.svc.cluster.local:4317"
         tls:
           insecure: true
       
@@ -38,4 +39,4 @@ data:
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, batch]
-          exporters: [prometheusremotewrite, logging]
+          exporters: [otlp, logging]
