@@ -335,11 +335,63 @@ Commit messages use conventional-style prefixes observed in the project:
 - `Phase/Step` prefixes for phased development work
 - Descriptive messages summarizing the "what" and "why"
 
+## Memory and Concurrency Patterns
+
+- **Smart pointers only** for ownership: `std::unique_ptr`, `std::shared_ptr` — no raw owning pointers
+- **Move semantics** preferred: `Result<T>` is move-only (copy deleted)
+- **Lock-free writes** via `tbb::concurrent_hash_map` for the series map
+- **Shared mutex** (`std::shared_mutex`) for read-heavy paths
+- **Per-shard locking** in WAL and Index to minimize contention
+- **Object pooling** for `TimeSeries`, `Labels`, `Sample` allocations (99%+ reuse rate)
+
+## StorageConfig Presets
+
+`StorageConfig` provides static factory methods in `include/tsdb/core/config.h`:
+- `StorageConfig::Default()` — Balanced settings
+- `StorageConfig::Production()` — High capacity (4GB cache)
+- `StorageConfig::HighPerformance()` — Maximum throughput
+- `StorageConfig::MemoryEfficient()` — Low memory footprint (512MB cache)
+
+## Public API Surface
+
+### Storage Interface (`include/tsdb/storage/storage.h`)
+
+```cpp
+class Storage {
+    virtual Result<void> init(const StorageConfig& config) = 0;
+    virtual Result<void> write(const TimeSeries& series) = 0;
+    virtual Result<TimeSeries> read(const Labels& labels, int64_t start, int64_t end) = 0;
+    virtual Result<vector<TimeSeries>> query(const vector<LabelMatcher>& matchers, ...) = 0;
+    virtual Result<void> delete_series(const vector<LabelMatcher>& matchers) = 0;
+    virtual Result<vector<string>> label_names() = 0;
+    virtual Result<vector<string>> label_values(const string& name) = 0;
+    virtual Result<void> compact() = 0;
+    virtual Result<void> flush() = 0;
+    virtual Result<void> close() = 0;
+};
+```
+
+### HTTP Endpoints (Prometheus-compatible)
+
+- `POST /api/v1/write` — Remote Write
+- `POST /api/v1/read` — Remote Read
+- `GET /api/v1/query` — PromQL instant query
+- `GET /api/v1/query_range` — PromQL range query
+- `GET /api/v1/labels` — Label names
+- `GET /api/v1/label/:name/values` — Label values
+- `GET /api/v1/series` — Series lookup
+
+## Known Limitations
+
+- **L2 cache disabled**: Memory-mapped cache causes segfaults (under investigation)
+- **Background processing**: Disabled by default in tests for stability
+- **Semantic vectors**: Experimental, `TSDB_SEMVEC=OFF` by default
+
 ## Important Notes
 
 - The Makefile is the primary interface for all build/test operations — always use `make` targets rather than invoking CMake directly
 - Warnings are suppressed (`-w` flag) in the build to keep output clean
-- The `TSDB_SEMVEC` option is experimental and OFF by default
 - Parquet cold storage uses `.idx` sidecar files for fast lookups
 - The `otel-proto/` directory is a git submodule — run `git submodule update --init` after cloning
 - Test data fixtures live in `test/data/`
+- Tests that create temporary directories should clean up in `TearDown()` using `std::filesystem::remove_all()`
